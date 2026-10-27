@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  imageUrl    String?
+  orderIndex  Int       @default(0)
+  isActive    Boolean   @default(true)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id               String           @id @default(cuid())
+  name             String
+  slug             String           @unique
+  description      String
+  composition      String?          // Skład, np. 70% wiskoza, 30% jedwab
+  careGuide        String?          // Zasady pielęgnacji
+  sizeGuide        String?          // Tabela wymiarów / instrukcja
+  basePrice        Decimal          @db.Decimal(10, 2)
+  promotionalPrice Decimal?         @db.Decimal(10, 2)
+  isPromoted       Boolean          @default(false) // Dedykowana rubryka na zaznaczanie produktów w promocji
+  isNew            Boolean          @default(false) // Oznaczenie: Nowość
+  isBestseller     Boolean          @default(false) // Oznaczenie: Bestseller
+  isPublished      Boolean          @default(true)  // Widoczny w sklepie
+  isArchived       Boolean          @default(false) // Zarchiwizowany
+  isDemo           Boolean          @default(false) // Oznaczenie danych demonstracyjnych
+  categoryId       String
+  category         Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images           ProductImage[]
+  variants         ProductVariant[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([isPublished, isArchived])
+  @@index([isPromoted])
+  @@index([isNew])
+  @@index([isBestseller])
+}
+
+model ProductImage {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url        String
+  altText    String?
+  orderIndex Int      @default(0)
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+}
+
+model ProductVariant {
+  id               String      @id @default(cuid())
+  productId        String
+  product          Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size             String      // np. XS, S, M, L, XL, UNI
+  color            String      // np. Piaskowy beż, Pudrowy róż, Głęboka czerń
+  colorHex         String?     // Kod koloru HEX do próbnika
+  sku              String      @unique
+  stockQuantity    Int         @default(0) // Dostępny stan magazynowy
+  reservedQuantity Int         @default(0) // Tymczasowo zarezerwowane dla koszyków/zamówień
+  orderItems       OrderItem[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([productId])
+  @@unique([productId, size, color])
+}
+
+enum ShippingMethod {
+  INPOST_LOCKER
+  COURIER
+  LOCAL_PICKUP
+}
+
+enum PaymentMethod {
+  PRZELEWY24
+  BLIK
+  TRADITIONAL_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum FulfillmentStatus {
+  NEW
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id                 String            @id @default(cuid())
+  orderNumber        String            @unique // np. AURA-2026-0001
+  customerFirstName  String
+  customerLastName   String
+  customerEmail      String
+  customerPhone      String
+  shippingMethod     ShippingMethod    @default(INPOST_LOCKER)
+  parcelLockerCode   String?           // Kod paczkomatu InPost
+  shippingStreet     String?
+  shippingCity       String?
+  shippingPostalCode String?
+  paymentMethod      PaymentMethod     @default(BLIK)
+  paymentStatus      PaymentStatus     @default(PENDING)
+  fulfillmentStatus  FulfillmentStatus @default(NEW)
+  trackingNumber     String?           // Numer listu przewozowego
+  subtotalAmount     Decimal           @db.Decimal(10, 2)
+  shippingCost       Decimal           @db.Decimal(10, 2)
+  totalAmount        Decimal           @db.Decimal(10, 2)
+  customerNotes      String?
+  adminNotes         String?
+  reservedUntil      DateTime?         // Czas wygaśnięcia rezerwacji towaru
+  items              OrderItem[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([orderNumber])
+  @@index([customerEmail])
+  @@index([paymentStatus])
+  @@index([fulfillmentStatus])
+}
+
+model OrderItem {
+  id                  String          @id @default(cuid())
+  orderId             String
+  order               Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId           String?
+  variant             ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  productNameSnapshot String          // Nazwa produktu z chwili zakupu
+  variantSnapshot     String          // Rozmiar, Kolor, SKU z chwili zakupu
+  unitPriceSnapshot   Decimal         @db.Decimal(10, 2)
+  quantity            Int             @default(1)
+  totalSnapshot       Decimal         @db.Decimal(10, 2)
+  productImageUrl     String?
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+model StoreSettings {
+  id                   String   @id @default("default")
+  boutiqueName         String   @default("AURA Boutique K.B.")
+  address              String   @default("Żmigród | ul. Poprzeczna 3/1A")
+  phone                String   @default("+48 600 000 000")
+  email                String   @default("kontakt@auraboutique.pl")
+  openingHours         String   @default("Pon - Pt: 10:00 - 18:00 | Sob: 10:00 - 14:00")
+  announcementBarText  String   @default("Darmowa dostawa od 300 PLN | Odbiór osobisty w Żmigrodzie")
+  heroHeadline         String   @default("Elegancja w każdym detalu")
+  heroSubheadline      String   @default("Odkryj kolekcję stworzoną dla kobiet ceniących klasę, subtelność i najwyższą jakość kroju.")
+  heroImageUrl         String?
+  freeShippingFrom     Decimal  @default(300.00) @db.Decimal(10, 2)
+  courierCost          Decimal  @default(15.00) @db.Decimal(10, 2)
+  inpostLockerCost     Decimal  @default(13.00) @db.Decimal(10, 2)
+  localPickupCost      Decimal  @default(0.00) @db.Decimal(10, 2)
+  p24MerchantId        String?
+  p24PosId             String?
+  p24CrcKey            String?
+  p24ApiKey            String?
+  p24Sandbox           Boolean  @default(true)
+  updatedAt            DateTime @updatedAt
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
