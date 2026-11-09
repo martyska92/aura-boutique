@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import sharp from "sharp";
 
 export const runtime = "nodejs";
 
@@ -64,29 +63,41 @@ export async function POST(request: NextRequest) {
 
     const uploadedUrls: string[] = [];
 
+    // Bezpieczne ładowanie sharp
+    let sharp: any = null;
+    try {
+      sharp = (await import("sharp")).default;
+    } catch (e) {
+      console.warn("Sharp nie mógł zostać załadowany, używam surowych plików:", e);
+    }
+
     for (const file of files) {
       if (!file || typeof file.arrayBuffer !== "function") continue;
 
       const bytes = await file.arrayBuffer();
       const rawBuffer = Buffer.from(bytes);
 
-      // Optymalizacja grafiki: automatyczna rotacja z EXIF (orientacja aparatu telefonu),
-      // zmniejszenie wymiarów do max 1400px i kompresja WebP
-      let optimizedBuffer: Buffer;
-      try {
-        optimizedBuffer = await sharp(rawBuffer)
-          .rotate() // Obraca pionowe zdjęcia ze smartfona do właściwej orientacji
-          .resize({
-            width: 1400,
-            height: 1400,
-            fit: "inside",
-            withoutEnlargement: true,
-          })
-          .webp({ quality: 80 })
-          .toBuffer();
-      } catch (sharpError) {
-        console.warn("Błąd sharp, używam surowego bufora:", sharpError);
-        optimizedBuffer = rawBuffer;
+      let optimizedBuffer: Buffer = rawBuffer;
+      let isWebpConverted = false;
+
+      if (sharp) {
+        try {
+          optimizedBuffer = await sharp(rawBuffer)
+            .rotate() // Obraca pionowe zdjęcia ze smartfona do właściwej orientacji
+            .resize({
+              width: 1400,
+              height: 1400,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .webp({ quality: 80 })
+            .toBuffer();
+          isWebpConverted = true;
+        } catch (sharpError) {
+          console.warn("Błąd sharp podczas konwersji, używam surowego bufora:", sharpError);
+          optimizedBuffer = rawBuffer;
+          isWebpConverted = false;
+        }
       }
 
       // 1. Sprawdź, czy Cloudinary jest skonfigurowane
@@ -96,11 +107,13 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // 2. Jeśli jesteśmy na Vercel (środowisko read-only bez Cloudinary), użyj zoptymalizowanego Data URL
+      // 2. Jeśli jesteśmy na Vercel (środowisko read-only), użyj zoptymalizowanego Data URL
       const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+      const mimeType = isWebpConverted ? "image/webp" : (file.type || "image/jpeg");
+
       if (isVercel) {
         const base64Data = optimizedBuffer.toString("base64");
-        uploadedUrls.push(`data:image/webp;base64,${base64Data}`);
+        uploadedUrls.push(`data:${mimeType};base64,${base64Data}`);
         continue;
       }
 
@@ -113,16 +126,17 @@ export async function POST(request: NextRequest) {
 
         const timestamp = Date.now();
         const randomSuffix = Math.random().toString(36).substring(2, 8);
-        const filename = `prod-${timestamp}-${randomSuffix}.webp`;
+        const ext = isWebpConverted ? "webp" : (file.name?.split(".").pop() || "jpg");
+        const filename = `prod-${timestamp}-${randomSuffix}.${ext}`;
         const filePath = path.join(uploadDir, filename);
 
         fs.writeFileSync(filePath, optimizedBuffer);
         uploadedUrls.push(`/uploads/${filename}`);
       } catch (fsError: any) {
-        // Jeśli system plików okazał się read-only (EROFS), bezpieczny fallback do Data URL
+        // Jeśli system plików okazał się read-only (np. EROFS na serwerze), fallback do Data URL
         console.warn("Brak uprawnień do zapisu na dysku, używam Data URL:", fsError?.message);
         const base64Data = optimizedBuffer.toString("base64");
-        uploadedUrls.push(`data:image/webp;base64,${base64Data}`);
+        uploadedUrls.push(`data:${mimeType};base64,${base64Data}`);
       }
     }
 
@@ -134,10 +148,13 @@ export async function POST(request: NextRequest) {
       success: true,
       urls: uploadedUrls,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Błąd w endpointzie uploadu:", error);
     return NextResponse.json(
-      { error: "Wystąpił błąd podczas przesyłania plików na serwer" },
+      { 
+        error: error?.message || "Wystąpił błąd podczas przesyłania plików na serwer",
+        details: String(error)
+      },
       { status: 500 }
     );
   }
