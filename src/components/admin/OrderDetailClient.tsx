@@ -18,6 +18,8 @@ import {
   AlertCircle,
   Copy,
   ExternalLink,
+  RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { Order, FulfillmentStatus, PaymentStatus } from "@/lib/types";
 
@@ -251,6 +253,59 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
               </div>
             </div>
           </div>
+
+          {/* Sekcja zgłoszonych zwrotów (jeśli klientka wyklikała zwrot) */}
+          {order.returns && order.returns.length > 0 && (
+            <div className="bg-white p-6 border-2 border-red-200 rounded shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-red-100">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4 text-red-600" />
+                  <h3 className="font-serif text-sm uppercase tracking-wider text-red-950 font-bold">
+                    Zgłoszenia Zwrotów od Klientki ({order.returns.length})
+                  </h3>
+                </div>
+                <span className="px-2 py-0.5 text-[10px] uppercase font-bold rounded bg-red-100 text-red-800">
+                  Wymaga weryfikacji
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {order.returns.map((ret) => (
+                  <div key={ret.id} className="p-3 bg-[#FFF9F8] border border-red-200 rounded space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono font-bold text-[#241D1B]">ID: {ret.id}</span>
+                      <span className="text-[10px] text-[#857670]">
+                        {new Date(ret.createdAt).toLocaleDateString("pl-PL")}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="font-semibold text-[#241D1B]">Zwracane ubrania:</p>
+                      {ret.items.map((it, i) => (
+                        <div key={i} className="pl-2 border-l-2 border-red-300 text-[#6E6259]">
+                          • <strong>{it.productName}</strong> ({it.variantSnapshot}) - {it.quantity} szt.
+                          <div className="text-[10px] text-red-700 italic">Powód: {it.reason}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 border-t border-red-100 text-[11px] text-[#3E3B38] flex flex-wrap gap-4">
+                      <span>Sposób zwrotu: <strong>{ret.returnMethod}</strong></span>
+                      {ret.returnTrackingNumber && (
+                        <span>Kod zwrotu InPost: <strong className="font-mono">{ret.returnTrackingNumber}</strong></span>
+                      )}
+                    </div>
+
+                    {ret.customerNote && (
+                      <p className="italic text-[11px] text-[#6E6259]">
+                        Uwagi klientki: "{ret.customerNote}"
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Prawa strona: KONTROLA STATUSÓW I WYSYŁKI */}
@@ -337,10 +392,23 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
             </div>
 
             {/* Numer przesyłki / listu przewozowego */}
-            <div>
-              <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                Numer Przesyłki (InPost / Kurier)
-              </label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-[#241D1B] block">
+                  Numer Przesyłki (InPost / Kurier)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const generated = `624${Math.floor(100000000000000000000 + Math.random() * 900000000000000000000)}`;
+                    setTrackingNumber(generated);
+                    setFulfillmentStatus("SHIPPED");
+                  }}
+                  className="text-[10px] uppercase font-bold text-[#9E8359] hover:underline"
+                >
+                  + Generuj list InPost
+                </button>
+              </div>
               <input
                 type="text"
                 placeholder="Np. 624000000000000000000000"
@@ -349,14 +417,23 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
                 className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs font-mono text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
               />
               {trackingNumber && (
-                <a
-                  href={getInPostTrackingUrl(trackingNumber)}
-                  target="_blank"
-                  className="mt-1 text-[11px] text-[#C5A069] hover:underline flex items-center gap-1 font-medium"
-                >
-                  <span>Sprawdź śledzenie InPost</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                <div className="flex items-center justify-between text-[11px] pt-1">
+                  <a
+                    href={getInPostTrackingUrl(trackingNumber)}
+                    target="_blank"
+                    className="text-[#C5A069] hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <span>Sprawdź śledzenie InPost</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href={`https://manager.paczkomaty.pl/`}
+                    target="_blank"
+                    className="text-[#6E6259] hover:text-[#241D1B] underline"
+                  >
+                    Drukuj etykietę PDF ↗
+                  </a>
+                </div>
               )}
             </div>
 

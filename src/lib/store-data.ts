@@ -5,6 +5,8 @@ import {
   Product,
   StoreSettings,
   Order,
+  OrderItem,
+  ReturnRequest,
   FulfillmentStatus,
   PaymentStatus,
 } from "./types";
@@ -507,6 +509,101 @@ export async function updateOrderAdmin(
 
   saveLocalStore(store);
   return order;
+}
+
+// Klientka edytuje zamówienie (dokupuje lub zmienia pozycje przed akceptacją butiku)
+export async function editOrderCustomer(
+  orderId: string,
+  newItems: OrderItem[]
+): Promise<Order> {
+  const store = loadLocalStore();
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new Error("Nie znaleziono zamówienia");
+
+  // Edycja dozwolona tylko dopóki zamówienie ma status "NEW" (przed akceptacją przez właścicielkę)
+  if (order.fulfillmentStatus !== "NEW") {
+    throw new Error(
+      "Zamówienie zostało już zaakceptowane i przekazane do realizacji przez butik. Zmiany nie są już możliwe."
+    );
+  }
+
+  if (!newItems || newItems.length === 0) {
+    throw new Error("Zamówienie musi zawierać co najmniej jeden produkt.");
+  }
+
+  // Przeliczanie sum
+  const subtotal = newItems.reduce((acc, item) => acc + item.totalSnapshot, 0);
+  const freeThreshold = store.settings.freeShippingFrom || 300;
+  
+  // Jeśli kwota przekracza próg, darmowa dostawa
+  let shippingCost = order.shippingCost;
+  if (subtotal >= freeThreshold) {
+    shippingCost = 0;
+  } else if (order.shippingMethod === "LOCAL_PICKUP") {
+    shippingCost = 0;
+  } else if (shippingCost === 0) {
+    shippingCost = order.shippingMethod === "INPOST_LOCKER" 
+      ? (store.settings.inpostLockerCost || 13) 
+      : (store.settings.courierCost || 15);
+  }
+
+  order.items = newItems;
+  order.subtotalAmount = subtotal;
+  order.shippingCost = shippingCost;
+  order.totalAmount = subtotal + shippingCost;
+  order.updatedAt = new Date().toISOString();
+
+  saveLocalStore(store);
+  return order;
+}
+
+// Zgłoszenie zwrotu produktów przez klientkę
+export async function createReturnRequest(
+  orderId: string,
+  data: {
+    items: {
+      orderItemId: string;
+      productName: string;
+      variantSnapshot: string;
+      quantity: number;
+      reason: string;
+      unitPrice: number;
+    }[];
+    returnMethod: "INPOST_LOCKER" | "COURIER" | "IN_PERSON";
+    customerNote?: string;
+  }
+): Promise<ReturnRequest> {
+  const store = loadLocalStore();
+  const order = store.orders.find((o) => o.id === orderId);
+  if (!order) throw new Error("Nie znaleziono zamówienia");
+
+  const returnId = `ZWR-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // Generujemy zwrotny kod nadania InPost dla wygody klientki
+  const returnTrackingNumber = data.returnMethod === "INPOST_LOCKER" 
+    ? `ZWROT-${Math.floor(1000000000 + Math.random() * 9000000000)}` 
+    : undefined;
+
+  const returnRequest: ReturnRequest = {
+    id: returnId,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    createdAt: new Date().toISOString(),
+    status: "PENDING",
+    items: data.items,
+    returnMethod: data.returnMethod,
+    returnTrackingNumber,
+    customerNote: data.customerNote || "",
+  };
+
+  if (!order.returns) {
+    order.returns = [];
+  }
+  order.returns.unshift(returnRequest);
+  order.updatedAt = new Date().toISOString();
+
+  saveLocalStore(store);
+  return returnRequest;
 }
 
 // ==========================================

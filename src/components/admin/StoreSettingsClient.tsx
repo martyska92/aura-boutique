@@ -232,6 +232,123 @@ export function StoreSettingsClient({
             </div>
           </div>
 
+          {/* Konfiguracja Integracji InPost (ShipX / Paczkomaty) */}
+          <div className="bg-white p-6 border-2 border-[#FFE885]/80 rounded shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#EADFD5]">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[#FFD800] text-black font-extrabold text-[11px] flex items-center justify-center">
+                  in
+                </span>
+                <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] font-semibold">
+                  Integracja i Konfiguracja InPost (Paczkomaty & Kurier)
+                </h2>
+              </div>
+              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-100 text-amber-900 border border-amber-300">
+                ShipX API
+              </span>
+            </div>
+
+            <p className="text-xs text-[#6E6259]">
+              Skonfiguruj połączenie z InPost ShipX, aby automatycznie generować numery przesyłek, pobierać etykiety i umożliwiać klientkom śledzenie paczki na żywo oraz wygodne zwroty przez Paczkomat.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Token API ShipX InPost (Bearer Token)
+                </label>
+                <input
+                  type="password"
+                  placeholder="Wklej token z Manager Paczek InPost"
+                  value={settings.inpostApiKey || ""}
+                  onChange={(e) => handleChange("inpostApiKey", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  ID Organizacji InPost (Organization ID)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Np. 123456"
+                  value={settings.inpostOrganizationId || ""}
+                  onChange={(e) => handleChange("inpostOrganizationId", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Środowisko API
+                </label>
+                <select
+                  value={settings.inpostEnvironment || "production"}
+                  onChange={(e) => handleChange("inpostEnvironment", e.target.value as any)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                >
+                  <option value="production">Produkcyjne (api-shipx-pl.easypack24.net)</option>
+                  <option value="sandbox">Testowe / Sandbox (sandbox-api-shipx-pl.easypack24.net)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Domyślny Paczkomat nadawczy Butiku
+                </label>
+                <input
+                  type="text"
+                  placeholder="Np. ZMI01M (Żmigród, ul. Poprzeczna)"
+                  value={settings.inpostSenderLocker || "ZMI01M"}
+                  onChange={(e) => handleChange("inpostSenderLocker", e.target.value.toUpperCase())}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono font-semibold focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Nazwa nadawcy na etykiecie
+                </label>
+                <input
+                  type="text"
+                  value={settings.inpostSenderName || "AURA Boutique K.B."}
+                  onChange={(e) => handleChange("inpostSenderName", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Telefon nadawcy (SMS powiadomienia)
+                </label>
+                <input
+                  type="text"
+                  value={settings.inpostSenderPhone || "+48 572 268 005"}
+                  onChange={(e) => handleChange("inpostSenderPhone", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 bg-[#FFFDEB] border border-[#FFE885] rounded text-[11px] text-[#7A641E] flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Info className="w-4 h-4 text-[#D89F00] shrink-0" />
+                <span>
+                  Klucze API możesz wygenerować bezpłatnie w panelu: <strong>Manager Paczek InPost &gt; Moje konto &gt; Integracje API</strong>.
+                </span>
+              </div>
+              <a
+                href="https://manager.paczkomaty.pl/"
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold underline shrink-0 hover:text-black"
+              >
+                Otwórz InPost ↗
+              </a>
+            </div>
+          </div>
+
           <div className="pt-2">
             <button
               type="submit"

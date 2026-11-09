@@ -8,17 +8,6 @@ export type Category = {
   isActive: boolean;
 };
 
-export type ProductVariant = {
-  id: string;
-  productId: string;
-  size: string; // np. 'XS', 'S', 'M', 'L', 'XL', 'UNI'
-  color: string; // np. 'Piaskowy Beż'
-  colorHex?: string; // np. '#E5D6C5'
-  sku: string;
-  stockQuantity: number;
-  reservedQuantity: number;
-};
-
 export type ProductImage = {
   id: string;
   productId: string;
@@ -28,14 +17,25 @@ export type ProductImage = {
   isPrimary: boolean;
 };
 
+export type ProductVariant = {
+  id: string;
+  productId: string;
+  size: string;
+  color: string;
+  colorHex?: string;
+  sku: string;
+  stockQuantity: number;
+  reservedQuantity: number;
+};
+
 export type Product = {
   id: string;
   name: string;
   slug: string;
   description: string;
-  composition?: string;
-  careGuide?: string;
-  sizeGuide?: string;
+  composition?: string; // Skład materiałowy
+  careGuide?: string; // Instrukcja pielęgnacji
+  sizeGuide?: string; // Tabela wymiarów
   basePrice: number;
   promotionalPrice?: number;
   isPromoted: boolean; // Dedykowana rubryka: produkt w promocji
@@ -56,6 +56,28 @@ export type ShippingMethod = 'INPOST_LOCKER' | 'COURIER' | 'LOCAL_PICKUP';
 export type PaymentMethod = 'PRZELEWY24' | 'BLIK' | 'TRADITIONAL_TRANSFER';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 export type FulfillmentStatus = 'NEW' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+
+export type ReturnItem = {
+  orderItemId: string;
+  productName: string;
+  variantSnapshot: string;
+  quantity: number;
+  reason: string;
+  unitPrice: number;
+};
+
+export type ReturnRequest = {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  createdAt: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'REFUNDED';
+  items: ReturnItem[];
+  returnMethod: 'INPOST_LOCKER' | 'COURIER' | 'IN_PERSON';
+  returnTrackingNumber?: string;
+  customerNote?: string;
+  adminNote?: string;
+};
 
 export type OrderItem = {
   id: string;
@@ -85,6 +107,7 @@ export type Order = {
   paymentStatus: PaymentStatus;
   fulfillmentStatus: FulfillmentStatus;
   trackingNumber?: string;
+  inpostShipmentId?: string;
   subtotalAmount: number;
   shippingCost: number;
   totalAmount: number;
@@ -92,6 +115,7 @@ export type Order = {
   adminNotes?: string;
   reservedUntil?: string;
   items: OrderItem[];
+  returns?: ReturnRequest[];
   createdAt: string;
   updatedAt: string;
 };
@@ -111,6 +135,15 @@ export type StoreSettings = {
   courierCost: number;
   inpostLockerCost: number;
   localPickupCost: number;
+  // Integracja InPost ShipX
+  inpostApiKey?: string;
+  inpostOrganizationId?: string;
+  inpostEnvironment?: 'sandbox' | 'production';
+  inpostSenderLocker?: string;
+  inpostSenderName?: string;
+  inpostSenderEmail?: string;
+  inpostSenderPhone?: string;
+  // Integracja Przelewy24
   p24MerchantId?: string;
   p24PosId?: string;
   p24CrcKey?: string;
