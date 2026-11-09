@@ -47,7 +47,7 @@ export function BrandLogo({
 
       {/* Nowy Złoty logotyp AURA BOUTIQUE z wyrazistym, ostrym konturem i głębią */}
       <Image
-        src="/images/brand/aura-logo-v4.png"
+        src="/images/brand/aura-logo.png"
         alt="AURA Boutique"
         fill
         priority

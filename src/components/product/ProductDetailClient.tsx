@@ -221,7 +221,6 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 {product.basePrice.toFixed(2)} PLN
               </span>
             )}
-            <span className="text-[11px] text-[#857670]">zawiera VAT</span>
           </div>
 
           {/* Wybór Koloru */}
@@ -519,6 +518,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                     src={p.images[0]?.url || "/images/products/sukienka-satynowa-ivory.jpg"}
                     alt={p.name}
                     fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                     className="object-cover transition-transform group-hover:scale-105"
                   />
                 </Link>

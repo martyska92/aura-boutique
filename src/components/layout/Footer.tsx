@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { MapPin, Phone, Mail, Clock, ShieldCheck, Heart } from "lucide-react";
+import { MapPin, Phone, Mail, Clock, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 
 export function Footer() {
@@ -24,12 +24,8 @@ export function Footer() {
               <BrandLogo size="md" />
             </div>
             <p className="text-xs text-[#2E221E] leading-relaxed font-light">
-              Kobiecy butik stworzony z miłości do ponadczasowej elegancji, szlachetnych tkanin i kobiecego wdzięku. Odwiedź nas w Żmigrodzie lub zamów wygodnie online z dostawą do Paczkomatu i kurierem.
+              Butik z damską kolekcją ubrań i dodatków. Stworzony z miłości do ponadczasowych stylizacji, wysokiej jakości tkanin i kobiecego wdzięku. Odwiedź nas w Żmigrodzie lub zamów online z dostawą do paczkomatu i kurierem.
             </p>
-            <div className="pt-2 text-[11px] text-[#241D1B] flex items-center gap-1.5 font-semibold">
-              <Heart className="w-3.5 h-3.5 text-[#8A3A35]" />
-              <span>Szyte i selekcjonowane z dbałością o każdy detal</span>
-            </div>
           </div>
 
           {/* Kolumna 2: Kolekcje */}

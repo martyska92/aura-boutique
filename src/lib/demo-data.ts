@@ -366,7 +366,7 @@ export const initialStoreSettings: StoreSettings = {
   announcementBarText: "Darmowa dostawa od 300 PLN | Odbiór osobisty w butiku w Żmigrodzie",
   heroHeadline: "Elegancja w każdym detalu",
   heroSubheadline: "Odkryj kolekcję stworzoną dla kobiet ceniących klasę, subtelność i najwyższą jakość kroju.",
-  heroImageUrl: "/images/hero/hero-banner.jpg",
+  heroImageUrl: "/images/hero/aura-hero-motto.png",
   freeShippingFrom: 300.0,
   courierCost: 15.0,
   inpostLockerCost: 13.0,

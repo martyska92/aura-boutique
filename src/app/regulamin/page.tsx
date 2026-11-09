@@ -47,7 +47,7 @@ export default function TermsPage() {
                 1. Sklep umożliwia składanie zamówień jako gość, bez konieczności rejestracji i tworzenia konta użytkownika.
               </p>
               <p>
-                2. Wszystkie ceny produktów podawane są w polskich złotych (PLN) i zawierają należny podatek VAT.
+                2. Wszystkie ceny produktów podawane są w polskich złotych (PLN) i stanowią całkowitą kwotę do zapłaty (ceny nie zawierają podatku VAT).
               </p>
               <p>
                 3. Zawarcie umowy następuje z chwilą potwierdzenia przyjęcia zamówienia przez Sklep. Stany magazynowe oraz ceny podlegają weryfikacji serwerowej.

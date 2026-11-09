@@ -22,6 +22,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://auraboutique.pl"),
   title: "AURA Boutique K.B. | Ekskluzywna Odzież Damska",
   description:
     "AURA Boutique K.B. - wyjątkowy butik z damską odzieżą. Odkryj kolekcje sukienek, kompletów, swetrów, okryć i dodatków. Butik w Żmigrodzie i sklep online.",

@@ -29,6 +29,7 @@ export default function AboutPage() {
               src="/images/hero/aura-hero-motto.png"
               alt="AURA Boutique K.B. Wnętrze i styl"
               fill
+              sizes="(max-width: 1024px) 100vw, 896px"
               className="object-cover"
             />
           </div>
