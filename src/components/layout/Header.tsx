@@ -57,10 +57,10 @@ export function Header() {
         <AnnouncementBar />
 
         {/* Główny pasek nawigacyjny */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="h-20 sm:h-24 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="h-16 sm:h-24 flex items-center justify-between gap-2 sm:gap-4">
             {/* Lewa strona: Hamburger na mobile + Wyszukiwarka */}
-            <div className="flex items-center gap-4 flex-1">
+            <div className="flex items-center gap-1 sm:gap-4 flex-1">
               <button
                 type="button"
                 className="lg:hidden p-2 text-[#241D1B] hover:text-[#542823] transition-colors"

@@ -24,6 +24,30 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleStatusChange = async (orderId: string, newStatus: FulfillmentStatus) => {
+    setUpdatingId(orderId);
+    try {
+      const res = await fetch("/api/admin/orders", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          fulfillmentStatus: newStatus,
+        }),
+      });
+      if (res.ok) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, fulfillmentStatus: newStatus } : o))
+        );
+      }
+    } catch (err) {
+      console.error("Błąd aktualizacji statusu:", err);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const filteredOrders = orders.filter((o) => {
     if (search.trim()) {
@@ -117,90 +141,171 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
             Brak zamówień spełniających wybrane kryteria.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs divide-y divide-[#EADFD5]">
-              <thead className="bg-[#FAF6F1] text-[#6E6259] uppercase text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Numer Zamówienia</th>
-                  <th className="py-3 px-4">Data</th>
-                  <th className="py-3 px-4">Klientka</th>
-                  <th className="py-3 px-4">Dostawa</th>
-                  <th className="py-3 px-4">Status Płatności</th>
-                  <th className="py-3 px-4">Status Realizacji</th>
-                  <th className="py-3 px-4">Kwota</th>
-                  <th className="py-3 px-4 text-right">Akcja</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EADFD5]">
-                {filteredOrders.map((o) => (
-                  <tr key={o.id} className="hover:bg-[#FAF6F1] transition-colors">
-                    <td className="py-3 px-4 font-mono font-medium text-[#241D1B]">
-                      <Link
-                        href={`/admin/zamowienia/${o.id}`}
-                        className="hover:text-[#C5A069] underline"
-                      >
+          <>
+            {/* WIDOK DLA SMARTFONÓW / TELEFONU (KAFELKOWY BEZ ROZJEŻDŻANIA EKRANU) */}
+            <div className="md:hidden divide-y divide-[#EADFD5]">
+              {filteredOrders.map((o) => (
+                <div key={o.id} className="p-4 space-y-3 bg-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-mono font-bold text-xs text-[#241D1B]">
                         {o.orderNumber}
-                      </Link>
-                    </td>
+                      </span>
+                      <span className="text-[10px] text-[#857670] block">
+                        {new Date(o.createdAt).toLocaleDateString("pl-PL", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <span className="font-semibold text-sm text-[#241D1B]">
+                      {o.totalAmount.toFixed(2)} zł
+                    </span>
+                  </div>
 
-                    <td className="py-3 px-4 text-[#6E6259]">
-                      {new Date(o.createdAt).toLocaleDateString("pl-PL", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
+                  <div className="text-xs text-[#4A3F3B]">
+                    <p className="font-medium">
+                      {o.customerFirstName} {o.customerLastName}
+                    </p>
+                    <p className="text-[11px] text-[#857670]">{o.customerPhone} • {o.customerEmail}</p>
+                    <p className="text-[11px] text-[#6E6259] mt-0.5">
+                      {o.shippingMethod === "INPOST_LOCKER" && `Paczkomat: ${o.parcelLockerCode}`}
+                      {o.shippingMethod === "COURIER" && `Kurier (${o.shippingCity})`}
+                      {o.shippingMethod === "LOCAL_PICKUP" && "Odbiór osobisty w Żmigrodzie"}
+                    </p>
+                  </div>
 
-                    <td className="py-3 px-4">
-                      <p className="font-medium text-[#241D1B]">
-                        {o.customerFirstName} {o.customerLastName}
-                      </p>
-                      <p className="text-[11px] text-[#6E6259]">{o.customerPhone}</p>
-                    </td>
+                  <div className="pt-2 border-t border-[#FAF6F1] flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-medium text-[#6E6259]">Zmień status:</span>
+                      <select
+                        value={o.fulfillmentStatus}
+                        disabled={updatingId === o.id}
+                        onChange={(e) => handleStatusChange(o.id, e.target.value as FulfillmentStatus)}
+                        className={`text-xs py-1 px-2 rounded font-bold border focus:outline-none ${statusBadges[o.fulfillmentStatus]?.class}`}
+                      >
+                        <option value="NEW">NOWE</option>
+                        <option value="PROCESSING">W REALIZACJI</option>
+                        <option value="SHIPPED">WYSŁANE</option>
+                        <option value="DELIVERED">ZREALIZOWANE</option>
+                        <option value="CANCELLED">ANULOWANE</option>
+                      </select>
+                    </div>
 
-                    <td className="py-3 px-4 text-[#6E6259]">
-                      {o.shippingMethod === "INPOST_LOCKER" && (
-                        <span>Paczkomat: <strong>{o.parcelLockerCode}</strong></span>
-                      )}
-                      {o.shippingMethod === "COURIER" && (
-                        <span>Kurier ({o.shippingCity})</span>
-                      )}
-                      {o.shippingMethod === "LOCAL_PICKUP" && (
-                        <span className="text-emerald-800 font-semibold">Odbiór w Żmigrodzie</span>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-4">
+                    <div className="flex items-center justify-between pt-1">
                       <span className={`px-2 py-0.5 rounded text-[11px] border border-black/10 ${paymentBadges[o.paymentStatus]?.class}`}>
                         {paymentBadges[o.paymentStatus]?.label}
                       </span>
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${statusBadges[o.fulfillmentStatus]?.class}`}>
-                        {statusBadges[o.fulfillmentStatus]?.label}
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-4 font-semibold text-[#241D1B]">
-                      {o.totalAmount.toFixed(2)} zł
-                    </td>
-
-                    <td className="py-3 px-4 text-right">
                       <Link
                         href={`/admin/zamowienia/${o.id}`}
-                        className="px-3 py-1.5 bg-[#C5A069] text-white text-[10px] uppercase tracking-wider font-semibold rounded hover:bg-[#AF884F] transition-colors shadow-xs"
+                        className="px-3 py-1 bg-[#C5A069] text-white text-[10px] uppercase tracking-wider font-semibold rounded hover:bg-[#AF884F] transition-colors"
                       >
-                        Zarządzaj
+                        Szczegóły & Etykieta →
                       </Link>
-                    </td>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* WIDOK DLA KOMPUTERA (TABELA) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs divide-y divide-[#EADFD5]">
+                <thead className="bg-[#FAF6F1] text-[#6E6259] uppercase text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Numer Zamówienia</th>
+                    <th className="py-3 px-4">Data</th>
+                    <th className="py-3 px-4">Klientka</th>
+                    <th className="py-3 px-4">Dostawa</th>
+                    <th className="py-3 px-4">Status Płatności</th>
+                    <th className="py-3 px-4">Status Realizacji</th>
+                    <th className="py-3 px-4">Kwota</th>
+                    <th className="py-3 px-4 text-right">Akcja</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-[#EADFD5]">
+                  {filteredOrders.map((o) => (
+                    <tr key={o.id} className="hover:bg-[#FAF6F1] transition-colors">
+                      <td className="py-3 px-4 font-mono font-medium text-[#241D1B]">
+                        <Link
+                          href={`/admin/zamowienia/${o.id}`}
+                          className="hover:text-[#C5A069] underline"
+                        >
+                          {o.orderNumber}
+                        </Link>
+                      </td>
+
+                      <td className="py-3 px-4 text-[#6E6259]">
+                        {new Date(o.createdAt).toLocaleDateString("pl-PL", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-[#241D1B]">
+                          {o.customerFirstName} {o.customerLastName}
+                        </p>
+                        <p className="text-[11px] text-[#6E6259]">{o.customerPhone}</p>
+                      </td>
+
+                      <td className="py-3 px-4 text-[#6E6259]">
+                        {o.shippingMethod === "INPOST_LOCKER" && (
+                          <span>Paczkomat: <strong>{o.parcelLockerCode}</strong></span>
+                        )}
+                        {o.shippingMethod === "COURIER" && (
+                          <span>Kurier ({o.shippingCity})</span>
+                        )}
+                        {o.shippingMethod === "LOCAL_PICKUP" && (
+                          <span className="text-emerald-800 font-semibold">Odbiór w Żmigrodzie</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-0.5 rounded text-[11px] border border-black/10 ${paymentBadges[o.paymentStatus]?.class}`}>
+                          {paymentBadges[o.paymentStatus]?.label}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <select
+                          value={o.fulfillmentStatus}
+                          disabled={updatingId === o.id}
+                          onChange={(e) => handleStatusChange(o.id, e.target.value as FulfillmentStatus)}
+                          className={`text-xs py-1 px-2 rounded font-bold border cursor-pointer focus:outline-none ${statusBadges[o.fulfillmentStatus]?.class}`}
+                        >
+                          <option value="NEW">NOWE</option>
+                          <option value="PROCESSING">W REALIZACJI</option>
+                          <option value="SHIPPED">WYSŁANE</option>
+                          <option value="DELIVERED">ZREALIZOWANE</option>
+                          <option value="CANCELLED">ANULOWANE</option>
+                        </select>
+                      </td>
+
+                      <td className="py-3 px-4 font-semibold text-[#241D1B]">
+                        {o.totalAmount.toFixed(2)} zł
+                      </td>
+
+                      <td className="py-3 px-4 text-right">
+                        <Link
+                          href={`/admin/zamowienia/${o.id}`}
+                          className="px-3 py-1.5 bg-[#C5A069] text-white text-[10px] uppercase tracking-wider font-semibold rounded hover:bg-[#AF884F] transition-colors shadow-xs"
+                        >
+                          Zarządzaj
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

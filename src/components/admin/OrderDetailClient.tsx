@@ -141,7 +141,14 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
                   <div className="flex items-center gap-3">
                     {item.productImageUrl && (
                       <div className="relative w-14 h-20 bg-[#FAF6F1] border border-[#EADFD5] overflow-hidden shrink-0 rounded-xs">
-                        <Image src={item.productImageUrl} alt={item.productNameSnapshot} fill className="object-cover" sizes="56px" />
+                        <Image
+                          src={item.productImageUrl}
+                          alt={item.productNameSnapshot}
+                          fill
+                          className="object-cover"
+                          sizes="56px"
+                          unoptimized={item.productImageUrl.startsWith("data:")}
+                        />
                       </div>
                     )}
                     <div>
@@ -261,6 +268,44 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
               <label className="text-xs font-semibold text-[#241D1B] block mb-1">
                 Status Realizacji Zamówienia
               </label>
+
+              {/* Szybkie przyciski zmiany statusu jednym dotknięciem */}
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setFulfillmentStatus("PROCESSING")}
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors ${
+                    fulfillmentStatus === "PROCESSING"
+                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                      : "bg-[#FAF6F1] text-blue-900 border-blue-200 hover:bg-blue-50"
+                  }`}
+                >
+                  Pakowanie
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFulfillmentStatus("SHIPPED")}
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors ${
+                    fulfillmentStatus === "SHIPPED"
+                      ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                      : "bg-[#FAF6F1] text-purple-900 border-purple-200 hover:bg-purple-50"
+                  }`}
+                >
+                  Wysłane 📦
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFulfillmentStatus("DELIVERED")}
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors ${
+                    fulfillmentStatus === "DELIVERED"
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                      : "bg-[#FAF6F1] text-emerald-900 border-emerald-200 hover:bg-emerald-50"
+                  }`}
+                >
+                  Dostarczone ✓
+                </button>
+              </div>
+
               <select
                 value={fulfillmentStatus}
                 onChange={(e) => setFulfillmentStatus(e.target.value as any)}

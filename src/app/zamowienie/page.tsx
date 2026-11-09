@@ -513,7 +513,14 @@ export default function CheckoutPage() {
                     {items.map((item) => (
                       <div key={item.variantId} className="py-3 flex gap-3 text-xs first:pt-0">
                         <div className="relative w-14 h-18 bg-[#FAF6F1] shrink-0 border border-[#EADFD5] rounded-xs overflow-hidden">
-                          <Image src={item.imageUrl} alt={item.name} fill className="object-cover" sizes="56px" />
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                            sizes="56px"
+                            unoptimized={item.imageUrl.startsWith("data:")}
+                          />
                         </div>
                         <div className="flex-1 flex flex-col justify-between">
                           <div>

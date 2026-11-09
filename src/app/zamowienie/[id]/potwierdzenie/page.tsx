@@ -164,7 +164,14 @@ export default async function OrderConfirmationPage({ params }: ConfirmationPage
                     <div className="flex items-center gap-3">
                       {item.productImageUrl && (
                         <div className="relative w-12 h-16 bg-[#FAF6F1] shrink-0 border border-[#EADFD5] rounded-xs overflow-hidden">
-                          <Image src={item.productImageUrl} alt={item.productNameSnapshot} fill className="object-cover" sizes="48px" />
+                          <Image
+                            src={item.productImageUrl}
+                            alt={item.productNameSnapshot}
+                            fill
+                            className="object-cover"
+                            sizes="48px"
+                            unoptimized={item.productImageUrl.startsWith("data:")}
+                          />
                         </div>
                       )}
                       <div>

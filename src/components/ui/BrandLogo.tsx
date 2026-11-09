@@ -18,24 +18,24 @@ export function BrandLogo({
   variant = "default",
 }: BrandLogoProps) {
   const heightClasses = {
-    sm: "h-9 sm:h-10",
-    md: "h-14 sm:h-18 lg:h-20",
-    lg: "h-20 sm:h-24",
-    xl: "h-24 sm:h-32 lg:h-40",
+    sm: "h-8 sm:h-10",
+    md: "h-11 sm:h-18 lg:h-20",
+    lg: "h-18 sm:h-24",
+    xl: "h-22 sm:h-32 lg:h-40",
   };
 
   const auraSizes = {
-    sm: "w-36 h-14",
-    md: "w-64 sm:w-80 h-22 sm:h-26",
-    lg: "w-80 sm:w-96 h-30 sm:h-36",
-    xl: "w-96 sm:w-[460px] h-38 sm:h-46",
+    sm: "w-28 h-10",
+    md: "w-36 sm:w-80 h-16 sm:h-26",
+    lg: "w-64 sm:w-96 h-24 sm:h-36",
+    xl: "w-80 sm:w-[460px] h-32 sm:h-46",
   };
 
   const content = (
-    <div className={`relative ${heightClasses[size]} aspect-[983/374] shrink-0 flex items-center justify-center`}>
+    <div className={`relative ${heightClasses[size]} max-w-full aspect-[983/374] shrink-0 flex items-center justify-center`}>
       {/* 🌟 Promieniująca Złota Aura z Logo (Ciepłe, nastrojowe złociste światło) 🌟 */}
       {withAura && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-0">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-0 overflow-hidden">
           <div
             className={`absolute ${auraSizes[size]} rounded-[100%] bg-[radial-gradient(ellipse_at_center,_rgba(235,190,120,0.32)_0%,_rgba(180,135,70,0.16)_48%,_transparent_75%)] blur-md sm:blur-lg animate-aura-pulse transition-opacity duration-500 group-hover:opacity-100 opacity-75`}
           />

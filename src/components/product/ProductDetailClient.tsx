@@ -144,7 +144,14 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                       : "border-[#EADFD5] hover:border-[#C5A069] opacity-80 hover:opacity-100"
                   }`}
                 >
-                  <Image src={img.url} alt={product.name} fill className="object-cover object-top" sizes="80px" />
+                  <Image
+                    src={img.url}
+                    alt={product.name}
+                    fill
+                    className="object-cover object-top"
+                    sizes="80px"
+                    unoptimized={img.url.startsWith("data:")}
+                  />
                 </button>
               ))}
             </div>
@@ -157,6 +164,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
               alt={product.name}
               fill
               priority
+              unoptimized={typeof activeImage === "string" && activeImage.startsWith("data:")}
               sizes="(max-width: 1024px) 100vw, 55vw"
               className="object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
             />
@@ -518,6 +526,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                     src={p.images[0]?.url || "/images/products/sukienka-satynowa-ivory.jpg"}
                     alt={p.name}
                     fill
+                    unoptimized={Boolean(p.images[0]?.url && p.images[0]?.url.startsWith("data:"))}
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                     className="object-cover transition-transform group-hover:scale-105"
                   />

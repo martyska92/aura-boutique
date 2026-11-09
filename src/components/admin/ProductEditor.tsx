@@ -32,6 +32,12 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
 
   const [name, setName] = useState(initialProduct?.name || "");
   const [slug, setSlug] = useState(initialProduct?.slug || "");
+  const [categoryList, setCategoryList] = useState<Category[]>(categories);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [categoryError, setCategoryError] = useState("");
+
   const [categoryId, setCategoryId] = useState(
     initialProduct?.categoryId || categories[0]?.id || "cat-sukienki"
   );
@@ -110,6 +116,35 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/(^-|-$)+/g, "")
       );
+    }
+  };
+
+  // Obsługa dodawania nowej kategorii ubrań przez właścicielkę
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+
+    setIsSavingCategory(true);
+    setCategoryError("");
+    try {
+      const res = await fetch("/api/admin/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategoryName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Błąd dodawania kategorii");
+      }
+      setCategoryList((prev) => [...prev, data.category]);
+      setCategoryId(data.category.id);
+      setNewCategoryName("");
+      setIsAddingCategory(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Błąd zapisu kategorii";
+      setCategoryError(msg);
+    } finally {
+      setIsSavingCategory(false);
     }
   };
 
@@ -370,7 +405,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
         {/* Lewa kolumna: Dane podstawowe, opis, skład, wymiary */}
         <div className="lg:col-span-8 space-y-6">
           {/* Karta: Podstawowe */}
-          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
+          <div className="bg-white p-4 sm:p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
             <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
               Podstawowe Informacje
             </h2>
@@ -392,15 +427,54 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                    Kategoria w butiku *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-[#241D1B]">
+                      Kategoria / Rodzaj ubrania *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingCategory(!isAddingCategory)}
+                      className="text-[11px] text-[#C5A069] hover:underline font-semibold flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>{isAddingCategory ? "Anuluj" : "+ Dodaj nowy rodzaj"}</span>
+                    </button>
+                  </div>
+
+                  {isAddingCategory && (
+                    <div className="mb-2 p-3 bg-[#F5EDE3] border border-[#DFCA9B] rounded space-y-2 text-xs">
+                      <p className="text-[11px] font-medium text-[#241D1B]">
+                        Wpisz nazwę nowego rodzaju ubrania (np. Spódnice, Marynarki, Kurtki, Kombinezony):
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder="Np. Marynarki"
+                          className="flex-1 bg-white border border-[#EADFD5] p-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                        />
+                        <button
+                          type="button"
+                          disabled={isSavingCategory || !newCategoryName.trim()}
+                          onClick={handleCreateCategory}
+                          className="px-3 py-2 bg-[#C5A069] text-white text-xs font-semibold rounded hover:bg-[#AF884F] transition-colors disabled:opacity-50"
+                        >
+                          {isSavingCategory ? "Dodawanie..." : "Dodaj"}
+                        </button>
+                      </div>
+                      {categoryError && (
+                        <p className="text-[11px] text-red-600 font-medium">{categoryError}</p>
+                      )}
+                    </div>
+                  )}
+
                   <select
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none"
+                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
                   >
-                    {categories.map((c) => (
+                    {categoryList.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
@@ -438,7 +512,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
           </div>
 
           {/* Karta: Skład, Pielęgnacja i Tabela Wymiarów */}
-          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
+          <div className="bg-white p-4 sm:p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
             <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
               Skład Tkaniny, Pielęgnacja & Wymiary
             </h2>
@@ -486,7 +560,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
           </div>
 
           {/* Karta: ZARZĄDZANIE WARIANTAMI (Rozmiary, Kolory, SKU, Stany) */}
-          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
+          <div className="bg-white p-4 sm:p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-[#EADFD5]">
               <div>
                 <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B]">
@@ -512,7 +586,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
                   key={v.id}
                   className="p-3 bg-[#FAF6F1] border border-[#EADFD5] rounded flex flex-col sm:flex-row items-stretch sm:items-center gap-3 text-xs"
                 >
-                  <div className="w-24">
+                  <div className="w-full sm:w-24">
                     <label className="text-[10px] uppercase text-[#6E6259] block">Rozmiar</label>
                     <input
                       type="text"
@@ -523,14 +597,14 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
                     />
                   </div>
 
-                  <div className="flex-1">
+                  <div className="w-full sm:flex-1">
                     <label className="text-[10px] uppercase text-[#6E6259] block">Kolor</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
                         value={v.colorHex || "#D8C7B5"}
                         onChange={(e) => handleUpdateVariant(v.id, "colorHex", e.target.value)}
-                        className="w-7 h-7 p-0 border border-black/20 rounded cursor-pointer"
+                        className="w-7 h-7 p-0 border border-black/20 rounded cursor-pointer shrink-0"
                         title="Wybierz odcień próbnika"
                       />
                       <input
@@ -543,7 +617,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
                     </div>
                   </div>
 
-                  <div className="w-32">
+                  <div className="w-full sm:w-32">
                     <label className="text-[10px] uppercase text-[#6E6259] block">Kod SKU</label>
                     <input
                       type="text"
@@ -554,7 +628,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
                     />
                   </div>
 
-                  <div className="w-24">
+                  <div className="w-full sm:w-24">
                     <label className="text-[10px] uppercase text-[#6E6259] block font-semibold">Stan (szt.)</label>
                     <input
                       type="number"
@@ -579,7 +653,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
           </div>
 
           {/* Karta: Zdjęcia produktu */}
-          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
+          <div className="bg-white p-4 sm:p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
             <div>
               <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
                 Galeria Zdjęć Produktu
@@ -657,7 +731,14 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
                       img.isPrimary ? "ring-2 ring-[#C5A069] border-transparent" : "border-[#EADFD5]"
                     }`}
                   >
-                    <Image src={img.url} alt="Zdjęcie produktu" fill className="object-cover" sizes="150px" />
+                    <Image
+                      src={img.url}
+                      alt="Zdjęcie produktu"
+                      fill
+                      className="object-cover"
+                      sizes="150px"
+                      unoptimized={img.url.startsWith("data:")}
+                    />
 
                     {img.isPrimary && (
                       <span className="absolute top-2 left-2 px-2 py-0.5 bg-[#C5A069] text-white text-[9px] uppercase tracking-wider font-bold rounded shadow-xs z-10">
@@ -718,7 +799,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
         {/* Prawa kolumna: Ceny, Osobna rubryka PROMOCJE, Flagi */}
         <div className="lg:col-span-4 space-y-6">
           {/* KARTA CENY I OSOBNA RUBRYKA PROMOCJE */}
-          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
+          <div className="bg-white p-4 sm:p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
             <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
               Cena i Promocje
             </h2>
@@ -775,7 +856,7 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
           </div>
 
           {/* KARTA FLAGI I WIDOCZNOŚĆ */}
-          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
+          <div className="bg-white p-4 sm:p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
             <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
               Wyróżnienia i Status
             </h2>

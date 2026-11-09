@@ -86,6 +86,61 @@ export async function getCategories(): Promise<Category[]> {
   return store.categories.sort((a, b) => a.orderIndex - b.orderIndex);
 }
 
+export async function createCategory(data: {
+  name: string;
+  description?: string;
+  imageUrl?: string;
+}): Promise<Category> {
+  const store = loadLocalStore();
+  const slug = data.name
+    .toLowerCase()
+    .trim()
+    .replace(/ą/g, "a")
+    .replace(/ć/g, "c")
+    .replace(/ę/g, "e")
+    .replace(/ł/g, "l")
+    .replace(/ń/g, "n")
+    .replace(/ó/g, "o")
+    .replace(/ś/g, "s")
+    .replace(/ź/g, "z")
+    .replace(/ż/g, "z")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  const newCat: Category = {
+    id: `cat-${slug || Date.now()}`,
+    name: data.name.trim(),
+    slug: slug || `kat-${Date.now()}`,
+    description: data.description || "",
+    imageUrl: data.imageUrl || "",
+    orderIndex: store.categories.length,
+    isActive: true,
+  };
+
+  store.categories.push(newCat);
+  saveLocalStore(store);
+
+  if (isNeonConfigured()) {
+    try {
+      await prisma.category.create({
+        data: {
+          id: newCat.id,
+          name: newCat.name,
+          slug: newCat.slug,
+          description: newCat.description,
+          imageUrl: newCat.imageUrl,
+          orderIndex: newCat.orderIndex,
+          isActive: true,
+        },
+      });
+    } catch (err) {
+      console.error("Błąd zapisu kategorii do Prisma:", err);
+    }
+  }
+
+  return newCat;
+}
+
 // ==========================================
 // PRODUKTY
 // ==========================================

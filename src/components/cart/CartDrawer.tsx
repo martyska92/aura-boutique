@@ -101,6 +101,7 @@ export function CartDrawer() {
                         fill
                         className="object-cover"
                         sizes="80px"
+                        unoptimized={item.imageUrl.startsWith("data:")}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] text-[#857670]">

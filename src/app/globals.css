@@ -43,13 +43,21 @@
   --color-subtle: #EADFD5;
 }
 
+html {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 body {
   background-color: var(--bg-ivory);
   color: var(--text-noir);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  max-width: 100vw;
   overflow-x: hidden;
+  position: relative;
+  width: 100%;
 }
 
 /* Custom Typography Utility */

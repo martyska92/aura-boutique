@@ -197,7 +197,14 @@ export function ProductListClient({
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div className="relative w-10 h-14 bg-[#FAF6F1] border border-[#EADFD5] overflow-hidden shrink-0 rounded-xs">
-                            <Image src={primaryImg} alt={p.name} fill className="object-cover" sizes="40px" />
+                            <Image
+                              src={primaryImg}
+                              alt={p.name}
+                              fill
+                              className="object-cover"
+                              sizes="40px"
+                              unoptimized={primaryImg.startsWith("data:")}
+                            />
                           </div>
                           <div>
                             <Link
