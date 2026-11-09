@@ -531,3 +531,4 @@ export function CategoryManagerClient({ initialCategories }: CategoryManagerClie
     </div>
   );
 }
+
