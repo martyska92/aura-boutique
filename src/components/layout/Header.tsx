@@ -36,12 +36,12 @@ export function Header() {
   const navLinks = [
     { label: "Nowości", href: "/katalog?filter=nowosci", badge: "Nowość" },
     { label: "Bestsellery", href: "/katalog?filter=bestsellery" },
-    { label: "Sukienki", href: "/katalog?kategoria=sukienki" },
-    { label: "Komplety", href: "/katalog?kategoria=komplety" },
-    { label: "Swetry", href: "/katalog?kategoria=swetry" },
-    { label: "Okrycia", href: "/katalog?kategoria=okrycia" },
-    { label: "Dodatki", href: "/katalog?kategoria=dodatki" },
-    { label: "Wyprzedaż", href: "/katalog?filter=promocje", highlight: true },
+    { label: "Bluzy", href: "/katalog?kategoria=bluzy" },
+    { label: "Koszule", href: "/katalog?kategoria=koszule" },
+    { label: "Topy", href: "/katalog?kategoria=topy" },
+    { label: "T-shirty", href: "/katalog?kategoria=t-shirty" },
+    { label: "Marynarki", href: "/katalog?kategoria=marynarki" },
+    { label: "Promocje", href: "/katalog?filter=promocje", highlight: true },
   ];
 
   return (

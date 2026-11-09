@@ -40,23 +40,28 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/katalog?kategoria=sukienki" className="hover:text-[#5E4738] transition-colors">
-                  Sukienki
+                <Link href="/katalog?kategoria=bluzy" className="hover:text-[#5E4738] transition-colors">
+                  Bluzy
                 </Link>
               </li>
               <li>
-                <Link href="/katalog?kategoria=komplety" className="hover:text-[#5E4738] transition-colors">
-                  Komplety i Garnitury
+                <Link href="/katalog?kategoria=koszule" className="hover:text-[#5E4738] transition-colors">
+                  Koszule
                 </Link>
               </li>
               <li>
-                <Link href="/katalog?kategoria=swetry" className="hover:text-[#5E4738] transition-colors">
-                  Swetry i Dzianiny
+                <Link href="/katalog?kategoria=topy" className="hover:text-[#5E4738] transition-colors">
+                  Topy
                 </Link>
               </li>
               <li>
-                <Link href="/katalog?kategoria=okrycia" className="hover:text-[#5E4738] transition-colors">
-                  Płaszcze i Okrycia
+                <Link href="/katalog?kategoria=t-shirty" className="hover:text-[#5E4738] transition-colors">
+                  T-shirty
+                </Link>
+              </li>
+              <li>
+                <Link href="/katalog?kategoria=marynarki" className="hover:text-[#5E4738] transition-colors">
+                  Marynarki
                 </Link>
               </li>
               <li>

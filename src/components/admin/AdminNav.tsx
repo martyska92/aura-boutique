@@ -9,6 +9,7 @@ import {
   PlusCircle,
   ShoppingBag,
   Settings,
+  Layers,
   ExternalLink,
   LogOut,
   Menu,
@@ -41,6 +42,7 @@ export function AdminNav() {
     { label: "Pulpit", href: "/admin", icon: LayoutDashboard },
     { label: "Produkty", href: "/admin/produkty", icon: Package },
     { label: "Dodaj produkt", href: "/admin/produkty/nowy", icon: PlusCircle },
+    { label: "Kategorie", href: "/admin/kategorie", icon: Layers },
     { label: "Zamówienia", href: "/admin/zamowienia", icon: ShoppingBag },
     { label: "Ustawienia Butiku", href: "/admin/ustawienia", icon: Settings },
   ];

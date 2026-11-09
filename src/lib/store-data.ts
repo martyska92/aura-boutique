@@ -141,6 +141,81 @@ export async function createCategory(data: {
   return newCat;
 }
 
+export async function updateCategory(
+  id: string,
+  data: Partial<Category>
+): Promise<Category | null> {
+  const store = loadLocalStore();
+  const index = store.categories.findIndex((c) => c.id === id);
+  if (index === -1) return null;
+
+  const updated: Category = {
+    ...store.categories[index],
+    ...data,
+  };
+
+  if (data.name && !data.slug) {
+    updated.slug = data.name
+      .toLowerCase()
+      .trim()
+      .replace(/ą/g, "a")
+      .replace(/ć/g, "c")
+      .replace(/ę/g, "e")
+      .replace(/ł/g, "l")
+      .replace(/ń/g, "n")
+      .replace(/ó/g, "o")
+      .replace(/ś/g, "s")
+      .replace(/ź/g, "z")
+      .replace(/ż/g, "z")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
+  store.categories[index] = updated;
+  saveLocalStore(store);
+
+  if (isNeonConfigured()) {
+    try {
+      await prisma.category.update({
+        where: { id },
+        data: {
+          name: updated.name,
+          slug: updated.slug,
+          description: updated.description,
+          imageUrl: updated.imageUrl,
+          orderIndex: updated.orderIndex,
+          isActive: updated.isActive,
+        },
+      });
+    } catch (err) {
+      console.error("Błąd aktualizacji kategorii w Prisma:", err);
+    }
+  }
+
+  return updated;
+}
+
+export async function deleteCategory(id: string): Promise<boolean> {
+  const store = loadLocalStore();
+  const initialLen = store.categories.length;
+  store.categories = store.categories.filter((c) => c.id !== id);
+  if (store.categories.length === initialLen) return false;
+
+  saveLocalStore(store);
+
+  if (isNeonConfigured()) {
+    try {
+      await prisma.category.delete({
+        where: { id },
+      });
+    } catch (err) {
+      console.error("Błąd usuwania kategorii z Prisma:", err);
+    }
+  }
+
+  return true;
+}
+
 // ==========================================
 // PRODUKTY
 // ==========================================

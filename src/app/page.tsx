@@ -16,14 +16,10 @@ export default async function HomePage() {
   const bestsellers = await getProducts({ isBestsellerOnly: true });
   const promotedProducts = await getProducts({ isPromotedOnly: true });
 
-  // 5 głównych kategorii do okrągłych kafelków w złotych ramkach (zgodnie z wizualizacją nr 2)
-  const circularCategories = [
-    { name: "SUKIENKI", slug: "sukienki", img: "/images/products/sukienka-satynowa-ivory.jpg" },
-    { name: "KOMPLETY", slug: "komplety", img: "/images/products/garnitur-blush-rose.jpg" },
-    { name: "SWETRY", slug: "swetry", img: "/images/products/sweter-kaszmirowy-sand.jpg" },
-    { name: "OKRYCIA", slug: "okrycia", img: "/images/products/plaszcz-welna-camel.jpg" },
-    { name: "DODATKI", slug: "dodatki", img: "/images/brand/aura-logo.png" },
-  ];
+  // Główne kategorie do okrągłych kafelków w złotych ramkach (dynamiczne z bazy/panelu)
+  const displayCategories = categories
+    .filter((c) => c.isActive)
+    .sort((a, b) => a.orderIndex - b.orderIndex);
 
   return (
     <>
@@ -57,10 +53,10 @@ export default async function HomePage() {
            ======================================================== */}
         <section className="py-12 sm:py-16 bg-[#FAF6F1] border-b border-[#EADFD5]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-center gap-4 sm:gap-8 overflow-x-auto pb-4 no-scrollbar">
-              {circularCategories.map((item) => (
+            <div className="flex items-center justify-start sm:justify-center gap-4 sm:gap-8 overflow-x-auto pb-4 px-2 no-scrollbar max-w-full">
+              {displayCategories.map((item) => (
                 <Link
-                  key={item.slug}
+                  key={item.id}
                   href={`/katalog?kategoria=${item.slug}`}
                   className="group flex flex-col items-center text-center shrink-0"
                 >
@@ -68,9 +64,10 @@ export default async function HomePage() {
                   <div className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-br from-[#DFCA9B] via-[#C5A069] to-[#9E743A] shadow-[0_4px_14px_rgba(197,160,105,0.25)] transition-transform duration-300 group-hover:scale-105">
                     <div className="relative w-full h-full rounded-full overflow-hidden border-2 border-white bg-[#F7EFE8]">
                       <Image
-                        src={item.img}
+                        src={item.imageUrl || "/images/brand/aura-logo.png"}
                         alt={item.name}
                         fill
+                        unoptimized={Boolean(item.imageUrl && item.imageUrl.startsWith("data:"))}
                         className="object-cover transition-transform duration-500 group-hover:scale-110"
                         sizes="(max-width: 640px) 80px, 112px"
                       />
@@ -79,7 +76,7 @@ export default async function HomePage() {
 
                   {/* Etykieta w ramce jak na wizualizacji 2 */}
                   <span className="mt-3 px-3 py-1 bg-white border border-[#D8BE8E] group-hover:border-[#C5A069] group-hover:bg-[#F2DCD7] rounded-full font-serif text-[11px] sm:text-xs tracking-[0.15em] text-[#241D1B] font-medium transition-all shadow-xs">
-                    {item.name}
+                    {item.name.toUpperCase()}
                   </span>
                 </Link>
               ))}
