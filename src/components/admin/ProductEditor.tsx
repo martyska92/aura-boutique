@@ -15,6 +15,9 @@ import {
   AlertCircle,
   ExternalLink,
   Sparkles,
+  Camera,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import { Product, Category, ProductVariant, ProductImage } from "@/lib/types";
 
@@ -54,18 +57,12 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
 
   // Zdjęcia
   const [images, setImages] = useState<ProductImage[]>(
-    initialProduct?.images || [
-      {
-        id: `img-${Date.now()}`,
-        productId: initialProduct?.id || "",
-        url: "/images/products/sukienka-satynowa-ivory.jpg",
-        altText: "",
-        orderIndex: 0,
-        isPrimary: true,
-      },
-    ]
+    initialProduct?.images || []
   );
   const [newImageUrl, setNewImageUrl] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Warianty (Rozmiar + Kolor + SKU + Stan magazynowy)
   const [variants, setVariants] = useState<ProductVariant[]>(
@@ -116,7 +113,53 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
     }
   };
 
-  // Obsługa zdjęć
+  // Obsługa przesyłania zdjęć z telefonu / komputera
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setUploadError("");
+
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => {
+        formData.append("files", file);
+      });
+
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Wystąpił błąd podczas przesyłania zdjęć");
+      }
+
+      const newUploadedImages: ProductImage[] = data.urls.map((url: string, index: number) => ({
+        id: `img-${Date.now()}-${index}`,
+        productId: initialProduct?.id || "",
+        url,
+        altText: name || "Zdjęcie produktu",
+        orderIndex: images.length + index,
+        isPrimary: images.length === 0 && index === 0,
+      }));
+
+      setImages((prev) => [...prev, ...newUploadedImages]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Nie udało się przesłać zdjęć";
+      console.error(err);
+      setUploadError(msg);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // Obsługa zdjęć po URL
   const handleAddImage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newImageUrl.trim()) return;
@@ -536,72 +579,139 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
           </div>
 
           {/* Karta: Zdjęcia produktu */}
-          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
-            <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
-              Galeria Zdjęć Produktu
-            </h2>
-            <p className="text-xs text-[#6E6259]">
-              Zgodnie z wymaganiami bazy Neon, pliki zdjęć są przechowywane w magazynie plików lub pod adresami URL (Cloudinary / Vercel Blob / public).
-            </p>
+          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
+            <div>
+              <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
+                Galeria Zdjęć Produktu
+              </h2>
+              <p className="text-xs text-[#6E6259] mt-2">
+                Możesz dodawać zdjęcia bezpośrednio z telefonu lub komputera. Zdjęcia zostaną automatycznie obrócone i zoptymalizowane do formatu WebP.
+              </p>
+            </div>
+
+            {/* Komunikat o błędzie uploadu */}
+            {uploadError && (
+              <div className="p-3 bg-[#FCEAE7] border border-[#EAC4BE] text-[#A84B4B] text-xs rounded flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{uploadError}</span>
+              </div>
+            )}
+
+            {/* Główny przycisk dodawania zdjęć z telefonu / aparatu / dysku */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+              id="product-photo-upload"
+            />
+
+            <button
+              type="button"
+              disabled={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              className={`w-full border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
+                isUploading
+                  ? "border-[#C5A069] bg-[#FAF6F1] opacity-75 cursor-wait"
+                  : "border-[#C5A069]/60 hover:border-[#C5A069] bg-[#FAF6F1]/50 hover:bg-[#FAF6F1]"
+              }`}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-8 h-8 text-[#C5A069] animate-spin" />
+                  <span className="font-serif text-sm font-semibold text-[#241D1B]">
+                    Przesyłanie i optymalizowanie zdjęć...
+                  </span>
+                  <span className="text-[11px] text-[#857670]">
+                    Trwa kompresja i automatyczna rotacja orientacji aparatu.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="w-12 h-12 rounded-full bg-[#FAF6F1] border border-[#DFCA9B] flex items-center justify-center text-[#9E743A] shadow-xs">
+                    <Camera className="w-6 h-6" />
+                  </div>
+                  <span className="font-serif text-sm font-semibold text-[#241D1B]">
+                    Dodaj zdjęcia z telefonu / zrób zdjęcie aparatem
+                  </span>
+                  <span className="text-xs text-[#857670] text-center max-w-md">
+                    Dotknij tutaj, aby otworzyć aparat lub galerię zdjęć w telefonie. Możesz wybrać kilka zdjęć naraz.
+                  </span>
+                </>
+              )}
+            </button>
 
             {/* Lista zdjęć */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {images.map((img) => (
-                <div
-                  key={img.id}
-                  className={`relative aspect-[3/4] bg-[#FAF6F1] border rounded overflow-hidden group ${
-                    img.isPrimary ? "ring-2 ring-[#C5A069] border-transparent" : "border-[#EADFD5]"
-                  }`}
-                >
-                  <Image src={img.url} alt="Zdjęcie produktu" fill className="object-cover" sizes="150px" />
+            {images.length === 0 ? (
+              <div className="text-center py-6 text-xs text-[#857670] border border-dashed border-[#EADFD5] rounded">
+                Brak dodanych zdjęć. Dotknij przycisku powyżej, aby dodać pierwsze zdjęcie produktu.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {images.map((img) => (
+                  <div
+                    key={img.id}
+                    className={`relative aspect-[3/4] bg-[#FAF6F1] border rounded overflow-hidden group ${
+                      img.isPrimary ? "ring-2 ring-[#C5A069] border-transparent" : "border-[#EADFD5]"
+                    }`}
+                  >
+                    <Image src={img.url} alt="Zdjęcie produktu" fill className="object-cover" sizes="150px" />
 
-                  {img.isPrimary && (
-                    <span className="absolute top-2 left-2 px-2 py-0.5 bg-[#C5A069] text-white text-[9px] uppercase tracking-wider font-bold rounded shadow-xs">
-                      Główne
-                    </span>
-                  )}
+                    {img.isPrimary && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 bg-[#C5A069] text-white text-[9px] uppercase tracking-wider font-bold rounded shadow-xs z-10">
+                        Główne
+                      </span>
+                    )}
 
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveImage(img.id)}
-                      className="self-end p-1 text-white hover:text-red-400"
-                      title="Usuń zdjęcie"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-
-                    {!img.isPrimary && (
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2 z-10">
                       <button
                         type="button"
-                        onClick={() => handleSetPrimaryImage(img.id)}
-                        className="py-1 px-2 bg-white text-[#241D1B] text-[10px] uppercase font-semibold rounded hover:bg-[#C5A069] hover:text-white transition-colors"
+                        onClick={() => handleRemoveImage(img.id)}
+                        className="self-end p-1 text-white hover:text-red-400"
+                        title="Usuń zdjęcie"
                       >
-                        Ustaw jako główne
+                        <Trash2 className="w-4 h-4" />
                       </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
 
-            {/* Dodawanie nowego zdjęcia po URL */}
-            <div className="pt-3 border-t border-[#EADFD5] flex gap-2">
-              <input
-                type="text"
-                placeholder="Wklej adres URL zdjęcia (np. /images/products/... lub https://...)"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                className="flex-1 bg-[#FAF6F1] border border-[#EADFD5] p-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
-              />
-              <button
-                type="button"
-                onClick={handleAddImage}
-                className="px-4 py-2 bg-[#FAF6F1] border border-[#EADFD5] text-xs uppercase font-medium hover:bg-[#C5A069] hover:text-white transition-colors"
-              >
-                Dodaj zdjęcie
-              </button>
-            </div>
+                      {!img.isPrimary && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetPrimaryImage(img.id)}
+                          className="py-1 px-2 bg-white text-[#241D1B] text-[10px] uppercase font-semibold rounded hover:bg-[#C5A069] hover:text-white transition-colors"
+                        >
+                          Ustaw jako główne
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Alternatywne dodawanie nowego zdjęcia po URL */}
+            <details className="text-xs text-[#6E6259] pt-2 border-t border-[#EADFD5]">
+              <summary className="cursor-pointer hover:text-[#C5A069] font-medium py-1">
+                Lub wklej bezpośredni adres URL do zdjęcia
+              </summary>
+              <div className="pt-2 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Wklej adres URL zdjęcia (np. https://...)"
+                  value={newImageUrl}
+                  onChange={(e) => setNewImageUrl(e.target.value)}
+                  className="flex-1 bg-[#FAF6F1] border border-[#EADFD5] p-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddImage}
+                  className="px-4 py-2 bg-[#FAF6F1] border border-[#EADFD5] text-xs uppercase font-medium hover:bg-[#C5A069] hover:text-white transition-colors"
+                >
+                  Dodaj z linku
+                </button>
+              </div>
+            </details>
           </div>
         </div>
 

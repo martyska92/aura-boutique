@@ -58,8 +58,8 @@ export default function ContactPage() {
                   <Clock className="w-5 h-5 text-[#C5A069] shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-[#241D1B] block">Godziny Otwarcia:</strong>
-                    <span>Poniedziałek – Piątek: 10:00 – 18:00</span>
-                    <span className="block">Sobota: 10:00 – 14:00</span>
+                    <span>Poniedziałek – Piątek: 10:00 – 17:00</span>
+                    <span className="block">Sobota: 09:00 – 13:00</span>
                     <span className="block text-[11px] text-[#857670]">Niedziela: Zamknięte</span>
                   </div>
                 </div>

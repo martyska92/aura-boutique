@@ -362,7 +362,7 @@ export const initialStoreSettings: StoreSettings = {
   address: "Żmigród | ul. Poprzeczna 3/1A",
   phone: "+48 789 123 456",
   email: "kontakt@auraboutique.pl",
-  openingHours: "Pon - Pt: 10:00 - 18:00 | Sob: 10:00 - 14:00",
+  openingHours: "Pon - Pt: 10:00 - 17:00 | Sob: 9:00 - 13:00",
   announcementBarText: "Darmowa dostawa od 300 PLN | Odbiór osobisty w butiku w Żmigrodzie",
   heroHeadline: "Elegancja w każdym detalu",
   heroSubheadline: "Odkryj kolekcję stworzoną dla kobiet ceniących klasę, subtelność i najwyższą jakość kroju.",
