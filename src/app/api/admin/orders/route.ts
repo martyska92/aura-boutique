@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
-import { updateOrderAdmin, getOrderById } from "@/lib/store-data";
+import {
+  updateOrderAdmin,
+  getOrderById,
+  awardReferralRewardOnDelivered,
+  revokeReferralRewardOnRefund,
+} from "@/lib/store-data";
+import { sendReferralRewardEmail } from "@/lib/email-service";
 
 export async function PATCH(req: NextRequest) {
   const isAuth = await verifyAdminSession();
@@ -21,6 +27,23 @@ export async function PATCH(req: NextRequest) {
       trackingNumber,
       adminNotes,
     });
+
+    // 1. Jeśli zamówienie zostało oznaczone jako DELIVERED (zrealizowane) -> przyznaj nagrodę 15% polecającej
+    if (fulfillmentStatus === "DELIVERED") {
+      const reward = await awardReferralRewardOnDelivered(updated);
+      if (reward) {
+        await sendReferralRewardEmail({
+          customerEmail: reward.referrerEmail,
+          rewardCode: reward.code,
+          validUntilIso: reward.validUntil,
+        });
+      }
+    }
+
+    // 2. Jeśli zamówienie zostało anulowane lub zwrócone -> unieważnij nagrodę
+    if (fulfillmentStatus === "CANCELLED" || paymentStatus === "REFUNDED") {
+      await revokeReferralRewardOnRefund(orderId);
+    }
 
     return NextResponse.json({ success: true, order: updated });
   } catch (err: any) {

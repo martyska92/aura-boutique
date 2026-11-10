@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
-import { bulkUpdateOrders } from "@/lib/store-data";
+import {
+  bulkUpdateOrders,
+  awardReferralRewardOnDelivered,
+  revokeReferralRewardOnRefund,
+} from "@/lib/store-data";
+import { sendReferralRewardEmail } from "@/lib/email-service";
 
 export async function POST(req: NextRequest) {
   const isAuth = await verifyAdminSession();
@@ -23,6 +28,26 @@ export async function POST(req: NextRequest) {
       paymentStatus,
     });
 
+    // Przetwarzanie nagród polecających
+    if (fulfillmentStatus === "DELIVERED") {
+      for (const order of updated) {
+        const reward = await awardReferralRewardOnDelivered(order);
+        if (reward) {
+          await sendReferralRewardEmail({
+            customerEmail: reward.referrerEmail,
+            rewardCode: reward.code,
+            validUntilIso: reward.validUntil,
+          });
+        }
+      }
+    }
+
+    if (fulfillmentStatus === "CANCELLED" || paymentStatus === "REFUNDED") {
+      for (const order of updated) {
+        await revokeReferralRewardOnRefund(order.id);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       updatedCount: updated.length,
@@ -35,3 +60,4 @@ export async function POST(req: NextRequest) {
 
 export const PATCH = POST;
 export const PUT = POST;
+

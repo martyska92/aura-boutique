@@ -1,8 +1,11 @@
 import React from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { getStoreSettings } from "@/lib/store-data";
 
-export default function PrivacyPolicyPage() {
+export default async function PrivacyPolicyPage() {
+  const settings = await getStoreSettings();
+
   return (
     <>
       <Header />
@@ -13,73 +16,76 @@ export default function PrivacyPolicyPage() {
               Ochrona Danych Osobowych & RODO
             </p>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#241D1B]">
-              Polityka Prywatności
+              Polityka Prywatności & RODO
             </h1>
             <p className="text-xs text-[#6E6259]">
-              AURA Boutique K.B. • Obowiązuje od 2026 r.
+              {settings.boutiqueName || "AURA Boutique K.B."} • Obowiązuje od 2026 r.
             </p>
           </div>
 
           <div className="bg-white p-8 sm:p-12 border border-[#EADFD5] shadow-sm rounded-sm space-y-6 text-xs sm:text-sm text-[#3E3B38] leading-relaxed">
+            {/* Dane Administratora Danych */}
             <section className="space-y-3">
               <h2 className="font-serif text-base text-[#241D1B] font-bold">
                 1. Administrator Danych Osobowych
               </h2>
-              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] font-mono text-xs space-y-1">
-                <p className="text-[#AF884F]"><strong>[DO UZUPEŁNIENIA: ADMINISTRATOR DANYCH]</strong></p>
-                <p>Administratorem danych osobowych zbieranych za pośrednictwem sklepu internetowego AURA Boutique K.B. jest:</p>
-                <p>[DO UZUPEŁNIENIA: Imię i Nazwisko / Pełna nazwa firmy]</p>
-                <p>Adres: Żmigród, ul. Poprzeczna 3/1A, 55-110 Żmigród</p>
-                <p>NIP: [DO UZUPEŁNIENIA: NIP]</p>
-                <p>Adres e-mail do kontaktu w sprawach danych: kontakt@auraboutique.pl</p>
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] font-mono text-xs space-y-1 rounded">
+                <p className="text-[#AF884F] font-bold">Administrator Twoich Danych:</p>
+                <p><strong>Firma:</strong> {settings.companyName || settings.boutiqueName || "AURA Boutique K.B."}</p>
+                <p><strong>Siedziba / Butik:</strong> {settings.address}</p>
+                <p><strong>NIP:</strong> {settings.nip || "W uzupełnieniu"}</p>
+                <p><strong>REGON:</strong> {settings.regon || "W uzupełnieniu"}</p>
+                <p><strong>E-mail do spraw ochrony danych:</strong> {settings.email}</p>
+                <p><strong>Telefon kontaktowy:</strong> {settings.phone}</p>
               </div>
             </section>
 
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                2. Cel i podstawa prawna przetwarzania danych
-              </h2>
-              <p>
-                Dane osobowe przetwarzane są w celu:
-              </p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Realizacji zamówień składanych bez rejestracji konta (art. 6 ust. 1 lit. b RODO).</li>
-                <li>Wypełnienia obowiązków prawno-podatkowych i księgowych (art. 6 ust. 1 lit. c RODO).</li>
-                <li>Ewentualnego rozpatrywania reklamacji i dochodzenia roszczeń (art. 6 ust. 1 lit. f RODO).</li>
-              </ul>
-            </section>
+            {/* Treść polityki prywatności edytowalna w panelu */}
+            {settings.privacyPolicy ? (
+              <div className="space-y-4 whitespace-pre-line text-xs sm:text-sm text-[#3E3B38] leading-relaxed border-t border-[#EADFD5] pt-4">
+                {settings.privacyPolicy}
+              </div>
+            ) : (
+              <>
+                <section className="space-y-3">
+                  <h2 className="font-serif text-base text-[#241D1B] font-bold">
+                    2. Cel i podstawa prawna przetwarzania danych
+                  </h2>
+                  <p>
+                    Dane osobowe kupujących przetwarzane są w celu:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Realizacji zamówień składanych w sklepie internetowym (art. 6 ust. 1 lit. b RODO).</li>
+                    <li>Wypełnienia obowiązków prawno-podatkowych i księgowych (art. 6 ust. 1 lit. c RODO).</li>
+                    <li>Naliczania zniżek, rabatów za opinie i programu poleceń (art. 6 ust. 1 lit. b i f RODO).</li>
+                    <li>Obsługi reklamacji i zwrotów konsumenckich (art. 6 ust. 1 lit. c RODO).</li>
+                  </ul>
+                </section>
 
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                3. Odbiorcy danych (Dostawcy i Bramki Płatności)
-              </h2>
-              <p>
-                W celu realizacji Twojego zamówienia dane mogą być przekazywane podmiotom świadczącym usługi doręczenia oraz obsługi płatności:
-              </p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>InPost Sp. z o.o. (obsługa przesyłek Paczkomaty i kurier).</li>
-                <li>Operator płatności Przelewy24 (PayPro S.A.) w celu przetworzenia płatności BLIK / online.</li>
-                <li>Biuro rachunkowe obsługujące finanse Butiku.</li>
-              </ul>
-            </section>
+                <section className="space-y-3">
+                  <h2 className="font-serif text-base text-[#241D1B] font-bold">
+                    3. Odbiorcy danych (Dostawa i Płatności)
+                  </h2>
+                  <p>
+                    W celu realizacji zamówienia dane mogą być przekazywane zaufanym partnerom butiku:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>InPost Sp. z o.o. (obsługa przesyłek Paczkomaty i kurier InPost).</li>
+                    <li>PayPro S.A. / Przelewy24 (obsługa bezpiecznych płatności online i BLIK).</li>
+                    <li>Dostawcy usług hostingowych i technicznych sklepu.</li>
+                  </ul>
+                </section>
 
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                4. Twoje prawa
-              </h2>
-              <p>
-                Przysługuje Ci prawo dostępu do swoich danych, ich sprostowania, usunięcia, ograniczenia przetwarzania, prawo do przenoszenia danych oraz prawo do wniesienia sprzeciwu.
-              </p>
-            </section>
-
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                5. Pliki Cookies
-              </h2>
-              <p>
-                Sklep korzysta z niezbędnych plików cookies do prawidłowego działania koszyka zakupowego oraz sesji administracyjnej.
-              </p>
-            </section>
+                <section className="space-y-3">
+                  <h2 className="font-serif text-base text-[#241D1B] font-bold">
+                    4. Prawa osoby, której dane dotyczą
+                  </h2>
+                  <p>
+                    Każda klientka ma prawo do wglądu w swoje dane, ich poprawiania, żądania usunięcia oraz ograniczenia przetwarzania, kontaktując się z nami pod adresem: <strong>{settings.email}</strong>.
+                  </p>
+                </section>
+              </>
+            )}
           </div>
         </div>
       </main>

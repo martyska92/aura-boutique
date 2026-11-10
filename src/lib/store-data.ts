@@ -9,34 +9,77 @@ import {
   ReturnRequest,
   FulfillmentStatus,
   PaymentStatus,
+  Promotion,
+  IndividualCustomerDiscount,
+  ReferralParticipant,
+  ReferralRewardCode,
+  ProductReview,
+  PromotionAuditLog,
+  ContactMessage,
+  AdminAccount,
 } from "./types";
 import {
   initialCategories,
   initialProducts,
   initialStoreSettings,
   initialOrders,
+  initialPromotions,
+  initialIndividualDiscounts,
+  initialReferralParticipants,
+  initialReferralRewardCodes,
+  initialProductReviews,
+  initialPromotionAuditLogs,
 } from "./demo-data";
 import { prisma } from "./prisma";
+import { addDaysWarsaw } from "./date-utils";
 
-interface StoreFileState {
+export interface StoreFileState {
   categories: Category[];
   products: Product[];
   orders: Order[];
   settings: StoreSettings;
+  promotions: Promotion[];
+  individualDiscounts: IndividualCustomerDiscount[];
+  referralParticipants: ReferralParticipant[];
+  referralRewardCodes: ReferralRewardCode[];
+  productReviews: ProductReview[];
+  promotionAuditLogs: PromotionAuditLog[];
+  contactMessages: ContactMessage[];
+  adminAccount: AdminAccount;
 }
+
+export const initialAdminAccount: AdminAccount = {
+  email: "aurazmigrod@wp.pl",
+  password: "dupa",
+  mustChangePassword: true,
+};
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "store-storage.json");
 
 // Pomocnicza funkcja inicjalizacji pliku lokalnego
-function loadLocalStore(): StoreFileState {
+export function loadLocalStore(): StoreFileState {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     if (fs.existsSync(DATA_FILE)) {
       const content = fs.readFileSync(DATA_FILE, "utf-8");
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      return {
+        categories: parsed.categories || initialCategories,
+        products: parsed.products || initialProducts,
+        orders: parsed.orders || initialOrders,
+        settings: { ...initialStoreSettings, ...(parsed.settings || {}) },
+        promotions: parsed.promotions || initialPromotions,
+        individualDiscounts: parsed.individualDiscounts || initialIndividualDiscounts,
+        referralParticipants: parsed.referralParticipants || initialReferralParticipants,
+        referralRewardCodes: parsed.referralRewardCodes || initialReferralRewardCodes,
+        productReviews: parsed.productReviews || initialProductReviews,
+        promotionAuditLogs: parsed.promotionAuditLogs || initialPromotionAuditLogs,
+        contactMessages: parsed.contactMessages || [],
+        adminAccount: parsed.adminAccount || initialAdminAccount,
+      };
     }
   } catch (err) {
     console.error("Błąd odczytu lokalnego magazynu:", err);
@@ -47,6 +90,14 @@ function loadLocalStore(): StoreFileState {
     products: initialProducts,
     orders: initialOrders,
     settings: initialStoreSettings,
+    promotions: initialPromotions,
+    individualDiscounts: initialIndividualDiscounts,
+    referralParticipants: initialReferralParticipants,
+    referralRewardCodes: initialReferralRewardCodes,
+    productReviews: initialProductReviews,
+    promotionAuditLogs: initialPromotionAuditLogs,
+    contactMessages: [],
+    adminAccount: initialAdminAccount,
   };
 
   try {
@@ -58,7 +109,7 @@ function loadLocalStore(): StoreFileState {
   return defaultState;
 }
 
-function saveLocalStore(state: StoreFileState) {
+export function saveLocalStore(state: StoreFileState) {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -680,4 +731,578 @@ export async function updateStoreSettings(
   store.settings = { ...store.settings, ...settings };
   saveLocalStore(store);
   return store.settings;
+}
+
+// ==========================================
+// DZIENNIK ZMIAN PROMOCJI (AUDIT LOG)
+// ==========================================
+export async function addPromotionAuditLog(
+  action: string,
+  details: string,
+  adminUser: string = "Właścicielka"
+): Promise<PromotionAuditLog> {
+  const store = loadLocalStore();
+  const newLog: PromotionAuditLog = {
+    id: `log-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+    timestamp: new Date().toISOString(),
+    adminUser,
+    action,
+    details,
+  };
+  if (!store.promotionAuditLogs) store.promotionAuditLogs = [];
+  store.promotionAuditLogs.unshift(newLog);
+  saveLocalStore(store);
+  return newLog;
+}
+
+export async function getPromotionAuditLogs(): Promise<PromotionAuditLog[]> {
+  const store = loadLocalStore();
+  return (store.promotionAuditLogs || []).sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+}
+
+// ==========================================
+// ZARZĄDZANIE PROMOCJAMI
+// ==========================================
+export async function getAllPromotions(): Promise<Promotion[]> {
+  const store = loadLocalStore();
+  return store.promotions || [];
+}
+
+export async function getPromotionById(id: string): Promise<Promotion | undefined> {
+  const store = loadLocalStore();
+  return (store.promotions || []).find((p) => p.id === id);
+}
+
+export async function savePromotion(
+  promoData: Partial<Promotion> & { id?: string }
+): Promise<Promotion> {
+  const store = loadLocalStore();
+  const now = new Date().toISOString();
+  if (!store.promotions) store.promotions = [];
+
+  if (promoData.id) {
+    const idx = store.promotions.findIndex((p) => p.id === promoData.id);
+    if (idx === -1) throw new Error("Nie znaleziono promocji");
+
+    const updated: Promotion = {
+      ...store.promotions[idx],
+      ...promoData,
+      updatedAt: now,
+    } as Promotion;
+
+    store.promotions[idx] = updated;
+    saveLocalStore(store);
+    await addPromotionAuditLog(
+      `Edycja promocji: ${updated.name}`,
+      `Zaktualizowano parametry promocji typu ${updated.type}`
+    );
+    return updated;
+  } else {
+    const newId = `promo-${Date.now()}`;
+    const newPromo: Promotion = {
+      id: newId,
+      name: promoData.name || "Nowa promocja",
+      publicTitle: promoData.publicTitle || promoData.name || "Promocja",
+      description: promoData.description || "",
+      type: promoData.type || "PERCENTAGE",
+      discountValue: Number(promoData.discountValue || 0),
+      code: promoData.code ? promoData.code.trim().toUpperCase() : undefined,
+      isAutomatic: promoData.isAutomatic !== undefined ? promoData.isAutomatic : true,
+      targetScope: promoData.targetScope || "ALL",
+      categoryIds: promoData.categoryIds || [],
+      productIds: promoData.productIds || [],
+      excludedCategoryIds: promoData.excludedCategoryIds || [],
+      excludedProductIds: promoData.excludedProductIds || [],
+      excludeDiscounted: Boolean(promoData.excludeDiscounted),
+      minOrderValue: promoData.minOrderValue ? Number(promoData.minOrderValue) : undefined,
+      startDate: promoData.startDate,
+      endDate: promoData.endDate,
+      noEndDate: promoData.noEndDate !== undefined ? promoData.noEndDate : true,
+      isRecurringWeekend: Boolean(promoData.isRecurringWeekend),
+      targetAudience: promoData.targetAudience || "ALL",
+      specificEmails: promoData.specificEmails || [],
+      totalUsageLimit: promoData.totalUsageLimit,
+      usageLimitPerEmail: promoData.usageLimitPerEmail,
+      currentUsageCount: 0,
+      canCombineWithOtherPromotions: Boolean(promoData.canCombineWithOtherPromotions),
+      bannerEnabled: Boolean(promoData.bannerEnabled),
+      bannerText: promoData.bannerText,
+      bannerButtonText: promoData.bannerButtonText,
+      bannerButtonUrl: promoData.bannerButtonUrl,
+      giftProductId: promoData.giftProductId,
+      giftAvailableColors: promoData.giftAvailableColors || ["Cielisty Nude", "Kremowy Ecru", "Czarne Classic", "Pudrowy Róż"],
+      giftStockQuantity: promoData.giftStockQuantity !== undefined ? promoData.giftStockQuantity : 50,
+      giftReservedQuantity: 0,
+      isActive: promoData.isActive !== undefined ? promoData.isActive : true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    store.promotions.unshift(newPromo);
+    saveLocalStore(store);
+    await addPromotionAuditLog(
+      `Utworzono nową promocję: ${newPromo.name}`,
+      `Typ: ${newPromo.type}, Wartość: ${newPromo.discountValue}`
+    );
+    return newPromo;
+  }
+}
+
+export async function deletePromotion(id: string): Promise<boolean> {
+  const store = loadLocalStore();
+  const idx = store.promotions.findIndex((p) => p.id === id);
+  if (idx === -1) return false;
+  const promoName = store.promotions[idx].name;
+  store.promotions.splice(idx, 1);
+  saveLocalStore(store);
+  await addPromotionAuditLog(`Usunięto promocję: ${promoName}`, `ID: ${id}`);
+  return true;
+}
+
+export async function duplicatePromotion(id: string): Promise<Promotion> {
+  const store = loadLocalStore();
+  const original = store.promotions.find((p) => p.id === id);
+  if (!original) throw new Error("Nie znaleziono promocji do skopiowania");
+
+  const newPromo: Promotion = {
+    ...original,
+    id: `promo-${Date.now()}`,
+    name: `${original.name} (Kopia)`,
+    code: original.code ? `${original.code}-KOPIA` : undefined,
+    currentUsageCount: 0,
+    giftReservedQuantity: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  store.promotions.unshift(newPromo);
+  saveLocalStore(store);
+  await addPromotionAuditLog(`Skopiowano promocję: ${original.name}`, `Nowa promocja: ${newPromo.name}`);
+  return newPromo;
+}
+
+export async function togglePromotion(id: string): Promise<Promotion> {
+  const store = loadLocalStore();
+  const promo = store.promotions.find((p) => p.id === id);
+  if (!promo) throw new Error("Nie znaleziono promocji");
+  promo.isActive = !promo.isActive;
+  promo.updatedAt = new Date().toISOString();
+  saveLocalStore(store);
+  await addPromotionAuditLog(
+    `${promo.isActive ? "Aktywowano" : "Wyłączono"} promocję: ${promo.name}`,
+    `Nowy status: ${promo.isActive ? "Aktywna" : "Wyłączona"}`
+  );
+  return promo;
+}
+
+// ==========================================
+// INDYWIDUALNE RABATY PO E-MAILU
+// ==========================================
+export async function getAllIndividualDiscounts(): Promise<IndividualCustomerDiscount[]> {
+  const store = loadLocalStore();
+  return store.individualDiscounts || [];
+}
+
+export async function saveIndividualDiscount(
+  data: Partial<IndividualCustomerDiscount> & { email: string; discountPercent: number }
+): Promise<IndividualCustomerDiscount> {
+  const store = loadLocalStore();
+  const now = new Date().toISOString();
+  if (!store.individualDiscounts) store.individualDiscounts = [];
+  const normalizedEmail = data.email.trim().toLowerCase();
+
+  const existingIdx = store.individualDiscounts.findIndex(
+    (d) => d.email.trim().toLowerCase() === normalizedEmail
+  );
+
+  if (existingIdx !== -1) {
+    const updated: IndividualCustomerDiscount = {
+      ...store.individualDiscounts[existingIdx],
+      ...data,
+      email: normalizedEmail,
+      discountPercent: Number(data.discountPercent),
+      updatedAt: now,
+    };
+    store.individualDiscounts[existingIdx] = updated;
+    saveLocalStore(store);
+    await addPromotionAuditLog(
+      `Zaktualizowano indywidualny rabat dla: ${normalizedEmail}`,
+      `Rabat: ${updated.discountPercent}%`
+    );
+    return updated;
+  } else {
+    const newDiscount: IndividualCustomerDiscount = {
+      id: `ind-${Date.now()}`,
+      email: normalizedEmail,
+      discountPercent: Number(data.discountPercent),
+      scope: data.scope || "ALL",
+      categoryIds: data.categoryIds || [],
+      productIds: data.productIds || [],
+      startDate: data.startDate,
+      endDate: data.endDate,
+      isIndefinite: data.isIndefinite !== undefined ? data.isIndefinite : true,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      adminNote: data.adminNote || "",
+      isEmailVerified: true, // Z poziomu administratora domyślnie zatwierdzony
+      verificationToken: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    store.individualDiscounts.unshift(newDiscount);
+    saveLocalStore(store);
+    await addPromotionAuditLog(
+      `Przyznano indywidualny rabat dla: ${normalizedEmail}`,
+      `Rabat: ${newDiscount.discountPercent}%`
+    );
+    return newDiscount;
+  }
+}
+
+export async function deleteIndividualDiscount(id: string): Promise<boolean> {
+  const store = loadLocalStore();
+  const idx = store.individualDiscounts.findIndex((d) => d.id === id);
+  if (idx === -1) return false;
+  const email = store.individualDiscounts[idx].email;
+  store.individualDiscounts.splice(idx, 1);
+  saveLocalStore(store);
+  await addPromotionAuditLog(`Usunięto indywidualny rabat dla: ${email}`, `ID: ${id}`);
+  return true;
+}
+
+// ==========================================
+// PROGRAM POLECEŃ
+// ==========================================
+export async function getAllReferralParticipants(): Promise<ReferralParticipant[]> {
+  const store = loadLocalStore();
+  return store.referralParticipants || [];
+}
+
+export async function getAllReferralRewardCodes(): Promise<ReferralRewardCode[]> {
+  const store = loadLocalStore();
+  return store.referralRewardCodes || [];
+}
+
+export async function getOrCreateReferralParticipant(
+  email: string,
+  customerName: string
+): Promise<ReferralParticipant> {
+  const store = loadLocalStore();
+  if (!store.referralParticipants) store.referralParticipants = [];
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const existing = store.referralParticipants.find(
+    (p) => p.email.trim().toLowerCase() === normalizedEmail
+  );
+  if (existing) return existing;
+
+  // Tworzymy unikalny, czytelny kod polecający
+  const firstName = customerName.split(" ")[0].toUpperCase().replace(/[^A-Z]/g, "") || "AURA";
+  const randomSuffix = Math.floor(100 + Math.random() * 900);
+  const code = `${firstName}-AURA${randomSuffix}`;
+
+  const newParticipant: ReferralParticipant = {
+    id: `ref-p-${Date.now()}`,
+    email: normalizedEmail,
+    customerName: customerName.trim(),
+    referralCode: code,
+    totalReferralsCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  };
+
+  store.referralParticipants.unshift(newParticipant);
+  saveLocalStore(store);
+  return newParticipant;
+}
+
+// Przyznanie nagrody 15% polecającej, gdy zamówienie koleżanki zostaje oznaczone jako zrealizowane (DELIVERED)
+export async function awardReferralRewardOnDelivered(
+  order: Order
+): Promise<ReferralRewardCode | null> {
+  if (!order.referralCodeUsed || !order.referrerEmail) return null;
+  const store = loadLocalStore();
+  if (!store.referralRewardCodes) store.referralRewardCodes = [];
+
+  const referrerEmail = order.referrerEmail.trim().toLowerCase();
+  const referredEmail = order.customerEmail.trim().toLowerCase();
+
+  // Blokada polecania samej siebie
+  if (referrerEmail === referredEmail) return null;
+
+  // Zabezpieczenie przed wielokrotnym generowaniem nagrody za to samo zamówienie
+  const alreadyAwarded = store.referralRewardCodes.some(
+    (rc) => rc.referredOrderId === order.id
+  );
+  if (alreadyAwarded) return null;
+
+  // Kod ważny dokładnie 30 dni od zrealizowania zamówienia
+  const validUntil = addDaysWarsaw(30);
+  const rewardCodeString = `POLECAM-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+  const rewardCode: ReferralRewardCode = {
+    id: `ref-rew-${Date.now()}`,
+    code: rewardCodeString,
+    referrerEmail,
+    referredEmail,
+    referredOrderId: order.id,
+    discountPercent: 15,
+    validUntil,
+    isUsed: false,
+    isRevoked: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  store.referralRewardCodes.unshift(rewardCode);
+
+  // Zwiększ licznik poleceń u uczestniczki
+  const participant = store.referralParticipants?.find(
+    (p) => p.email.trim().toLowerCase() === referrerEmail
+  );
+  if (participant) {
+    participant.totalReferralsCount = (participant.totalReferralsCount || 0) + 1;
+  }
+
+  saveLocalStore(store);
+  await addPromotionAuditLog(
+    `Przyznano nagrodę polecającej: ${referrerEmail}`,
+    `Kod 15%: ${rewardCodeString} za zrealizowane zamówienie ${order.orderNumber}`
+  );
+
+  return rewardCode;
+}
+
+// Unieważnienie nagrody za polecenie przy zwrocie zamówienia koleżanki
+export async function revokeReferralRewardOnRefund(
+  orderId: string
+): Promise<{ success: boolean; flaggedAlreadyUsed?: boolean }> {
+  const store = loadLocalStore();
+  const reward = store.referralRewardCodes?.find((rc) => rc.referredOrderId === orderId);
+  if (!reward) return { success: false };
+
+  if (reward.isUsed) {
+    // Kod został już wykorzystany - oznaczamy sytuację administratorowi bez zmiany opłaconych zamówień
+    reward.adminFlagged = true;
+    saveLocalStore(store);
+    await addPromotionAuditLog(
+      `ALARM: Zwrot zamówienia z wykorzystaną nagrodą polecającą`,
+      `Zamówienie ${orderId} zostało zwrócone, ale kod ${reward.code} polecającej ${reward.referrerEmail} został już wykorzystany!`
+    );
+    return { success: true, flaggedAlreadyUsed: true };
+  } else {
+    // Kod nie został jeszcze zużyty - unieważniamy
+    reward.isRevoked = true;
+    reward.revokedReason = "Pełny zwrot zamówienia koleżanki";
+    saveLocalStore(store);
+    await addPromotionAuditLog(
+      `Unieważniono nagrodę polecającą ${reward.code}`,
+      `Powód: Zwrot zamówienia ${orderId}`
+    );
+    return { success: true };
+  }
+}
+
+// ==========================================
+// OPINIE O PRODUKTACH & RABAT ZA OPINIĘ (2% / 5%)
+// ==========================================
+export async function getAllProductReviews(): Promise<ProductReview[]> {
+  const store = loadLocalStore();
+  return store.productReviews || [];
+}
+
+export async function getProductReviews(productId: string): Promise<ProductReview[]> {
+  const store = loadLocalStore();
+  return (store.productReviews || []).filter(
+    (r) => r.productId === productId && !r.isHidden
+  );
+}
+
+export async function createProductReview(data: {
+  productId: string;
+  orderNumber: string;
+  customerEmail: string;
+  displayName: string;
+  rating: number;
+  content: string;
+  photoUrl?: string;
+}): Promise<{ review: ProductReview; rewardCode?: string; rewardPercent?: number }> {
+  const store = loadLocalStore();
+  if (!store.productReviews) store.productReviews = [];
+  const normalizedEmail = data.customerEmail.trim().toLowerCase();
+
+  // WERYFIKACJA ZAKUPU: szukamy zrealizowanego zamówienia (DELIVERED) zawierającego ten produkt
+  const verifiedOrder = store.orders.find((o) => {
+    const isMatchingOrder =
+      o.orderNumber.toUpperCase() === data.orderNumber.trim().toUpperCase() ||
+      o.id === data.orderNumber.trim();
+    const isMatchingEmail = o.customerEmail.trim().toLowerCase() === normalizedEmail;
+    const isDelivered = o.fulfillmentStatus === "DELIVERED";
+    const hasProduct = o.items.some(
+      (item) => item.variantSnapshot.includes(data.productId) || item.productNameSnapshot
+    );
+    return isMatchingOrder && isMatchingEmail && isDelivered;
+  });
+
+  if (!verifiedOrder) {
+    throw new Error(
+      "Opinie mogą wystawiać wyłącznie klientki, których zamówienie na ten produkt zostało już zrealizowane i doręczone."
+    );
+  }
+
+  // Sprawdzamy czy klientka nie otrzymała już nagrody za ten produkt
+  const existingReview = store.productReviews.find(
+    (r) =>
+      r.productId === data.productId &&
+      r.customerEmail.trim().toLowerCase() === normalizedEmail
+  );
+  if (existingReview) {
+    throw new Error("Wystawiłaś już opinię dla tego produktu.");
+  }
+
+  // Przyznanie kodu: 2% za tekst, 5% za opinię ze zdjęciem
+  const hasPhoto = Boolean(data.photoUrl && data.photoUrl.trim());
+  const rewardPercent = hasPhoto ? 5 : 2;
+  const rewardCode = `OPINIA-${rewardPercent}P-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const validUntil = addDaysWarsaw(30);
+
+  const review: ProductReview = {
+    id: `rev-${Date.now()}`,
+    productId: data.productId,
+    orderId: verifiedOrder.id,
+    orderNumber: verifiedOrder.orderNumber,
+    customerEmail: normalizedEmail,
+    displayName: data.displayName.trim() || "Klientka AURA",
+    rating: Math.max(1, Math.min(5, Math.round(data.rating))),
+    content: data.content.trim(),
+    photoUrl: data.photoUrl?.trim(),
+    isVerifiedPurchase: true,
+    rewardCodeIssued: rewardCode,
+    rewardPercentIssued: rewardPercent,
+    rewardCodeValidUntil: validUntil,
+    rewardCodeUsed: false,
+    hasPhotoBonusApplied: hasPhoto,
+    isHidden: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  store.productReviews.unshift(review);
+  saveLocalStore(store);
+
+  await addPromotionAuditLog(
+    `Przyznano kod za opinię (${rewardPercent}%): ${rewardCode}`,
+    `Dla: ${normalizedEmail}, produkt: ${data.productId}`
+  );
+
+  return { review, rewardCode, rewardPercent };
+}
+
+// Uzupełnienie opinii o zdjęcie (upgrade z 2% na 5% z zachowaniem pierwotnej daty ważności)
+export async function upgradeReviewWithPhoto(
+  reviewId: string,
+  photoUrl: string
+): Promise<{ success: boolean; newRewardCode?: string }> {
+  const store = loadLocalStore();
+  const review = store.productReviews?.find((r) => r.id === reviewId);
+  if (!review) throw new Error("Nie znaleziono opinii");
+
+  if (review.hasPhotoBonusApplied) {
+    throw new Error("Ta opinia posiada już bonus za zdjęcie.");
+  }
+
+  // Sprawdzamy czy poprzedni kod 2% jest nadal ważny i niewykorzystany
+  const isExpired = review.rewardCodeValidUntil
+    ? new Date().getTime() > new Date(review.rewardCodeValidUntil).getTime()
+    : false;
+
+  if (review.rewardCodeUsed || isExpired) {
+    // Dodajemy tylko zdjęcie bez nowego kodu
+    review.photoUrl = photoUrl;
+    review.hasPhotoBonusApplied = true;
+    review.updatedAt = new Date().toISOString();
+    saveLocalStore(store);
+    return { success: true };
+  }
+
+  // Generujemy nowy kod 5% zachowując pierwotną datę ważności
+  const newRewardCode = `OPINIA-5P-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  review.photoUrl = photoUrl;
+  review.hasPhotoBonusApplied = true;
+  review.rewardCodeIssued = newRewardCode;
+  review.rewardPercentIssued = 5;
+  review.updatedAt = new Date().toISOString();
+
+  saveLocalStore(store);
+  return { success: true, newRewardCode };
+}
+
+export async function toggleReviewVisibility(
+  reviewId: string,
+  isHidden: boolean,
+  hiddenReason?: string
+): Promise<ProductReview> {
+  const store = loadLocalStore();
+  const review = store.productReviews?.find((r) => r.id === reviewId);
+  if (!review) throw new Error("Nie znaleziono opinii");
+
+  review.isHidden = isHidden;
+  if (hiddenReason !== undefined) review.hiddenReason = hiddenReason;
+  review.updatedAt = new Date().toISOString();
+  saveLocalStore(store);
+
+  await addPromotionAuditLog(
+    `${isHidden ? "Ukryto" : "Przywrócono"} opinię`,
+    `ID: ${reviewId}, powód: ${hiddenReason || "Brak"}`
+  );
+
+  return review;
+}
+
+// ==========================================
+// FORMULARZ KONTAKTOWY
+// ==========================================
+export async function getAllContactMessages(): Promise<ContactMessage[]> {
+  const store = loadLocalStore();
+  return store.contactMessages || [];
+}
+
+export async function markContactMessageRead(id: string): Promise<boolean> {
+  const store = loadLocalStore();
+  const msg = store.contactMessages?.find((m) => m.id === id);
+  if (!msg) return false;
+  msg.isRead = true;
+  saveLocalStore(store);
+  return true;
+}
+
+// ==========================================
+// KONTO WŁAŚCICIELKI (aurazmigrod@wp.pl)
+// ==========================================
+export async function getAdminAccount(): Promise<AdminAccount> {
+  const store = loadLocalStore();
+  if (!store.adminAccount) {
+    store.adminAccount = { ...initialAdminAccount };
+    saveLocalStore(store);
+  }
+  return store.adminAccount;
+}
+
+export async function updateAdminPassword(newPassword: string): Promise<AdminAccount> {
+  const store = loadLocalStore();
+  if (!store.adminAccount) {
+    store.adminAccount = { ...initialAdminAccount };
+  }
+  store.adminAccount.password = newPassword.trim();
+  store.adminAccount.mustChangePassword = false;
+  store.adminAccount.lastPasswordChangedAt = new Date().toISOString();
+  saveLocalStore(store);
+
+  await addPromotionAuditLog(
+    "ZMIANA_HASŁA_WŁAŚCICIELKI",
+    "Pomyślnie zmieniono hasło dla konta aurazmigrod@wp.pl. Hasło jednorazowe zostało wyłączone.",
+    "Właścicielka (aurazmigrod@wp.pl)"
+  );
+
+  return store.adminAccount;
 }

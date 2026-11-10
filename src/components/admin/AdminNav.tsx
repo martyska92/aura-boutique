@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   ShieldCheck,
+  Tag,
 } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 
@@ -44,6 +45,7 @@ export function AdminNav() {
     { label: "Dodaj produkt", href: "/admin/produkty/nowy", icon: PlusCircle },
     { label: "Kategorie", href: "/admin/kategorie", icon: Layers },
     { label: "Zamówienia", href: "/admin/zamowienia", icon: ShoppingBag },
+    { label: "Promocje & Rabaty", href: "/admin/promocje", icon: Tag },
     { label: "Ustawienia Butiku", href: "/admin/ustawienia", icon: Settings },
   ];
 

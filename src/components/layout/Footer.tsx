@@ -1,11 +1,42 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { MapPin, Phone, Mail, Clock, ShieldCheck } from "lucide-react";
+import { MapPin, Phone, Mail, Clock, HeartHandshake } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 
+interface PublicSettings {
+  boutiqueName?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  openingHours?: string;
+}
+
 export function Footer() {
+  const [settings, setSettings] = useState<PublicSettings>({
+    address: "Żmigród, ul. Poprzeczna 3/1A",
+    phone: "+48 789 123 456",
+    email: "kontakt@auraboutique.pl",
+    openingHours: "Pon - Pt: 10:00 - 17:00 | Sob: 9:00 - 13:00",
+  });
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setSettings({
+            address: data.address || "Żmigród, ul. Poprzeczna 3/1A",
+            phone: data.phone || "+48 789 123 456",
+            email: data.email || "kontakt@auraboutique.pl",
+            openingHours: data.openingHours || "Pon - Pt: 10:00 - 17:00 | Sob: 9:00 - 13:00",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <footer
       className="border-t border-[#968372] text-[#241D1B] mt-auto"
@@ -108,6 +139,17 @@ export function Footer() {
                   Polityka prywatności & RODO
                 </Link>
               </li>
+              <li className="pt-1 border-t border-[#968372]/50">
+                <Link href="/konto" className="flex items-center gap-1.5 text-[#5E2B24] font-bold hover:text-[#241D1B] transition-colors">
+                  <HeartHandshake className="w-3.5 h-3.5 text-[#8C7248]" />
+                  <span>Poleć przyjaciółce (–15%)</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/konto" className="hover:text-[#5E4738] transition-colors">
+                  Moje konto / Logowanie
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -120,21 +162,25 @@ export function Footer() {
               <div className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-[#8C7248] shrink-0 mt-0.5" />
                 <span>
-                  Żmigród, ul. Poprzeczna 3/1A
+                  {settings.address}
                   <span className="block text-[11px] text-[#5A483D]">woj. dolnośląskie</span>
                 </span>
               </div>
               <div className="flex items-center gap-2.5">
                 <Clock className="w-4 h-4 text-[#8C7248] shrink-0" />
-                <span>Pon - Pt: 10:00 - 17:00 | Sob: 9:00 - 13:00</span>
+                <span>{settings.openingHours}</span>
               </div>
               <div className="flex items-center gap-2.5">
                 <Phone className="w-4 h-4 text-[#8C7248] shrink-0" />
-                <span>+48 789 123 456</span>
+                <a href={`tel:${settings.phone?.replace(/\s+/g, "")}`} className="hover:underline">
+                  {settings.phone}
+                </a>
               </div>
               <div className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-[#8C7248] shrink-0" />
-                <span>kontakt@auraboutique.pl</span>
+                <a href={`mailto:${settings.email}`} className="hover:underline">
+                  {settings.email}
+                </a>
               </div>
             </div>
 
@@ -154,7 +200,7 @@ export function Footer() {
         </div>
       </div>
 
-      {/* Dolny pasek praw autorskich & link do panelu */}
+      {/* Dolny pasek praw autorskich (bez widocznego linku do panelu dla klientek) */}
       <div
         className="border-t border-[#968372] py-5 px-4 sm:px-6 lg:px-8 text-[11px] text-[#3D2E24]"
         style={{
@@ -165,13 +211,17 @@ export function Footer() {
       >
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 font-medium">
           <p>© 2026 AURA Boutique. Wszelkie prawa zastrzeżone.</p>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 text-[#2E221E] hover:text-[#5E4738] transition-colors"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#8C7248]" />
-              <span>Panel właścicielki (/admin)</span>
+          <div className="flex items-center gap-4 text-xs">
+            <Link href="/regulamin" className="hover:text-[#18110D] transition-colors">
+              Regulamin
+            </Link>
+            <span>•</span>
+            <Link href="/polityka-prywatnosci" className="hover:text-[#18110D] transition-colors">
+              Polityka Prywatności & RODO
+            </Link>
+            <span>•</span>
+            <Link href="/kontakt" className="hover:text-[#18110D] transition-colors">
+              Kontakt
             </Link>
           </div>
         </div>

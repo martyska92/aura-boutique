@@ -433,5 +433,10 @@
     "p24CrcKey": "",
     "p24ApiKey": "",
     "p24Sandbox": true
+  },
+  "adminAccount": {
+    "email": "aurazmigrod@wp.pl",
+    "password": "dupa",
+    "mustChangePassword": true
   }
 }

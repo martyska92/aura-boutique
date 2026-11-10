@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,7 +9,7 @@ import {
   Heart,
   Menu,
   X,
-  UserCheck,
+  User,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -24,6 +24,25 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [auth, setAuth] = useState<{ isLoggedIn: boolean; isAdmin: boolean; email?: string }>({
+    isLoggedIn: false,
+    isAdmin: false,
+  });
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setAuth({
+            isLoggedIn: !!data.isLoggedIn,
+            isAdmin: !!data.isAdmin,
+            email: data.email,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,13 +137,28 @@ export function Header() {
                 <Heart className="w-5 h-5" />
               </Link>
 
+              {/* Przycisk Panelu Właścicielki (widoczny tylko dla zalogowanej właścicielki) */}
+              {auth.isAdmin && (
+                <Link
+                  href="/admin"
+                  className="hidden md:flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-white bg-[#9E8359] hover:bg-[#8B7147] border border-[#7D643E] px-3 py-1.5 rounded transition-colors font-semibold shadow-sm"
+                  title="Panel zarządzania butikiem"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                  <span>Panel</span>
+                </Link>
+              )}
+
+              {/* Konto klientki / Logowanie */}
               <Link
-                href="/admin"
-                className="hidden md:flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-[#241D1B] hover:text-[#542823] border border-[#968372] bg-[#DDD0C4]/60 hover:bg-[#DDD0C4]/90 px-2.5 py-1 rounded transition-colors font-medium shadow-xs"
-                title="Panel właścicielki butiku"
+                href={auth.isLoggedIn ? "/konto" : "/logowanie"}
+                className="flex items-center gap-1.5 text-xs text-[#241D1B] hover:text-[#542823] p-1.5 rounded transition-colors"
+                title={auth.isLoggedIn ? "Moje konto" : "Zaloguj się"}
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-[#9E8359]" />
-                <span>Panel</span>
+                <User className="w-5 h-5" />
+                <span className="hidden xl:inline text-[11px] font-medium">
+                  {auth.isLoggedIn ? (auth.isAdmin ? "Właścicielka" : "Konto") : "Logowanie"}
+                </span>
               </Link>
 
               <button
@@ -268,14 +302,24 @@ export function Header() {
                 </Link>
               </div>
 
-              <div className="pt-4">
+              <div className="pt-4 space-y-2">
+                {auth.isAdmin && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full py-3 bg-[#9E8359] hover:bg-[#8B7147] text-white text-xs uppercase tracking-widest flex items-center justify-center gap-2 rounded shadow-md font-semibold"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Panel właścicielki (/admin)</span>
+                  </Link>
+                )}
                 <Link
-                  href="/admin"
+                  href={auth.isLoggedIn ? "/konto" : "/logowanie"}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full py-3 bg-[#9E8359] hover:bg-[#8B7147] text-white text-xs uppercase tracking-widest flex items-center justify-center gap-2 rounded shadow-md font-semibold"
+                  className="w-full py-3 bg-[#DDD0C4]/80 hover:bg-[#DDD0C4] text-[#241D1B] text-xs uppercase tracking-widest flex items-center justify-center gap-2 rounded border border-[#968372] font-semibold"
                 >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Panel właścicielki (/admin)</span>
+                  <User className="w-4 h-4 text-[#8C7248]" />
+                  <span>{auth.isLoggedIn ? "Moje konto" : "Zaloguj się"}</span>
                 </Link>
               </div>
             </div>

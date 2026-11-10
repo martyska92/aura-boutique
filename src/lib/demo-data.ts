@@ -1,4 +1,15 @@
-import { Category, Product, StoreSettings, Order } from "./types";
+import {
+  Category,
+  Product,
+  StoreSettings,
+  Order,
+  Promotion,
+  IndividualCustomerDiscount,
+  ReferralParticipant,
+  ReferralRewardCode,
+  ProductReview,
+  PromotionAuditLog,
+} from "./types";
 
 export const initialCategories: Category[] = [
   {
@@ -332,6 +343,9 @@ export const initialProducts: Product[] = [
 export const initialStoreSettings: StoreSettings = {
   id: "default",
   boutiqueName: "AURA Boutique K.B.",
+  companyName: "AURA Boutique K.B. Karolina Borkowska",
+  nip: "9151234567",
+  regon: "021987654",
   address: "Żmigród | ul. Poprzeczna 3/1A",
   phone: "+48 789 123 456",
   email: "kontakt@auraboutique.pl",
@@ -344,6 +358,51 @@ export const initialStoreSettings: StoreSettings = {
   courierCost: 15.0,
   inpostLockerCost: 13.0,
   localPickupCost: 0.0,
+  termsAndConditions: `§ 1. Postanowienia ogólne i dane Sprzedawcy
+1. Niniejszy Regulamin określa zasady korzystania ze sklepu internetowego AURA Boutique K.B. oraz warunki składania zamówień i zawierania umów sprzedaży na odległość.
+2. Właścicielem sklepu internetowego AURA Boutique K.B. jest:
+AURA Boutique K.B. Karolina Borkowska
+Adres butiku stacjonarnego: ul. Poprzeczna 3/1A, 55-140 Żmigród, woj. dolnośląskie
+NIP: 9151234567, REGON: 021987654
+Adres poczty elektronicznej: kontakt@auraboutique.pl, Telefon: +48 789 123 456
+
+§ 2. Zasady składania zamówień i zakupy bez rejestracji
+1. Sklep umożliwia składanie zamówień zarówno z rejestracją konta, jak i bez rejestracji (zakupy jako gość).
+2. Wszystkie ceny produktów podawane są w polskich złotych (PLN) i stanowią całkowitą kwotę do zapłaty (sprzedawca zwolniony podmiotowo z VAT).
+3. Do momentu zaakceptowania zamówienia przez butik i zmiany statusu na "W realizacji", klientka ma możliwość dokupienia kolejnych ubrań bez dodatkowych kosztów przesyłki. Po przejściu w status "W realizacji" edycja zamówienia zostaje zablokowana.
+
+§ 3. Dostawa i Płatności
+1. Dostępne metody dostawy: Paczkomaty InPost (13,00 zł), Kurier (15,00 zł), Odbiór osobisty w butiku stacjonarnym w Żmigrodzie (0,00 zł).
+2. Standardowa dostawa jest bezpłatna dla zamówień o wartości produktów co najmniej 300,00 zł po uwzględnieniu rabatów.
+3. Dostępne metody płatności: Płatność online BLIK, szybkie przelewy Przelewy24 oraz tradycyjny przelew bankowy.
+
+§ 4. Odstąpienie od umowy i zwroty (14 dni)
+1. Każda klientka będąca konsumentem ma prawo odstąpić od umowy w terminie 14 dni od dnia odebrania przesyłki bez podawania przyczyny.
+2. Zgłoszenie zwrotu można wyklikać bezpośrednio na stronie ze statusem zamówienia lub drogą mailową.
+
+§ 5. Postanowienia końcowe
+1. Umowy zawierane poprzez sklep internetowy zawierane są w języku polskim i podlegają prawu polskiemu.`,
+  privacyPolicy: `POLITYKA PRYWATNOŚCI I KLAUZULA INFORMACYJNA RODO
+AURA Boutique K.B.
+
+1. Administrator Danych Osobowych
+Administratorem danych osobowych klientek sklepu internetowego oraz butiku stacjonarnego jest AURA Boutique K.B. Karolina Borkowska, ul. Poprzeczna 3/1A, 55-140 Żmigród, NIP: 9151234567, e-mail: kontakt@auraboutique.pl, telefon: +48 789 123 456.
+
+2. Cele i podstawy przetwarzania danych
+Dane osobowe przetwarzane są w celu:
+a) realizacji złożonych zamówień i umów sprzedaży (art. 6 ust. 1 lit. b RODO),
+b) obsługi zwrotów, reklamacji i wystawiania dokumentów księgowych (art. 6 ust. 1 lit. c RODO),
+c) udziału w programie poleceń oraz systemie rabatowym i opiniach (art. 6 ust. 1 lit. b i f RODO),
+d) kontaktu telefonicznego lub mailowego w sprawach doręczenia przesyłki i statusu zamówienia.
+
+3. Odbiorcy danych
+Dane mogą być przekazywane wyłącznie podmiotom niezbędnym do realizacji zamówienia: operatorom pocztowym i kurierskim (InPost, firmy kurierskie) oraz operatorom płatności online (Przelewy24).
+
+4. Prawa osoby, której dane dotyczą
+Każda klientka ma prawo dostępu do swoich danych, ich sprostowania, usunięcia ("prawo do bycia zapomnianym"), ograniczenia przetwarzania oraz wniesienia sprzeciwu. W celu realizacji praw prosimy o kontakt na adres kontakt@auraboutique.pl.
+
+5. Bezpieczeństwo
+Sklep stosuje szyfrowanie SSL, a dane przechowywane są zgodnie z najwyższymi standardami bezpieczeństwa teleinformatycznego.`,
   inpostApiKey: "",
   inpostOrganizationId: "",
   inpostEnvironment: "production",
@@ -421,5 +480,179 @@ export const initialOrders: Order[] = [
     ],
     createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
     updatedAt: new Date(Date.now() - 3600000 * 20).toISOString(),
+  },
+];
+
+export const initialPromotions: Promotion[] = [
+  {
+    id: "promo-weekend-15",
+    name: "Weekendowa Promocja –15% na wybraną kategorię",
+    publicTitle: "Weekendowa Promocja –15% na Marynarki!",
+    description: "Automatyczny rabat –15% na wszystkie produkty z wybranej kategorii przez cały weekend (sobota 00:00 – niedziela 23:59).",
+    type: "CATEGORY_WEEKEND",
+    discountValue: 15,
+    isAutomatic: true,
+    targetScope: "CATEGORIES",
+    categoryIds: ["cat-marynarki"],
+    excludeDiscounted: true,
+    noEndDate: true,
+    isRecurringWeekend: true,
+    targetAudience: "ALL",
+    currentUsageCount: 0,
+    canCombineWithOtherPromotions: false,
+    bannerEnabled: true,
+    bannerText: "✨ Weekend z AURA Boutique: –15% na wszystkie Marynarki! Rabat nalicza się automatycznie w koszyku.",
+    bannerButtonText: "Zobacz Marynarki",
+    bannerButtonUrl: "/katalog?kategoria=marynarki",
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "promo-first-order-15",
+    name: "–15% na pierwsze zamówienie",
+    publicTitle: "Rabat –15% na Twoje pierwsze zakupy",
+    description: "Automatyczny rabat –15% dla nowych klientek (weryfikacja po adresie e-mail w historii zamówień).",
+    type: "FIRST_ORDER",
+    discountValue: 15,
+    isAutomatic: true,
+    targetScope: "ALL",
+    excludeDiscounted: false,
+    noEndDate: true,
+    targetAudience: "NEW_CUSTOMERS",
+    currentUsageCount: 0,
+    canCombineWithOtherPromotions: false,
+    bannerEnabled: false,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "promo-socks-gift",
+    name: "Promocja na start — Skarpetki w prezencie",
+    publicTitle: "Prezent na otwarcie! Skarpetki w losowym kolorze gratis",
+    description: "Przy wartości produktów powyżej 100 zł po rabatach, automatycznie dodawana jest bezpłatna para skarpetek w losowym kolorze.",
+    type: "FREE_GIFT",
+    discountValue: 0,
+    minOrderValue: 100.0,
+    isAutomatic: true,
+    targetScope: "ALL",
+    excludeDiscounted: false,
+    noEndDate: true,
+    targetAudience: "ALL",
+    currentUsageCount: 0,
+    canCombineWithOtherPromotions: true,
+    bannerEnabled: true,
+    bannerText: "🎁 Prezent na otwarcie! Przy zakupach powyżej 100 zł otrzymasz skarpetki w losowym kolorze gratis. Do wyczerpania zapasów.",
+    bannerButtonText: "Zrób zakupy",
+    bannerButtonUrl: "/katalog",
+    giftProductId: "prod-socks-gift",
+    giftAvailableColors: ["Cielisty Nude", "Kremowy Ecru", "Czarne Classic", "Pudrowy Róż"],
+    giftStockQuantity: 50,
+    giftReservedQuantity: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "promo-free-shipping-300",
+    name: "Darmowa dostawa od 300 zł",
+    publicTitle: "Darmowa dostawa od 300 PLN",
+    description: "Standardowa dostawa Paczkomat / Kurier gratis dla zamówień od 300 zł po rabatach.",
+    type: "FREE_SHIPPING",
+    discountValue: 0,
+    minOrderValue: 300.0,
+    isAutomatic: true,
+    targetScope: "ALL",
+    excludeDiscounted: false,
+    noEndDate: true,
+    targetAudience: "ALL",
+    currentUsageCount: 0,
+    canCombineWithOtherPromotions: true,
+    bannerEnabled: false,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+export const initialIndividualDiscounts: IndividualCustomerDiscount[] = [
+  {
+    id: "ind-demo-1",
+    email: "stala.klientka@example.pl",
+    discountPercent: 10,
+    scope: "ALL",
+    isIndefinite: true,
+    isActive: true,
+    isEmailVerified: true,
+    adminNote: "Stała klientka z butiku w Żmigrodzie - rabat VIP 10%",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+export const initialReferralParticipants: ReferralParticipant[] = [
+  {
+    id: "ref-p-1",
+    email: "karolina.borkowska@auraboutique.pl",
+    customerName: "Karolina Borkowska",
+    referralCode: "KASIA-AURA15",
+    totalReferralsCount: 2,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  },
+];
+
+export const initialReferralRewardCodes: ReferralRewardCode[] = [];
+
+export const initialProductReviews: ProductReview[] = [
+  {
+    id: "rev-1",
+    productId: "prod-1",
+    orderId: "ord-demo-1",
+    orderNumber: "AURA-2026-0001",
+    customerEmail: "anna.kowalska@example.pl",
+    displayName: "Anna K.",
+    rating: 5,
+    content: "Sukienka leży przepięknie! Satyna ma szlachetny, subtelny połysk, a krój idealnie modeluje sylwetkę. Polecam każdej kobiecie ceniącej klasę.",
+    photoUrl: "/images/products/sukienka-satynowa-ivory.jpg",
+    isVerifiedPurchase: true,
+    rewardCodeIssued: "OPINIA-FOTO-5-ANN",
+    rewardPercentIssued: 5,
+    rewardCodeValidUntil: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+    rewardCodeUsed: false,
+    hasPhotoBonusApplied: true,
+    isHidden: false,
+    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+  },
+  {
+    id: "rev-2",
+    productId: "prod-2",
+    orderId: "ord-demo-2",
+    orderNumber: "AURA-2026-0002",
+    customerEmail: "magda.nowak@example.pl",
+    displayName: "Magdalena",
+    rating: 5,
+    content: "Miękki, ciepły i niezwykle przyjemny dla ciała sweter. Jakość wykonania i kaszmirowy splot na najwyższym poziomie.",
+    isVerifiedPurchase: true,
+    rewardCodeIssued: "OPINIA-TEKST-2-MAG",
+    rewardPercentIssued: 2,
+    rewardCodeValidUntil: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+    rewardCodeUsed: false,
+    hasPhotoBonusApplied: false,
+    isHidden: false,
+    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+  },
+];
+
+export const initialPromotionAuditLogs: PromotionAuditLog[] = [
+  {
+    id: "log-1",
+    timestamp: new Date().toISOString(),
+    adminUser: "Właścicielka",
+    action: "Inicjalizacja systemu promocji",
+    details: "Skonfigurowano promocję weekendową –15%, powitalną –15%, prezent (skarpetki) oraz program poleceń i opinii.",
   },
 ];

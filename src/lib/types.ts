@@ -91,6 +91,14 @@ export type OrderItem = {
   productImageUrl?: string;
 };
 
+export type AppliedPromotionSummary = {
+  id?: string;
+  name: string;
+  type: string;
+  discountAmount: number;
+  code?: string;
+};
+
 export type Order = {
   id: string;
   orderNumber: string;
@@ -109,6 +117,8 @@ export type Order = {
   trackingNumber?: string;
   inpostShipmentId?: string;
   subtotalAmount: number;
+  discountAmount?: number;
+  originalSubtotal?: number;
   shippingCost: number;
   totalAmount: number;
   customerNotes?: string;
@@ -116,6 +126,14 @@ export type Order = {
   reservedUntil?: string;
   items: OrderItem[];
   returns?: ReturnRequest[];
+  appliedPromotions?: AppliedPromotionSummary[];
+  giftItem?: {
+    productName: string;
+    color: string;
+    value: number;
+  };
+  referralCodeUsed?: string;
+  referrerEmail?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -123,6 +141,9 @@ export type Order = {
 export type StoreSettings = {
   id: string;
   boutiqueName: string;
+  companyName?: string;
+  nip?: string;
+  regon?: string;
   address: string;
   phone: string;
   email: string;
@@ -135,6 +156,9 @@ export type StoreSettings = {
   courierCost: number;
   inpostLockerCost: number;
   localPickupCost: number;
+  // Treści prawne edytowalne przez właścicielkę
+  termsAndConditions?: string;
+  privacyPolicy?: string;
   // Integracja InPost ShipX
   inpostApiKey?: string;
   inpostOrganizationId?: string;
@@ -163,4 +187,340 @@ export type CartItem = {
   imageUrl: string;
   quantity: number;
   maxStock: number;
+};
+
+// ==========================================
+// SYSTEM PROMOCJI, KODÓW I RABATÓW
+// ==========================================
+export type PromotionType =
+  | 'PERCENTAGE'
+  | 'FIXED_AMOUNT'
+  | 'FREE_SHIPPING'
+  | 'FREE_GIFT'
+  | 'FIRST_ORDER'
+  | 'INDIVIDUAL_EMAIL'
+  | 'COUPON_CODE'
+  | 'CATEGORY_WEEKEND';
+
+export type PromotionStatus =
+  | 'ACTIVE'
+  | 'SCHEDULED'
+  | 'ENDED'
+  | 'DISABLED'
+  | 'EXHAUSTED';
+
+export type Promotion = {
+  id: string;
+  name: string; // Nazwa wewnętrzna
+  publicTitle: string; // Treść widoczna dla klientek
+  description?: string;
+  type: PromotionType;
+  discountValue: number; // np. 15 dla 15%, lub 50 dla 50 PLN
+  code?: string; // Kod rabatowy (wielkość liter nie ma znaczenia)
+  isAutomatic: boolean; // Automatycznie czy po wpisaniu kodu
+  targetScope: 'ALL' | 'CATEGORIES' | 'PRODUCTS';
+  categoryIds?: string[];
+  productIds?: string[];
+  excludedCategoryIds?: string[];
+  excludedProductIds?: string[];
+  excludeDiscounted: boolean; // Wykluczenie produktów już przecenionych
+  minOrderValue?: number; // Minimalna wartość produktów po rabatach
+  startDate?: string; // ISO / Europe/Warsaw
+  endDate?: string;
+  noEndDate: boolean;
+  isRecurringWeekend?: boolean; // Cykliczna w każdy weekend (sob 00:00 - nd 23:59)
+  targetAudience: 'ALL' | 'NEW_CUSTOMERS' | 'SPECIFIC_EMAILS';
+  specificEmails?: string[];
+  totalUsageLimit?: number;
+  usageLimitPerEmail?: number;
+  currentUsageCount: number;
+  canCombineWithOtherPromotions: boolean;
+  bannerEnabled: boolean;
+  bannerText?: string;
+  bannerButtonText?: string;
+  bannerButtonUrl?: string;
+  // Prezent do zamówienia
+  giftProductId?: string;
+  giftAvailableColors?: string[];
+  giftStockQuantity?: number;
+  giftReservedQuantity?: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Indywidualny rabat dla konkretnej osoby po e-mailu
+export type IndividualCustomerDiscount = {
+  id: string;
+  email: string; // Znormalizowany: trimmed, lowercase
+  discountPercent: number;
+  scope: 'ALL' | 'CATEGORIES' | 'PRODUCTS';
+  categoryIds?: string[];
+  productIds?: string[];
+  startDate?: string;
+  endDate?: string;
+  isIndefinite: boolean;
+  isActive: boolean;
+  adminNote?: string;
+  isEmailVerified: boolean;
+  verificationToken?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Program poleceń
+export type ReferralParticipant = {
+  id: string;
+  email: string;
+  customerName: string;
+  referralCode: string; // Stały, unikalny kod
+  totalReferralsCount: number;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type ReferralRewardCode = {
+  id: string;
+  code: string; // Jednorazowy kod 15%
+  referrerEmail: string;
+  referredEmail: string;
+  referredOrderId: string;
+  discountPercent: number; // 15%
+  validUntil: string; // 30 dni od zrealizowania zamówienia koleżanki
+  isUsed: boolean;
+  usedAt?: string;
+  usedInOrderId?: string;
+  isRevoked: boolean;
+  revokedReason?: string;
+  adminFlagged?: boolean; // Koleżanka zwróciła zamówienie, ale kod został już zużyty
+  createdAt: string;
+};
+
+// Opinie o produktach
+export type ProductReview = {
+  id: string;
+  productId: string;
+  orderId: string;
+  orderNumber: string;
+  customerEmail: string;
+  displayName: string; // Publiczna nazwa, np. Anna K.
+  rating: number; // 1-5 gwiazdek
+  content: string;
+  photoUrl?: string;
+  isVerifiedPurchase: boolean;
+  rewardCodeIssued?: string;
+  rewardPercentIssued?: number; // 2 lub 5
+  rewardCodeValidUntil?: string; // 30 dni
+  rewardCodeUsed?: boolean;
+  hasPhotoBonusApplied?: boolean;
+  isHidden: boolean; // Moderacja (np. spam, PII)
+  hiddenReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Historia zmian administracyjnych (Audit Log)
+export type PromotionAuditLog = {
+  id: string;
+  timestamp: string;
+  adminUser: string;
+  action: string;
+  details: string;
+};
+
+// Wiadomość formularza kontaktowego
+export type ContactMessage = {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  createdAt: string;
+  isRead: boolean;
+};
+
+// Konto administratora / właścicielki
+export type AdminAccount = {
+  email: string; // aurazmigrod@wp.pl
+  password: string; // Początkowo "dupa"
+  mustChangePassword: boolean; // true na starcie, zmusza do natychmiastowej zmiany
+  lastPasswordChangedAt?: string;
+};
+
+// Sesja zalogowanego użytkownika (klientka lub właścicielka)
+export type UserSession = {
+  email: string;
+  role: 'ADMIN' | 'CUSTOMER';
+  isAdmin: boolean;
+  mustChangePassword?: boolean;
+  customerName?: string;
+  createdAt: number;
+  expiresAt: number;
+};
+
+// ==========================================
+// SYSTEM PROMOCJI, KODÓW I RABATÓW
+// ==========================================
+export type PromotionType =
+  | 'PERCENTAGE'
+  | 'FIXED_AMOUNT'
+  | 'FREE_SHIPPING'
+  | 'FREE_GIFT'
+  | 'FIRST_ORDER'
+  | 'INDIVIDUAL_EMAIL'
+  | 'COUPON_CODE'
+  | 'CATEGORY_WEEKEND';
+
+export type PromotionStatus =
+  | 'ACTIVE'
+  | 'SCHEDULED'
+  | 'ENDED'
+  | 'DISABLED'
+  | 'EXHAUSTED';
+
+export type Promotion = {
+  id: string;
+  name: string; // Nazwa wewnętrzna
+  publicTitle: string; // Treść widoczna dla klientek
+  description?: string;
+  type: PromotionType;
+  discountValue: number; // np. 15 dla 15%, lub 50 dla 50 PLN
+  code?: string; // Kod rabatowy (wielkość liter nie ma znaczenia)
+  isAutomatic: boolean; // Automatycznie czy po wpisaniu kodu
+  targetScope: 'ALL' | 'CATEGORIES' | 'PRODUCTS';
+  categoryIds?: string[];
+  productIds?: string[];
+  excludedCategoryIds?: string[];
+  excludedProductIds?: string[];
+  excludeDiscounted: boolean; // Wykluczenie produktów już przecenionych
+  minOrderValue?: number; // Minimalna wartość produktów po rabatach
+  startDate?: string; // ISO / Europe/Warsaw
+  endDate?: string;
+  noEndDate: boolean;
+  isRecurringWeekend?: boolean; // Cykliczna w każdy weekend (sob 00:00 - nd 23:59)
+  targetAudience: 'ALL' | 'NEW_CUSTOMERS' | 'SPECIFIC_EMAILS';
+  specificEmails?: string[];
+  totalUsageLimit?: number;
+  usageLimitPerEmail?: number;
+  currentUsageCount: number;
+  canCombineWithOtherPromotions: boolean;
+  bannerEnabled: boolean;
+  bannerText?: string;
+  bannerButtonText?: string;
+  bannerButtonUrl?: string;
+  // Prezent do zamówienia
+  giftProductId?: string;
+  giftAvailableColors?: string[];
+  giftStockQuantity?: number;
+  giftReservedQuantity?: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Indywidualny rabat dla konkretnej osoby po e-mailu
+export type IndividualCustomerDiscount = {
+  id: string;
+  email: string; // Znormalizowany: trimmed, lowercase
+  discountPercent: number;
+  scope: 'ALL' | 'CATEGORIES' | 'PRODUCTS';
+  categoryIds?: string[];
+  productIds?: string[];
+  startDate?: string;
+  endDate?: string;
+  isIndefinite: boolean;
+  isActive: boolean;
+  adminNote?: string;
+  isEmailVerified: boolean;
+  verificationToken?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Program poleceń
+export type ReferralParticipant = {
+  id: string;
+  email: string;
+  customerName: string;
+  referralCode: string; // Stały, unikalny kod
+  totalReferralsCount: number;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type ReferralRewardCode = {
+  id: string;
+  code: string; // Jednorazowy kod 15%
+  referrerEmail: string;
+  referredEmail: string;
+  referredOrderId: string;
+  discountPercent: number; // 15%
+  validUntil: string; // 30 dni od zrealizowania zamówienia koleżanki
+  isUsed: boolean;
+  usedAt?: string;
+  usedInOrderId?: string;
+  isRevoked: boolean;
+  revokedReason?: string;
+  adminFlagged?: boolean; // Koleżanka zwróciła zamówienie, ale kod został już zużyty
+  createdAt: string;
+};
+
+// Opinie o produktach
+export type ProductReview = {
+  id: string;
+  productId: string;
+  orderId: string;
+  orderNumber: string;
+  customerEmail: string;
+  displayName: string; // Publiczna nazwa, np. Anna K.
+  rating: number; // 1-5 gwiazdek
+  content: string;
+  photoUrl?: string;
+  isVerifiedPurchase: boolean;
+  rewardCodeIssued?: string;
+  rewardPercentIssued?: number; // 2 lub 5
+  rewardCodeValidUntil?: string; // 30 dni
+  rewardCodeUsed?: boolean;
+  hasPhotoBonusApplied?: boolean;
+  isHidden: boolean; // Moderacja (np. spam, PII)
+  hiddenReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Historia zmian administracyjnych (Audit Log)
+export type PromotionAuditLog = {
+  id: string;
+  timestamp: string;
+  adminUser: string;
+  action: string;
+  details: string;
+};
+
+// Wiadomość formularza kontaktowego
+export type ContactMessage = {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  createdAt: string;
+  isRead: boolean;
+};
+
+// Konto administratora / właścicielki
+export type AdminAccount = {
+  email: string; // aurazmigrod@wp.pl
+  password: string; // Początkowo "dupa"
+  mustChangePassword: boolean; // true na starcie, zmusza do natychmiastowej zmiany
+  lastPasswordChangedAt?: string;
+};
+
+// Sesja zalogowanego użytkownika (klientka lub właścicielka)
+export type UserSession = {
+  email: string;
+  role: 'ADMIN' | 'CUSTOMER';
+  isAdmin: boolean;
+  mustChangePassword?: boolean;
+  customerName?: string;
+  createdAt: number;
+  expiresAt: number;
 };

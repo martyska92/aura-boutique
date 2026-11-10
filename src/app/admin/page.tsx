@@ -11,6 +11,7 @@ import {
   Sparkles,
   Database,
   ArrowRight,
+  Tag,
 } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getAllOrders, getProducts, isNeonConfigured } from "@/lib/store-data";
@@ -101,6 +102,14 @@ export default async function AdminDashboardPage() {
           >
             <ShoppingBag className="w-4 h-4 text-[#C5A069]" />
             <span>Wszystkie Zamówienia ({orders.length})</span>
+          </Link>
+
+          <Link
+            href="/admin/promocje"
+            className="px-4 py-2.5 bg-[#FAF6F1] border border-[#BCAB9B] text-[#241D1B] text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#F3ECE2] transition-colors flex items-center gap-2"
+          >
+            <Tag className="w-4 h-4 text-[#9E8359]" />
+            <span>Promocje i Rabaty</span>
           </Link>
         </div>
       </div>

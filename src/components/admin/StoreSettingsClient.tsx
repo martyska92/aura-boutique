@@ -141,6 +141,97 @@ export function StoreSettingsClient({
             </div>
           </div>
 
+          {/* Dane Rejestrowe Firmy (Regulamin & Dokumenty) */}
+          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
+            <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
+              Dane Rejestrowe Firmy (Regulamin & Dokumenty Sprzedaży)
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-1">
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Pełna nazwa firmy / Imię i Nazwisko
+                </label>
+                <input
+                  type="text"
+                  placeholder="AURA Boutique Karolina Borkowska"
+                  value={settings.companyName || ""}
+                  onChange={(e) => handleChange("companyName", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  NIP
+                </label>
+                <input
+                  type="text"
+                  placeholder="np. 9151234567"
+                  value={settings.nip || ""}
+                  onChange={(e) => handleChange("nip", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  REGON
+                </label>
+                <input
+                  type="text"
+                  placeholder="np. 380123456"
+                  value={settings.regon || ""}
+                  onChange={(e) => handleChange("regon", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Treści Regulaminu i Polityki Prywatności / RODO */}
+          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
+            <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
+              Regulamin Sklepu & Polityka Prywatności (RODO)
+            </h2>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-[#241D1B]">
+                  Pełna treść Regulaminu sklepu internetowego
+                </label>
+                <span className="text-[10px] text-[#7A6458]">
+                  Wyświetla się na stronie <code>/regulamin</code>
+                </span>
+              </div>
+              <textarea
+                rows={10}
+                placeholder="Wpisz lub edytuj pełną treść regulaminu..."
+                value={settings.termsAndConditions || ""}
+                onChange={(e) => handleChange("termsAndConditions", e.target.value)}
+                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] font-mono leading-relaxed focus:outline-none focus:border-[#C5A069] rounded"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-[#241D1B]">
+                  Pełna treść Polityki Prywatności & RODO
+                </label>
+                <span className="text-[10px] text-[#7A6458]">
+                  Wyświetla się na stronie <code>/polityka-prywatnosci</code>
+                </span>
+              </div>
+              <textarea
+                rows={10}
+                placeholder="Wpisz lub edytuj treść polityki prywatności i RODO..."
+                value={settings.privacyPolicy || ""}
+                onChange={(e) => handleChange("privacyPolicy", e.target.value)}
+                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] font-mono leading-relaxed focus:outline-none focus:border-[#C5A069] rounded"
+              />
+            </div>
+          </div>
+
           {/* Treści Banera Głównego (Hero) */}
           <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
             <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">

@@ -1,8 +1,11 @@
 import React from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { getStoreSettings } from "@/lib/store-data";
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const settings = await getStoreSettings();
+
   return (
     <>
       <Header />
@@ -16,85 +19,88 @@ export default function TermsPage() {
               Regulamin Sklepu Internetowego
             </h1>
             <p className="text-xs text-[#6E6259]">
-              AURA Boutique K.B. • Obowiązuje od 2026 r.
+              {settings.boutiqueName || "AURA Boutique K.B."} • Obowiązuje od 2026 r.
             </p>
           </div>
 
           <div className="bg-white p-8 sm:p-12 border border-[#EADFD5] shadow-sm rounded-sm space-y-6 text-xs sm:text-sm text-[#3E3B38] leading-relaxed">
+            {/* Karta z danymi Sprzedawcy */}
             <section className="space-y-3">
               <h2 className="font-serif text-base text-[#241D1B] font-bold">
                 § 1. Postanowienia ogólne i dane Sprzedawcy
               </h2>
               <p>
-                1. Niniejszy Regulamin określa zasady korzystania ze sklepu internetowego AURA Boutique K.B. oraz warunki składania zamówień i zawierania umów sprzedaży na odległość.
+                1. Niniejszy Regulamin określa zasady korzystania ze sklepu internetowego {settings.boutiqueName} oraz warunki składania zamówień i zawierania umów sprzedaży na odległość.
               </p>
-              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] font-mono text-xs space-y-1">
-                <p className="text-[#AF884F]"><strong>[DO UZUPEŁNIENIA: DANE FIRMY SPRZEDAWCY]</strong></p>
-                <p>Właścicielem sklepu internetowego jest:</p>
-                <p>Firma: [DO UZUPEŁNIENIA: Pełna nazwa firmy / Imię i Nazwisko właścicielki]</p>
-                <p>Adres działalności / Butik: Żmigród, ul. Poprzeczna 3/1A, 55-110 Żmigród</p>
-                <p>NIP: [DO UZUPEŁNIENIA: NIP firmy]</p>
-                <p>REGON: [DO UZUPEŁNIENIA: REGON firmy]</p>
-                <p>E-mail: kontakt@auraboutique.pl | Tel.: +48 789 123 456</p>
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] font-mono text-xs space-y-1 rounded">
+                <p className="text-[#AF884F] font-bold">Sprzedawca i Właściciel Sklepu:</p>
+                <p><strong>Firma:</strong> {settings.companyName || settings.boutiqueName || "AURA Boutique K.B."}</p>
+                <p><strong>Adres butiku stacjonarnego:</strong> {settings.address}</p>
+                <p><strong>NIP:</strong> {settings.nip || "W uzupełnieniu"}</p>
+                <p><strong>REGON:</strong> {settings.regon || "W uzupełnieniu"}</p>
+                <p><strong>E-mail:</strong> {settings.email} | <strong>Tel.:</strong> {settings.phone}</p>
               </div>
             </section>
 
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                § 2. Składanie zamówień (Zamówienia bez rejestracji)
-              </h2>
-              <p>
-                1. Sklep umożliwia składanie zamówień jako gość, bez konieczności rejestracji i tworzenia konta użytkownika.
-              </p>
-              <p>
-                2. Wszystkie ceny produktów podawane są w polskich złotych (PLN) i stanowią całkowitą kwotę do zapłaty (ceny nie zawierają podatku VAT).
-              </p>
-              <p>
-                3. Zawarcie umowy następuje z chwilą potwierdzenia przyjęcia zamówienia przez Sklep. Stany magazynowe oraz ceny podlegają weryfikacji serwerowej.
-              </p>
-            </section>
+            {/* Treść regulaminu edytowalna w panelu */}
+            {settings.termsAndConditions ? (
+              <div className="space-y-4 whitespace-pre-line text-xs sm:text-sm text-[#3E3B38] leading-relaxed border-t border-[#EADFD5] pt-4">
+                {settings.termsAndConditions}
+              </div>
+            ) : (
+              <>
+                <section className="space-y-3">
+                  <h2 className="font-serif text-base text-[#241D1B] font-bold">
+                    § 2. Składanie zamówień
+                  </h2>
+                  <p>
+                    1. Sklep umożliwia składanie zamówień zarówno z rejestracją, jak i bez rejestracji konta użytkownika.
+                  </p>
+                  <p>
+                    2. Wszystkie ceny produktów podawane są w polskich złotych (PLN) i stanowią całkowitą kwotę do zapłaty.
+                  </p>
+                  <p>
+                    3. Zawarcie umowy następuje z chwilą potwierdzenia przyjęcia zamówienia przez Sklep. Stany magazynowe oraz ceny podlegają weryfikacji serwerowej.
+                  </p>
+                </section>
 
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                § 3. Płatności i Dostawa
-              </h2>
-              <p>
-                1. Dostępne metody płatności: szybkie płatności online Przelewy24 / BLIK oraz tradycyjny przelew bankowy na konto Sprzedawcy.
-              </p>
-              <p>
-                2. W przypadku wyboru tradycyjnego przelewu bankowego rezerwacja towaru wynosi 60 minut od momentu złożenia zamówienia.
-              </p>
-              <p>
-                3. Dostawa realizowana jest na terytorium Rzeczypospolitej Polskiej za pośrednictwem Paczkomatów InPost, kuriera InPost / DPD oraz bezpłatnego odbioru osobistego w Butiku w Żmigrodzie przy ul. Poprzecznej 3/1A.
-              </p>
-            </section>
+                <section className="space-y-3">
+                  <h2 className="font-serif text-base text-[#241D1B] font-bold">
+                    § 3. Płatności i Dostawa
+                  </h2>
+                  <p>
+                    1. Dostępne metody płatności: szybkie płatności online Przelewy24 / BLIK oraz tradycyjny przelew bankowy.
+                  </p>
+                  <p>
+                    2. Dostawa realizowana jest za pośrednictwem Paczkomatów InPost ({settings.inpostLockerCost} zł), kuriera ({settings.courierCost} zł) oraz bezpłatnego odbioru osobistego w Butiku w Żmigrodzie przy {settings.address}.
+                  </p>
+                  <p>
+                    3. Dla zamówień od {settings.freeShippingFrom} zł przysługuje darmowa dostawa.
+                  </p>
+                </section>
 
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                § 4. Prawo odstąpienia od umowy (Zwroty)
-              </h2>
-              <p>
-                1. Konsument ma prawo odstąpić od umowy zawartej na odległość w terminie 14 dni kalendarzowych bez podawania przyczyny.
-              </p>
-              <p>
-                2. Zwracany produkt nie może nosić śladów użytkowania i powinien posiadać oryginalne metki.
-              </p>
-              <p>
-                3. Zwrotu płatności Sprzedawca dokonuje niezwłocznie, nie później niż w terminie 14 dni od dnia otrzymania oświadczenia wraz z towarem.
-              </p>
-            </section>
+                <section className="space-y-3">
+                  <h2 className="font-serif text-base text-[#241D1B] font-bold">
+                    § 4. Prawo odstąpienia od umowy (Zwroty)
+                  </h2>
+                  <p>
+                    1. Konsument ma prawo odstąpić od umowy zawartej na odległość w terminie 14 dni kalendarzowych bez podawania przyczyny.
+                  </p>
+                  <p>
+                    2. Zwracany produkt nie może nosić śladów użytkowania i powinien posiadać oryginalne metki.
+                  </p>
+                </section>
 
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                § 5. Reklamacje i postanowienia końcowe
-              </h2>
-              <p>
-                1. Sprzedawca odpowiada wobec Klienta za wady fizyczne lub prawne towaru na zasadach określonych przepisami Kodeksu Cywilnego oraz ustawy o prawach konsumenta.
-              </p>
-              <p>
-                2. Reklamacje można składać drogą elektroniczną na adres e-mail: kontakt@auraboutique.pl.
-              </p>
-            </section>
+                <section className="space-y-3">
+                  <h2 className="font-serif text-base text-[#241D1B] font-bold">
+                    § 5. Reklamacje i kontakt
+                  </h2>
+                  <p>
+                    1. Reklamacje można składać drogą elektroniczną na adres e-mail: {settings.email} lub pisemnie na adres Butiku: {settings.address}.
+                  </p>
+                </section>
+              </>
+            )}
           </div>
         </div>
       </main>
