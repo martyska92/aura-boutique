@@ -1,5 +1,5 @@
 import React from "react";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getProductById, getCategories } from "@/lib/store-data";
 import { ProductEditor } from "@/components/admin/ProductEditor";
@@ -17,7 +17,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
   const categories = await getCategories();
 
   if (!product) {
-    notFound();
+    redirect("/admin/produkty");
   }
 
   return (

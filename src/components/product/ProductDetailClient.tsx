@@ -15,9 +15,11 @@ import {
   ChevronRight,
   Ruler,
   AlertCircle,
+  Star,
 } from "lucide-react";
 import { Product, ProductVariant } from "@/lib/types";
 import { useCart } from "@/context/CartContext";
+import { ProductReviewsSection } from "@/components/product/ProductReviewsSection";
 
 interface ProductDetailClientProps {
   product: Product;
@@ -208,6 +210,21 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 SKU: <span className="text-[#4A3F3B] font-mono">{activeVariant.sku}</span>
               </p>
             )}
+
+            {/* Szybki odnośnik do opinii klientek z gwiazdkami */}
+            <div className="mt-2">
+              <a
+                href="#opinie-o-produkcie"
+                className="inline-flex items-center gap-1.5 text-xs text-[#8C6B38] hover:text-[#241D1B] transition-colors font-medium"
+              >
+                <div className="flex text-[#C5A069]">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star key={s} className="w-3.5 h-3.5 fill-[#C5A069] text-[#C5A069]" />
+                  ))}
+                </div>
+                <span className="underline ml-1">Opinie klientek & dodaj ocenę</span>
+              </a>
+            </div>
           </div>
 
           {/* Cena */}
@@ -505,6 +522,9 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
           </div>
         </div>
       </div>
+
+      {/* Sekcja opinii o produkcie (gwiazdki 1-5, komentarz, zdjęcie klientki) */}
+      <ProductReviewsSection productId={product.id} productName={product.name} />
 
       {/* Produkty powiązane / Podobne */}
       {relatedProducts.length > 0 && (

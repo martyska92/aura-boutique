@@ -716,14 +716,13 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
         type: "success",
         text: isEditing
           ? "Zmiany w produkcie zostały pomyślnie zapisane!"
-          : "Nowy produkt został dodany do oferty butiku!",
+          : "Nowy produkt został dodany do oferty butiku! Przekierowywanie do listy produktów...",
       });
 
-      if (!isEditing && data.product?.id) {
-        router.push(`/admin/produkty/${data.product.id}`);
-      } else {
+      setTimeout(() => {
+        router.push("/admin/produkty");
         router.refresh();
-      }
+      }, 1000);
     } catch (err: any) {
       setFeedback({ type: "error", text: err.message || "Błąd zapisu." });
     } finally {

@@ -42,9 +42,9 @@ export async function POST(req: NextRequest) {
       photoUrl,
     } = body;
 
-    if (!productId || !orderNumber || !customerEmail || !content) {
+    if (!productId || !customerEmail || !content) {
       return NextResponse.json(
-        { error: "Wszystkie wymagane pola muszą zostać uzupełnione." },
+        { error: "Podaj swój adres e-mail oraz treść opinii o produkcie." },
         { status: 400 }
       );
     }

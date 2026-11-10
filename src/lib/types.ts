@@ -301,8 +301,8 @@ export type ReferralRewardCode = {
 export type ProductReview = {
   id: string;
   productId: string;
-  orderId: string;
-  orderNumber: string;
+  orderId?: string;
+  orderNumber?: string;
   customerEmail: string;
   displayName: string; // Publiczna nazwa, np. Anna K.
   rating: number; // 1-5 gwiazdek

@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import os from "os";
 import {
   Category,
   Product,
@@ -57,19 +58,41 @@ export const initialAdminAccount: AdminAccount = {
   mustChangePassword: false,
 };
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const DATA_FILE = path.join(DATA_DIR, "store-storage.json");
+declare global {
+  var __aura_store: StoreFileState | undefined;
+}
+
+const BUNDLED_DATA_DIR = path.join(process.cwd(), "data");
+const BUNDLED_DATA_FILE = path.join(BUNDLED_DATA_DIR, "store-storage.json");
+const TMP_DATA_FILE = path.join(os.tmpdir(), "aura-store-storage.json");
+
+function getStorageReadPath(): string {
+  if (fs.existsSync(TMP_DATA_FILE)) {
+    return TMP_DATA_FILE;
+  }
+  return BUNDLED_DATA_FILE;
+}
+
+function getStorageWritePath(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return TMP_DATA_FILE;
+  }
+  return BUNDLED_DATA_FILE;
+}
 
 // Pomocnicza funkcja inicjalizacji pliku lokalnego
 export function loadLocalStore(): StoreFileState {
+  if (globalThis.__aura_store) {
+    return globalThis.__aura_store;
+  }
+
+  const readPath = getStorageReadPath();
+
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, "utf-8");
+    if (fs.existsSync(readPath)) {
+      const content = fs.readFileSync(readPath, "utf-8");
       const parsed = JSON.parse(content);
-      return {
+      const state: StoreFileState = {
         categories: parsed.categories || initialCategories,
         products: parsed.products || initialProducts,
         orders: parsed.orders || initialOrders,
@@ -85,6 +108,8 @@ export function loadLocalStore(): StoreFileState {
         customers: parsed.customers || [],
         passwordResetTokens: parsed.passwordResetTokens || [],
       };
+      globalThis.__aura_store = state;
+      return state;
     }
   } catch (err) {
     console.error("Błąd odczytu lokalnego magazynu:", err);
@@ -108,22 +133,37 @@ export function loadLocalStore(): StoreFileState {
   };
 
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(defaultState, null, 2), "utf-8");
+    const writeTarget = getStorageWritePath();
+    const dir = path.dirname(writeTarget);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(writeTarget, JSON.stringify(defaultState, null, 2), "utf-8");
   } catch (err) {
     console.error("Błąd zapisu domyślnego magazynu:", err);
   }
 
+  globalThis.__aura_store = defaultState;
   return defaultState;
 }
 
 export function saveLocalStore(state: StoreFileState) {
+  globalThis.__aura_store = state;
+  const writeTarget = getStorageWritePath();
+
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const dir = path.dirname(writeTarget);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2), "utf-8");
+    fs.writeFileSync(writeTarget, JSON.stringify(state, null, 2), "utf-8");
   } catch (err) {
-    console.error("Błąd zapisu danych:", err);
+    console.warn("Błąd zapisu danych do ścieżki roboczej:", err);
+  }
+
+  // Jeśli jesteśmy na serwerze z dostępem do zapisu do /tmp
+  if (writeTarget !== TMP_DATA_FILE) {
+    try {
+      fs.writeFileSync(TMP_DATA_FILE, JSON.stringify(state, null, 2), "utf-8");
+    } catch (_) {}
   }
 }
 
@@ -1321,7 +1361,7 @@ export async function getProductReviews(productId: string): Promise<ProductRevie
 
 export async function createProductReview(data: {
   productId: string;
-  orderNumber: string;
+  orderNumber?: string;
   customerEmail: string;
   displayName: string;
   rating: number;
@@ -1332,33 +1372,24 @@ export async function createProductReview(data: {
   if (!store.productReviews) store.productReviews = [];
   const normalizedEmail = data.customerEmail.trim().toLowerCase();
 
-  // WERYFIKACJA ZAKUPU: szukamy zrealizowanego zamówienia (DELIVERED) zawierającego ten produkt
-  const verifiedOrder = store.orders.find((o) => {
-    const isMatchingOrder =
-      o.orderNumber.toUpperCase() === data.orderNumber.trim().toUpperCase() ||
-      o.id === data.orderNumber.trim();
-    const isMatchingEmail = o.customerEmail.trim().toLowerCase() === normalizedEmail;
-    const isDelivered = o.fulfillmentStatus === "DELIVERED";
-    const hasProduct = o.items.some(
-      (item) => item.variantSnapshot.includes(data.productId) || item.productNameSnapshot
-    );
-    return isMatchingOrder && isMatchingEmail && isDelivered;
-  });
-
-  if (!verifiedOrder) {
-    throw new Error(
-      "Opinie mogą wystawiać wyłącznie klientki, których zamówienie na ten produkt zostało już zrealizowane i doręczone."
-    );
-  }
-
-  // Sprawdzamy czy klientka nie otrzymała już nagrody za ten produkt
-  const existingReview = store.productReviews.find(
-    (r) =>
-      r.productId === data.productId &&
-      r.customerEmail.trim().toLowerCase() === normalizedEmail
-  );
-  if (existingReview) {
-    throw new Error("Wystawiłaś już opinię dla tego produktu.");
+  // WERYFIKACJA ZAKUPU: szukamy zamówienia (opcjonalnie)
+  let verifiedOrder = undefined;
+  if (data.orderNumber) {
+    verifiedOrder = store.orders.find((o) => {
+      const isMatchingOrder =
+        o.orderNumber.toUpperCase() === data.orderNumber!.trim().toUpperCase() ||
+        o.id === data.orderNumber!.trim();
+      const isMatchingEmail = o.customerEmail.trim().toLowerCase() === normalizedEmail;
+      return isMatchingOrder && isMatchingEmail;
+    });
+  } else {
+    verifiedOrder = store.orders.find((o) => {
+      const isMatchingEmail = o.customerEmail.trim().toLowerCase() === normalizedEmail;
+      const hasProduct = o.items.some(
+        (item) => item.variantSnapshot.includes(data.productId) || item.productNameSnapshot
+      );
+      return isMatchingEmail && hasProduct;
+    });
   }
 
   // Przyznanie kodu: 2% za tekst, 5% za opinię ze zdjęciem
@@ -1370,14 +1401,14 @@ export async function createProductReview(data: {
   const review: ProductReview = {
     id: `rev-${Date.now()}`,
     productId: data.productId,
-    orderId: verifiedOrder.id,
-    orderNumber: verifiedOrder.orderNumber,
+    orderId: verifiedOrder?.id,
+    orderNumber: verifiedOrder?.orderNumber || data.orderNumber?.trim(),
     customerEmail: normalizedEmail,
     displayName: data.displayName.trim() || "Klientka AURA",
     rating: Math.max(1, Math.min(5, Math.round(data.rating))),
     content: data.content.trim(),
     photoUrl: data.photoUrl?.trim(),
-    isVerifiedPurchase: true,
+    isVerifiedPurchase: Boolean(verifiedOrder),
     rewardCodeIssued: rewardCode,
     rewardPercentIssued: rewardPercent,
     rewardCodeValidUntil: validUntil,
