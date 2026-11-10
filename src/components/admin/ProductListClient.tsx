@@ -16,6 +16,10 @@ import {
   Filter,
   Check,
   Tag,
+  CheckSquare,
+  Square,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { Product, Category } from "@/lib/types";
 
@@ -34,6 +38,11 @@ export function ProductListClient({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [promotedFilter, setPromotedFilter] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Masowe zaznaczanie i operacje
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [bulkFeedback, setBulkFeedback] = useState<string | null>(null);
 
   // Szybkie przełączanie flagi (np. isNew, isBestseller, isPromoted, isPublished)
   const toggleFlag = async (id: string, field: "isNew" | "isBestseller" | "isPromoted" | "isPublished") => {
@@ -76,6 +85,7 @@ export function ProductListClient({
 
       if (res.ok) {
         setProducts((prev) => prev.filter((p) => p.id !== id));
+        setSelectedIds((prev) => prev.filter((item) => item !== id));
       } else {
         alert("Nie udało się usunąć produktu.");
       }
@@ -99,6 +109,82 @@ export function ProductListClient({
     }
     return true;
   });
+
+  // Obsługa zaznaczania
+  const isAllSelected =
+    filteredProducts.length > 0 &&
+    filteredProducts.every((p) => selectedIds.includes(p.id));
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredProducts.map((p) => p.id));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Obsługa masowej akcji
+  const handleBulkAction = async (action: string, updates?: Partial<Product>) => {
+    if (selectedIds.length === 0) return;
+
+    if (action === "delete") {
+      if (!confirm(`Czy na pewno chcesz bezpowrotnie usunąć ${selectedIds.length} zaznaczonych ubrań?`)) {
+        return;
+      }
+    }
+
+    setIsBulkLoading(true);
+    setBulkFeedback(null);
+
+    try {
+      const res = await fetch("/api/admin/products/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedIds,
+          action,
+          updates,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Błąd podczas operacji masowej.");
+      }
+
+      if (action === "delete") {
+        setProducts((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
+        setBulkFeedback(`Pomyślnie usunięto ${selectedIds.length} ubrań.`);
+        setSelectedIds([]);
+      } else {
+        let finalUpdates: Partial<Product> = updates || {};
+        if (action === "setPromoted") finalUpdates = { isPromoted: true };
+        else if (action === "unsetPromoted") finalUpdates = { isPromoted: false };
+        else if (action === "setNew") finalUpdates = { isNew: true };
+        else if (action === "unsetNew") finalUpdates = { isNew: false };
+        else if (action === "setBestseller") finalUpdates = { isBestseller: true };
+        else if (action === "unsetBestseller") finalUpdates = { isBestseller: false };
+        else if (action === "publish") finalUpdates = { isPublished: true };
+        else if (action === "unpublish") finalUpdates = { isPublished: false };
+
+        setProducts((prev) =>
+          prev.map((p) => (selectedIds.includes(p.id) ? { ...p, ...finalUpdates } : p))
+        );
+        setBulkFeedback(`Zaktualizowano ${selectedIds.length} ubrań!`);
+        setTimeout(() => setBulkFeedback(null), 4000);
+      }
+    } catch (err: any) {
+      alert("Błąd: " + err.message);
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -154,14 +240,161 @@ export function ProductListClient({
         </Link>
       </div>
 
+      {/* Pasek akcji masowych, gdy wybrano min. 1 produkt */}
+      {selectedIds.length > 0 && (
+        <div className="bg-[#FAF6F1] border-2 border-[#C5A069] rounded-lg p-3 sm:p-4 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 h-6 rounded-full bg-[#C5A069] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+              {selectedIds.length}
+            </span>
+            <div>
+              <span className="text-xs font-serif font-bold text-[#241D1B] tracking-wider uppercase block sm:inline">
+                Zaznaczono {selectedIds.length} z {filteredProducts.length} ubrań
+              </span>
+              {bulkFeedback && (
+                <span className="ml-2 text-xs font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                  {bulkFeedback}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Przyciski masowej zmiany statusu */}
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Promocja */}
+            <div className="inline-flex rounded border border-[#EADFD5] overflow-hidden text-[11px] bg-white shadow-2xs">
+              <button
+                type="button"
+                disabled={isBulkLoading}
+                onClick={() => handleBulkAction("setPromoted")}
+                className="px-2.5 py-1.5 hover:bg-rose-50 text-rose-800 font-semibold border-r border-[#EADFD5] transition-colors disabled:opacity-50"
+                title="Włącz sekcję Promocja dla zaznaczonych"
+              >
+                + Promocja
+              </button>
+              <button
+                type="button"
+                disabled={isBulkLoading}
+                onClick={() => handleBulkAction("unsetPromoted")}
+                className="px-2 py-1.5 hover:bg-gray-100 text-[#6E6259] transition-colors disabled:opacity-50"
+                title="Usuń z Promocji"
+              >
+                - Brak
+              </button>
+            </div>
+
+            {/* Nowość */}
+            <div className="inline-flex rounded border border-[#EADFD5] overflow-hidden text-[11px] bg-white shadow-2xs">
+              <button
+                type="button"
+                disabled={isBulkLoading}
+                onClick={() => handleBulkAction("setNew")}
+                className="px-2.5 py-1.5 hover:bg-[#F2DCD7] text-[#542823] font-semibold border-r border-[#EADFD5] transition-colors disabled:opacity-50"
+                title="Oznacz zaznaczone jako Nowość"
+              >
+                + Nowość
+              </button>
+              <button
+                type="button"
+                disabled={isBulkLoading}
+                onClick={() => handleBulkAction("unsetNew")}
+                className="px-2 py-1.5 hover:bg-gray-100 text-[#6E6259] transition-colors disabled:opacity-50"
+                title="Usuń oznaczenie Nowość"
+              >
+                - Brak
+              </button>
+            </div>
+
+            {/* Bestseller */}
+            <div className="inline-flex rounded border border-[#EADFD5] overflow-hidden text-[11px] bg-white shadow-2xs">
+              <button
+                type="button"
+                disabled={isBulkLoading}
+                onClick={() => handleBulkAction("setBestseller")}
+                className="px-2.5 py-1.5 hover:bg-amber-50 text-[#9E743A] font-semibold border-r border-[#EADFD5] transition-colors disabled:opacity-50"
+                title="Oznacz zaznaczone jako Bestseller"
+              >
+                ★ Bestseller
+              </button>
+              <button
+                type="button"
+                disabled={isBulkLoading}
+                onClick={() => handleBulkAction("unsetBestseller")}
+                className="px-2 py-1.5 hover:bg-gray-100 text-[#6E6259] transition-colors disabled:opacity-50"
+                title="Usuń z Bestsellerów"
+              >
+                - Brak
+              </button>
+            </div>
+
+            {/* Publikacja / Ukrycie */}
+            <div className="inline-flex rounded border border-[#EADFD5] overflow-hidden text-[11px] bg-white shadow-2xs">
+              <button
+                type="button"
+                disabled={isBulkLoading}
+                onClick={() => handleBulkAction("publish")}
+                className="px-2.5 py-1.5 hover:bg-emerald-50 text-emerald-800 font-semibold border-r border-[#EADFD5] transition-colors flex items-center gap-1 disabled:opacity-50"
+                title="Opublikuj zaznaczone w sklepie dla klientek"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Publikuj</span>
+              </button>
+              <button
+                type="button"
+                disabled={isBulkLoading}
+                onClick={() => handleBulkAction("unpublish")}
+                className="px-2.5 py-1.5 hover:bg-gray-100 text-gray-600 transition-colors flex items-center gap-1 disabled:opacity-50"
+                title="Ukryj zaznaczone ze sprzedaży"
+              >
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Ukryj</span>
+              </button>
+            </div>
+
+            {/* Usuń zaznaczone */}
+            <button
+              type="button"
+              disabled={isBulkLoading}
+              onClick={() => handleBulkAction("delete")}
+              className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+              title="Usuń zaznaczone ubrania"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Usuń</span>
+            </button>
+
+            {/* Odznacz */}
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 bg-white border border-[#EADFD5] text-[#6E6259] hover:text-[#241D1B] rounded text-[11px] font-medium transition-colors ml-auto md:ml-0"
+            >
+              Odznacz ({selectedIds.length})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabela produktów */}
       <div className="bg-white border border-[#EADFD5] rounded shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-[#EADFD5] flex justify-between items-center text-xs text-[#6E6259]">
-          <span>
-            Wyświetlono: <strong>{filteredProducts.length}</strong> z {products.length} ubrań
-          </span>
+        <div className="p-4 border-b border-[#EADFD5] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[#6E6259]">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer font-medium text-[#241D1B]">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                onChange={toggleSelectAll}
+                className="w-4 h-4 accent-[#C5A069] rounded cursor-pointer"
+              />
+              <span>Zaznacz wszystkie ({filteredProducts.length})</span>
+            </label>
+            <span className="text-[#EADFD5]">|</span>
+            <span>
+              Wyświetlono: <strong>{filteredProducts.length}</strong> z {products.length} ubrań
+            </span>
+          </div>
           <span className="text-[11px] text-[#C5A069] font-medium">
-            Kliknij na przełączniki poniżej, aby szybko zmienić status na żywo
+            Kliknij na przełączniki poniżej lub zaznacz polem wyboru, aby zmienić status zbiorczo
           </span>
         </div>
 
@@ -174,6 +407,15 @@ export function ProductListClient({
             <table className="w-full text-left text-xs divide-y divide-[#EADFD5]">
               <thead className="bg-[#FAF6F1] text-[#6E6259] uppercase text-[10px]">
                 <tr>
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 accent-[#C5A069] rounded cursor-pointer"
+                      title="Zaznacz / odznacz wszystkie"
+                    />
+                  </th>
                   <th className="py-3 px-4">Produkt</th>
                   <th className="py-3 px-4">Kategoria</th>
                   <th className="py-3 px-4">Cena (PLN)</th>
@@ -187,12 +429,30 @@ export function ProductListClient({
               </thead>
               <tbody className="divide-y divide-[#EADFD5]">
                 {filteredProducts.map((p) => {
+                  const isSelected = selectedIds.includes(p.id);
                   const totalStock = p.variants.reduce((sum, v) => sum + v.stockQuantity, 0);
                   const categoryName = categories.find((c) => c.id === p.categoryId)?.name || "—";
                   const primaryImg = p.images[0]?.url || "/images/products/sukienka-satynowa-ivory.jpg";
 
                   return (
-                    <tr key={p.id} className="hover:bg-[#FAF6F1]/80 transition-colors">
+                    <tr
+                      key={p.id}
+                      className={`transition-colors ${
+                        isSelected
+                          ? "bg-[#FAF2EB] border-l-4 border-l-[#C5A069]"
+                          : "hover:bg-[#FAF6F1]/80"
+                      }`}
+                    >
+                      {/* Checkbox zaznaczenia */}
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectOne(p.id)}
+                          className="w-4 h-4 accent-[#C5A069] rounded cursor-pointer"
+                        />
+                      </td>
+
                       {/* Nazwa i miniatura */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">

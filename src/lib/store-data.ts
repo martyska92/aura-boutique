@@ -411,6 +411,40 @@ export async function deleteProduct(id: string): Promise<boolean> {
   return true;
 }
 
+export async function bulkUpdateProducts(
+  ids: string[],
+  updates: Partial<Product>
+): Promise<Product[]> {
+  const store = loadLocalStore();
+  const now = new Date().toISOString();
+  const updatedProducts: Product[] = [];
+
+  store.products = store.products.map((p) => {
+    if (ids.includes(p.id)) {
+      const updated: Product = {
+        ...p,
+        ...updates,
+        updatedAt: now,
+      };
+      updatedProducts.push(updated);
+      return updated;
+    }
+    return p;
+  });
+
+  saveLocalStore(store);
+  return updatedProducts;
+}
+
+export async function bulkDeleteProducts(ids: string[]): Promise<number> {
+  const store = loadLocalStore();
+  const beforeCount = store.products.length;
+  store.products = store.products.filter((p) => !ids.includes(p.id));
+  const deletedCount = beforeCount - store.products.length;
+  saveLocalStore(store);
+  return deletedCount;
+}
+
 export async function clearAllDemoData(): Promise<{ deletedCount: number }> {
   const store = loadLocalStore();
   const beforeCount = store.products.length;
@@ -509,6 +543,31 @@ export async function updateOrderAdmin(
 
   saveLocalStore(store);
   return order;
+}
+
+export async function bulkUpdateOrders(
+  orderIds: string[],
+  updates: {
+    fulfillmentStatus?: FulfillmentStatus;
+    paymentStatus?: PaymentStatus;
+  }
+): Promise<Order[]> {
+  const store = loadLocalStore();
+  const now = new Date().toISOString();
+  const updatedOrders: Order[] = [];
+
+  store.orders = store.orders.map((o) => {
+    if (orderIds.includes(o.id)) {
+      if (updates.fulfillmentStatus) o.fulfillmentStatus = updates.fulfillmentStatus;
+      if (updates.paymentStatus) o.paymentStatus = updates.paymentStatus;
+      o.updatedAt = now;
+      updatedOrders.push(o);
+    }
+    return o;
+  });
+
+  saveLocalStore(store);
+  return updatedOrders;
 }
 
 // Klientka edytuje zamówienie (dokupuje lub zmienia pozycje przed akceptacją butiku)
