@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { MapPin, Phone, Mail, Clock, HeartHandshake } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
+import { PromotionsShowcase } from "@/components/promotions/PromotionsShowcase";
 
 interface PublicSettings {
   boutiqueName?: string;
@@ -38,8 +39,11 @@ export function Footer() {
   }, []);
 
   return (
-    <footer
-      className="border-t border-[#968372] text-[#241D1B] mt-auto"
+    <>
+      {/* Banery promocyjne nad stopką na każdej zakładce butiku */}
+      <PromotionsShowcase />
+      <footer
+        className="border-t border-[#968372] text-[#241D1B] mt-auto"
       style={{
         backgroundColor: "#BCAB9B",
         backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
@@ -227,5 +231,6 @@ export function Footer() {
         </div>
       </div>
     </footer>
+    </>
   );
 }

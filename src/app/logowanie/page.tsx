@@ -27,7 +27,7 @@ function AuthForms() {
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get("redirect") || "/konto";
 
-  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
+  const [activeTab, setActiveTab] = useState<"login" | "register" | "forgot">("login");
 
   // Logowanie
   const [loginEmail, setLoginEmail] = useState("");
@@ -35,6 +35,16 @@ function AuthForms() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Przypomnienie / Reset hasła (dla klientek i właścicielki)
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotCode, setForgotCode] = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [isForgotLoading, setIsForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
 
   // Rejestracja nowego konta
   const [regFirstName, setRegFirstName] = useState("");
@@ -49,6 +59,77 @@ function AuthForms() {
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
 
   const isOwnerEmail = loginEmail.trim().toLowerCase() === "aurazmigrod@wp.pl";
+
+  const handleRequestResetCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotSuccess(null);
+    setIsForgotLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Wystąpił błąd podczas generowania kodu.");
+      }
+
+      setForgotSuccess(data.message || "Kod weryfikacyjny został wygenerowany!");
+      if (data.code) {
+        setForgotCode(data.code);
+      }
+      setForgotStep(2);
+    } catch (err: any) {
+      setForgotError(err.message || "Błąd połączenia. Spróbuj ponownie.");
+    } finally {
+      setIsForgotLoading(false);
+    }
+  };
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotSuccess(null);
+
+    if (forgotNewPassword.trim().length < 4) {
+      setForgotError("Nowe hasło musi zawierać co najmniej 4 znaki.");
+      return;
+    }
+
+    setIsForgotLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          code: forgotCode.trim(),
+          newPassword: forgotNewPassword.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Wystąpił błąd podczas zmiany hasła.");
+      }
+
+      setForgotSuccess(data.message || "Hasło zostało pomyślnie zmienione!");
+      setLoginEmail(forgotEmail.trim());
+      setLoginPassword(forgotNewPassword.trim());
+      setTimeout(() => {
+        setActiveTab("login");
+        setForgotStep(1);
+        setForgotSuccess(null);
+      }, 1500);
+    } catch (err: any) {
+      setForgotError(err.message || "Błąd resetowania hasła.");
+    } finally {
+      setIsForgotLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,12 +215,18 @@ function AuthForms() {
       {/* Tytuł */}
       <div className="text-center mb-6 sm:mb-8">
         <h1 className="font-serif text-2xl sm:text-3xl text-[#241D1B]">
-          {activeTab === "login" ? "Zaloguj się do Butiku" : "Dołącz do AURA Boutique"}
+          {activeTab === "login"
+            ? "Zaloguj się do Butiku"
+            : activeTab === "register"
+            ? "Dołącz do AURA Boutique"
+            : "Przypomnij lub Zresetuj Hasło"}
         </h1>
         <p className="text-xs text-[#857670] mt-1 font-light">
           {activeTab === "login"
             ? "Konto klientki oraz panel zarządzania butikiem AURA"
-            : "Zarejestruj się i odbierz rabat –15% na pierwsze zamówienie"}
+            : activeTab === "register"
+            ? "Zarejestruj się i odbierz rabat –15% na pierwsze zamówienie"
+            : "Dla klientek butiku oraz konta właścicielki (aurazmigrod@wp.pl)"}
         </p>
       </div>
 
@@ -224,6 +311,18 @@ function AuthForms() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
                   >
                     {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="flex justify-end pt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(loginEmail || "");
+                      setActiveTab("forgot");
+                    }}
+                    className="text-[11px] text-[#8C7248] hover:text-[#241D1B] hover:underline"
+                  >
+                    Nie pamiętasz hasła?
                   </button>
                 </div>
               </div>
@@ -433,6 +532,161 @@ function AuthForms() {
                 className="text-xs text-[#8C7248] hover:text-[#241D1B] font-medium underline"
               >
                 Masz już konto? Zaloguj się
+              </button>
+            </div>
+          </>
+        )}
+        {/* ======================= FORMULARZ PRZYPOMNIENIA / RESETU HASŁA ======================= */}
+        {activeTab === "forgot" && (
+          <>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xs flex items-center gap-2.5 text-xs text-amber-900">
+              <ShieldCheck className="w-5 h-5 text-[#C5A069] shrink-0" />
+              <div>
+                <p className="font-bold text-[11px]">Bezpieczne odzyskiwanie hasła</p>
+                <p className="text-[10px] text-amber-800">
+                  Działa zarówno dla klientek butiku, jak i konta administratora (aurazmigrod@wp.pl).
+                </p>
+              </div>
+            </div>
+
+            {forgotError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{forgotError}</span>
+              </div>
+            )}
+
+            {forgotSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{forgotSuccess}</span>
+              </div>
+            )}
+
+            {forgotStep === 1 && (
+              <form onSubmit={handleRequestResetCode} className="space-y-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                    Adres e-mail przypisany do konta *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      placeholder="twoj-email@domena.pl lub aurazmigrod@wp.pl"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                    />
+                    <Mail className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={isForgotLoading}
+                    className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded-xs shadow-md"
+                  >
+                    {isForgotLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4" />
+                    )}
+                    <span>{isForgotLoading ? "Generowanie..." : "Pobierz Kod Resetu"}</span>
+                    {!isForgotLoading && <ArrowRight className="w-4 h-4 ml-1" />}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {forgotStep === 2 && (
+              <form onSubmit={handleConfirmReset} className="space-y-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
+                    Konto e-mail:
+                  </label>
+                  <div className="p-2.5 bg-[#FAF6F1] border border-[#EADFD5] text-xs font-semibold text-[#241D1B] rounded-xs">
+                    {forgotEmail}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                    6-cyfrowy kod weryfikacyjny *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    placeholder="Wpisz 6-cyfrowy kod..."
+                    value={forgotCode}
+                    onChange={(e) => setForgotCode(e.target.value)}
+                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-sm font-mono tracking-widest text-[#241D1B] text-center focus:outline-none focus:border-[#C5A069] rounded-xs font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                    Nowe hasło dostępowe * (min. 4 znaki)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showForgotNewPassword ? "text" : "password"}
+                      required
+                      placeholder="Wpisz nowe hasło..."
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                    />
+                    <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                    >
+                      {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 space-y-2">
+                  <button
+                    type="submit"
+                    disabled={isForgotLoading}
+                    className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded-xs shadow-md"
+                  >
+                    {isForgotLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    <span>{isForgotLoading ? "Zapisywanie..." : "Zapisz Nowe Hasło"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForgotStep(1)}
+                    className="w-full py-2 text-xs text-[#7A6458] hover:text-[#241D1B] text-center"
+                  >
+                    Zmień adres e-mail
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="pt-2 text-center border-t border-[#EADFD5]">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("login");
+                  setForgotStep(1);
+                  setForgotError(null);
+                  setForgotSuccess(null);
+                }}
+                className="text-xs text-[#8C7248] hover:text-[#241D1B] font-medium underline"
+              >
+                Pamiętasz hasło? Zaloguj się
               </button>
             </div>
           </>

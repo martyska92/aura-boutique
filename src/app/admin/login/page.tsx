@@ -112,6 +112,14 @@ export default function AdminLoginPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <div className="flex justify-end pt-1.5">
+                <Link
+                  href="/logowanie"
+                  className="text-[11px] text-[#8C7248] hover:text-[#241D1B] hover:underline"
+                >
+                  Zapomniałaś hasła? Zresetuj hasło
+                </Link>
+              </div>
             </div>
 
             <button
@@ -124,16 +132,16 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          {/* Dyskretna informacja o haśle startowym */}
+          {/* Dyskretna informacja o haśle dostępnym */}
           <div className="p-4 bg-[#F5ECE1]/70 border border-[#E0D3C3] text-xs text-[#5A483D] rounded space-y-1">
             <p className="font-semibold text-[#241D1B] flex items-center gap-1.5">
-              <span>🔑</span> Hasło startowe dla właścicielki:
+              <span>🔑</span> Hasło dostępowe dla właścicielki:
             </p>
             <p className="font-mono bg-white px-2 py-1 border border-[#BCAB9B] text-center font-bold text-[#241D1B] rounded">
               dupa
             </p>
             <p className="text-[11px] text-[#7A6458]">
-              Po pierwszym zalogowaniu system poprosi o natychmiastowe ustawienie własnego hasła.
+              Po zalogowaniu uzyskujesz natychmiastowy dostęp do panelu administracyjnego.
             </p>
           </div>
 

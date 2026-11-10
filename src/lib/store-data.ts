@@ -48,12 +48,13 @@ export interface StoreFileState {
   contactMessages: ContactMessage[];
   adminAccount: AdminAccount;
   customers?: CustomerAccount[];
+  passwordResetTokens?: { email: string; code: string; expiresAt: number }[];
 }
 
 export const initialAdminAccount: AdminAccount = {
   email: "aurazmigrod@wp.pl",
   password: "dupa",
-  mustChangePassword: true,
+  mustChangePassword: false,
 };
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -82,6 +83,7 @@ export function loadLocalStore(): StoreFileState {
         contactMessages: parsed.contactMessages || [],
         adminAccount: parsed.adminAccount || initialAdminAccount,
         customers: parsed.customers || [],
+        passwordResetTokens: parsed.passwordResetTokens || [],
       };
     }
   } catch (err) {
@@ -102,6 +104,7 @@ export function loadLocalStore(): StoreFileState {
     contactMessages: [],
     adminAccount: initialAdminAccount,
     customers: [],
+    passwordResetTokens: [],
   };
 
   try {
@@ -1484,6 +1487,120 @@ export async function getAdminAccount(): Promise<AdminAccount> {
     saveLocalStore(store);
   }
   return store.adminAccount;
+}
+
+/**
+ * Zapisuje kod resetowania hasła (ważny np. 15 minut)
+ */
+export async function savePasswordResetCode(
+  email: string,
+  code: string,
+  ttlMs: number = 15 * 60 * 1000
+): Promise<void> {
+  const store = loadLocalStore();
+  if (!store.passwordResetTokens) store.passwordResetTokens = [];
+
+  const normalized = email.trim().toLowerCase();
+  // Usuń ewentualne stare kody dla tego adresu
+  store.passwordResetTokens = store.passwordResetTokens.filter(
+    (t) => t.email.toLowerCase() !== normalized && t.expiresAt > Date.now()
+  );
+
+  store.passwordResetTokens.push({
+    email: normalized,
+    code: code.trim(),
+    expiresAt: Date.now() + ttlMs,
+  });
+
+  saveLocalStore(store);
+}
+
+/**
+ * Weryfikuje kod resetowania hasła
+ */
+export async function verifyPasswordResetCode(
+  email: string,
+  code: string
+): Promise<boolean> {
+  const store = loadLocalStore();
+  const normalized = email.trim().toLowerCase();
+  const trimmedCode = code.trim();
+
+  const token = (store.passwordResetTokens || []).find(
+    (t) =>
+      t.email.toLowerCase() === normalized &&
+      t.code === trimmedCode &&
+      t.expiresAt > Date.now()
+  );
+
+  return Boolean(token);
+}
+
+/**
+ * Resetuje hasło dla konta właścicielki lub klientki
+ */
+export async function resetUserPassword(
+  email: string,
+  newPassword: string
+): Promise<{ success: boolean; role: "ADMIN" | "CUSTOMER" }> {
+  const store = loadLocalStore();
+  const normalized = email.trim().toLowerCase();
+  const cleanPassword = newPassword.trim();
+
+  // 1. Sprawdzamy czy to konto właścicielki (admin)
+  const adminEmail = (store.adminAccount?.email || "aurazmigrod@wp.pl").trim().toLowerCase();
+  if (normalized === adminEmail) {
+    if (!store.adminAccount) {
+      store.adminAccount = { ...initialAdminAccount };
+    }
+    store.adminAccount.password = cleanPassword;
+    store.adminAccount.mustChangePassword = false;
+    store.adminAccount.lastPasswordChangedAt = new Date().toISOString();
+
+    // Usuwamy zużyty token
+    if (store.passwordResetTokens) {
+      store.passwordResetTokens = store.passwordResetTokens.filter(
+        (t) => t.email.toLowerCase() !== normalized
+      );
+    }
+
+    saveLocalStore(store);
+    await addPromotionAuditLog(
+      "RESET_HASŁA_ADMINA",
+      "Pomyślnie zresetowano hasło dla konta właścicielki butiku (aurazmigrod@wp.pl).",
+      "System resetowania hasła"
+    );
+    return { success: true, role: "ADMIN" };
+  }
+
+  // 2. Sprawdzamy czy to zarejestrowana klientka
+  const customer = (store.customers || []).find((c) => c.email.toLowerCase() === normalized);
+  if (customer) {
+    customer.passwordHash = cleanPassword;
+
+    if (store.passwordResetTokens) {
+      store.passwordResetTokens = store.passwordResetTokens.filter(
+        (t) => t.email.toLowerCase() !== normalized
+      );
+    }
+
+    saveLocalStore(store);
+
+    if (isNeonConfigured()) {
+      try {
+        await prisma.customerAccount.update({
+          where: { email: customer.email },
+          data: { passwordHash: cleanPassword },
+        });
+      } catch (e) {
+        console.warn("Neon customer password reset sync error:", e);
+      }
+    }
+
+    return { success: true, role: "CUSTOMER" };
+  }
+
+  throw new Error("Nie znaleziono konta z podanym adresem e-mail.");
 }
 
 export async function updateAdminPassword(newPassword: string): Promise<AdminAccount> {

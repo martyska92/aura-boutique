@@ -19,13 +19,8 @@ export default function ChangePasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (newPassword.length < 6) {
-      setError("Hasło musi mieć co najmniej 6 znaków.");
-      return;
-    }
-
-    if (newPassword.toLowerCase().trim() === "dupa") {
-      setError("Nie możesz pozostawić hasła jednorazowego 'dupa'. Wpisz własne bezpieczne hasło.");
+    if (newPassword.length < 4) {
+      setError("Hasło musi mieć co najmniej 4 znaki.");
       return;
     }
 

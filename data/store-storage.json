@@ -579,6 +579,20 @@
   "productReviews": [],
   "promotionAuditLogs": [
     {
+      "id": "log-1794323445260-itxakm",
+      "timestamp": "2026-11-10T15:10:45.260Z",
+      "adminUser": "System resetowania hasła",
+      "action": "RESET_HASŁA_ADMINA",
+      "details": "Pomyślnie zresetowano hasło dla konta właścicielki butiku (aurazmigrod@wp.pl)."
+    },
+    {
+      "id": "log-1794323445257-8j6f",
+      "timestamp": "2026-11-10T15:10:45.257Z",
+      "adminUser": "System resetowania hasła",
+      "action": "RESET_HASŁA_ADMINA",
+      "details": "Pomyślnie zresetowano hasło dla konta właścicielki butiku (aurazmigrod@wp.pl)."
+    },
+    {
       "id": "log-1794316986801-aju5t",
       "timestamp": "2026-11-10T13:23:06.801Z",
       "adminUser": "Właścicielka",
@@ -604,7 +618,9 @@
   "adminAccount": {
     "email": "aurazmigrod@wp.pl",
     "password": "dupa",
-    "mustChangePassword": true
+    "mustChangePassword": false,
+    "lastPasswordChangedAt": "2026-11-10T15:10:45.259Z"
   },
-  "customers": []
+  "customers": [],
+  "passwordResetTokens": []
 }
