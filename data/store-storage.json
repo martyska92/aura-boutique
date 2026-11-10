@@ -458,7 +458,7 @@
       "currentUsageCount": 0,
       "canCombineWithOtherPromotions": false,
       "bannerEnabled": true,
-      "bannerText": "✨ Weekend z AURA Boutique: –15% na wszystkie Marynarki! Rabat nalicza się automatycznie w koszyku.",
+      "bannerText": "✨ Weekend z AURA Boutique (od piątku 18:00 do niedzieli 23:59): –15% na Marynarki! Rabat nalicza się automatycznie w koszyku.",
       "bannerButtonText": "Zobacz Marynarki",
       "bannerButtonUrl": "/katalog?kategoria=marynarki",
       "isActive": true,

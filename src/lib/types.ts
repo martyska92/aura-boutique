@@ -357,6 +357,18 @@ export type UserSession = {
   expiresAt: number;
 };
 
+// Konto zarejestrowanej klientki butiku
+export type CustomerAccount = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  passwordHash?: string;
+  createdAt: string;
+  welcomeDiscountCode?: string;
+};
+
 
 
 

@@ -17,6 +17,7 @@ import {
   PromotionAuditLog,
   ContactMessage,
   AdminAccount,
+  CustomerAccount,
 } from "./types";
 import {
   initialCategories,
@@ -46,6 +47,7 @@ export interface StoreFileState {
   promotionAuditLogs: PromotionAuditLog[];
   contactMessages: ContactMessage[];
   adminAccount: AdminAccount;
+  customers?: CustomerAccount[];
 }
 
 export const initialAdminAccount: AdminAccount = {
@@ -79,6 +81,7 @@ export function loadLocalStore(): StoreFileState {
         promotionAuditLogs: parsed.promotionAuditLogs || initialPromotionAuditLogs,
         contactMessages: parsed.contactMessages || [],
         adminAccount: parsed.adminAccount || initialAdminAccount,
+        customers: parsed.customers || [],
       };
     }
   } catch (err) {
@@ -98,6 +101,7 @@ export function loadLocalStore(): StoreFileState {
     promotionAuditLogs: initialPromotionAuditLogs,
     contactMessages: [],
     adminAccount: initialAdminAccount,
+    customers: [],
   };
 
   try {
@@ -1305,4 +1309,69 @@ export async function updateAdminPassword(newPassword: string): Promise<AdminAcc
   );
 
   return store.adminAccount;
+}
+
+// ==========================================
+// KLIENCI BUTIKU (REJESTRACJA I LOGOWANIE)
+// ==========================================
+export async function getCustomers(): Promise<CustomerAccount[]> {
+  const store = loadLocalStore();
+  return store.customers || [];
+}
+
+export async function getCustomerByEmail(email: string): Promise<CustomerAccount | null> {
+  const store = loadLocalStore();
+  const normalized = email.trim().toLowerCase();
+  const customer = (store.customers || []).find((c) => c.email.toLowerCase() === normalized);
+  return customer || null;
+}
+
+export async function createCustomerAccount(data: {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  password?: string;
+}): Promise<CustomerAccount> {
+  const store = loadLocalStore();
+  if (!store.customers) store.customers = [];
+
+  const normalizedEmail = data.email.trim().toLowerCase();
+  const existing = store.customers.find((c) => c.email.toLowerCase() === normalizedEmail);
+  if (existing) {
+    throw new Error("Konto z tym adresem e-mail już istnieje. Zaloguj się.");
+  }
+
+  const welcomeCode = `WITAJ15-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+  const newCustomer: CustomerAccount = {
+    id: `cust-${Date.now()}`,
+    email: normalizedEmail,
+    firstName: data.firstName.trim(),
+    lastName: data.lastName.trim(),
+    phone: data.phone?.trim() || "",
+    passwordHash: data.password ? data.password.trim() : undefined,
+    createdAt: new Date().toISOString(),
+    welcomeDiscountCode: welcomeCode,
+  };
+
+  store.customers.push(newCustomer);
+  saveLocalStore(store);
+
+  // Dodajemy też kod powitalny –15% jako indywidualny rabat
+  try {
+    await saveIndividualDiscount({
+      email: normalizedEmail,
+      discountPercent: 15,
+      scope: "ALL",
+      isIndefinite: true,
+      isActive: true,
+      isEmailVerified: true,
+      adminNote: `Rabat powitalny –15% dla nowej klientki: ${data.firstName} ${data.lastName}`,
+    });
+  } catch (err) {
+    console.error("Błąd zapisu rabatu powitalnego:", err);
+  }
+
+  return newCustomer;
 }

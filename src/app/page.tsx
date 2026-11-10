@@ -5,6 +5,7 @@ import { ArrowRight, Sparkles, Heart, Shield, Clock, ShoppingBag } from "lucide-
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ProductCard } from "@/components/product/ProductCard";
+import { PromotionsShowcase } from "@/components/promotions/PromotionsShowcase";
 import { getProducts, getCategories, getStoreSettings } from "@/lib/store-data";
 
 export default async function HomePage() {
@@ -83,6 +84,11 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+
+        {/* ========================================================
+            BANERY AKTUALNYCH PROMOCJI BUTIKU
+           ======================================================== */}
+        <PromotionsShowcase />
 
         {/* ========================================================
             POLECANE PRODUKTY / BESTSELLERY (Zgodnie z nagłówkiem z wizualizacji nr 2)

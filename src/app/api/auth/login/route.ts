@@ -6,7 +6,7 @@ import {
   ADMIN_COOKIE_NAME,
   ADMIN_DEFAULT_EMAIL,
 } from "@/lib/admin-auth";
-import { getAdminAccount } from "@/lib/store-data";
+import { getAdminAccount, getCustomerByEmail } from "@/lib/store-data";
 
 export async function POST(req: NextRequest) {
   try {
@@ -66,8 +66,24 @@ export async function POST(req: NextRequest) {
       return response;
     }
 
-    // 2. Logowanie zwykłej klientki (dostęp do rabatów, poleceń i zamówień)
-    const sessionPayload = createUserSessionPayload(normalizedEmail);
+    // 2. Logowanie klientki (zarówno zarejestrowanej jak i jednorazowej/gościa)
+    const existingCustomer = await getCustomerByEmail(normalizedEmail);
+    let customerFullName = "";
+
+    if (existingCustomer) {
+      customerFullName = `${existingCustomer.firstName} ${existingCustomer.lastName}`;
+      // Jeśli klient ma ustawione hasło i podał hasło, weryfikujemy
+      if (existingCustomer.passwordHash && password) {
+        if (existingCustomer.passwordHash !== password.trim()) {
+          return NextResponse.json(
+            { error: "Nieprawidłowe hasło do konta klientki." },
+            { status: 401 }
+          );
+        }
+      }
+    }
+
+    const sessionPayload = createUserSessionPayload(normalizedEmail, customerFullName || undefined);
     const response = NextResponse.json({
       success: true,
       isAdmin: false,

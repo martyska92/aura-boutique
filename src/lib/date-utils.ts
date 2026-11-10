@@ -60,11 +60,16 @@ export function getWarsawTimeParts(inputDate?: Date | string): {
 }
 
 /**
- * Sprawdza czy w strefie Europe/Warsaw trwa weekend (sobota 00:00 - niedziela 23:59)
+ * Sprawdza czy w strefie Europe/Warsaw trwa weekend promocyjny:
+ * Rozpoczyna się w PIĄTEK o 18:00 i trwa do NIEDZIELI 23:59.
  */
 export function isWeekendWarsaw(inputDate?: Date | string): boolean {
-  const { dayOfWeek } = getWarsawTimeParts(inputDate);
-  return dayOfWeek === 6 || dayOfWeek === 0; // 6 = sobota, 0 = niedziela
+  const { dayOfWeek, hour } = getWarsawTimeParts(inputDate);
+  // Piątek (5) od godziny 18:00
+  if (dayOfWeek === 5 && hour >= 18) return true;
+  // Sobota (6) i niedziela (0) przez całą dobę
+  if (dayOfWeek === 6 || dayOfWeek === 0) return true;
+  return false;
 }
 
 /**
