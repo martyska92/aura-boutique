@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createOrder, getStoreSettings, getProductById } from "@/lib/store-data";
+import { calculateOrderPromotions } from "@/lib/promotion-engine";
 import { ShippingMethod, PaymentMethod, OrderItem } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest) {
       paymentMethod,
       customerNotes,
       cartItems,
+      couponCode,
     } = body;
 
     // Podstawowa walidacja pól
@@ -108,21 +110,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Wyliczenie kosztów wysyłki
-    let shippingCost = 0;
-    const isFreeShipping = verifiedSubtotal >= settings.freeShippingFrom;
+    // Wyliczenie rabatów, promocji, prezentu i kosztów dostawy
+    const promoResult = await calculateOrderPromotions({
+      cartItems,
+      customerEmail,
+      couponCode,
+      shippingMethod: shippingMethod as ShippingMethod,
+      customSettings: settings,
+    });
 
-    if (!isFreeShipping) {
-      if (shippingMethod === "INPOST_LOCKER") {
-        shippingCost = Number(settings.inpostLockerCost);
-      } else if (shippingMethod === "COURIER") {
-        shippingCost = Number(settings.courierCost);
-      } else if (shippingMethod === "LOCAL_PICKUP") {
-        shippingCost = Number(settings.localPickupCost);
-      }
-    }
-
-    const totalAmount = verifiedSubtotal + shippingCost;
+    const discountAmount = promoResult.totalDiscountAmount;
+    const finalSubtotal = promoResult.finalSubtotal;
+    const shippingCost = promoResult.shippingCost;
+    const totalAmount = promoResult.grandTotal;
+    const giftItem = promoResult.gift.isEligible ? promoResult.gift.giftItem : undefined;
+    const referralCodeUsed = promoResult.referralApplied?.code;
+    const referrerEmail = promoResult.referralApplied?.referrerEmail;
 
     // Czas wygaśnięcia rezerwacji (60 minut)
     const reservedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -140,7 +143,13 @@ export async function POST(req: NextRequest) {
       paymentMethod: paymentMethod as PaymentMethod,
       paymentStatus: "PENDING", // Płatność oczekuje - oddzielona od realizacji!
       fulfillmentStatus: "NEW", // Nowe zamówienie
-      subtotalAmount: verifiedSubtotal,
+      subtotalAmount: finalSubtotal,
+      originalSubtotal: verifiedSubtotal,
+      discountAmount,
+      appliedPromotions: promoResult.appliedPromotions,
+      giftItem,
+      referralCodeUsed,
+      referrerEmail,
       shippingCost,
       totalAmount,
       customerNotes,

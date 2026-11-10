@@ -19,6 +19,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Category } from "@/lib/types";
+import { CategoryCropModal } from "./CategoryCropModal";
 
 interface CategoryManagerClientProps {
   initialCategories: Category[];
@@ -39,8 +40,14 @@ export function CategoryManagerClient({ initialCategories }: CategoryManagerClie
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Stan kadrowania zdjęcia kategorii (medalion 1:1)
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropTargetMode, setCropTargetMode] = useState<"form" | "quickCard">("form");
+  const [cropTargetCatName, setCropTargetCatName] = useState<string>("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cardFileInputRef = useRef<HTMLInputElement>(null);
+  const activeUploadCatIdRef = useRef<string | null>(null);
   const [activeUploadCatId, setActiveUploadCatId] = useState<string | null>(null);
 
   const resetForm = () => {
@@ -62,17 +69,43 @@ export function CategoryManagerClient({ initialCategories }: CategoryManagerClie
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Upload zdjęcia z telefonu / komputera
-  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>, targetMode: "form" | "quickCard") => {
+  // Otwarcie kadrowania zdjęcia po wybraniu z telefonu / dysku
+  const handleUploadPhoto = (e: React.ChangeEvent<HTMLInputElement>, targetMode: "form" | "quickCard") => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const src = ev.target?.result as string;
+      if (src) {
+        setCropImageSrc(src);
+        setCropTargetMode(targetMode);
+        if (targetMode === "quickCard" && activeUploadCatIdRef.current) {
+          const targetCat = categories.find((c) => c.id === activeUploadCatIdRef.current);
+          setCropTargetCatName(targetCat ? targetCat.name : "");
+        } else {
+          setCropTargetCatName(formName || "Nowa kategoria");
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Zatwierdzenie kadru 1:1 i wysłanie do serwera
+  const handleCropConfirm = async (croppedDataUrl: string) => {
+    setCropImageSrc(null);
     setIsUploading(true);
     setFeedback(null);
 
+    const catId = activeUploadCatIdRef.current || activeUploadCatId;
+
     try {
+      const blobRes = await fetch(croppedDataUrl);
+      const blob = await blobRes.blob();
+      const file = new File([blob], "category-medallion.jpg", { type: "image/jpeg" });
       const formData = new FormData();
-      formData.append("files", files[0]);
+      formData.append("files", file);
 
       const res = await fetch("/api/admin/upload", {
         method: "POST",
@@ -81,43 +114,51 @@ export function CategoryManagerClient({ initialCategories }: CategoryManagerClie
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Błąd podczas wgrywania zdjęcia");
+        throw new Error(data.error || "Błąd podczas wgrywania wykadrowanego zdjęcia");
       }
 
       const uploadedUrl = data.urls[0];
 
-      if (targetMode === "form") {
+      if (cropTargetMode === "form") {
         setFormImageUrl(uploadedUrl);
-        setFeedback({ type: "success", text: "Zdjęcie zostało pomyślnie wgrane!" });
-      } else if (targetMode === "quickCard" && activeUploadCatId) {
-        // Szybka zmiana zdjęcia bezpośrednio na karcie kategorii
-        const targetCat = categories.find((c) => c.id === activeUploadCatId);
+        setFeedback({ type: "success", text: "Zdjęcie kategorii zostało pomyślnie wykadrowane i przypisane!" });
+      } else if (cropTargetMode === "quickCard" && catId) {
+        const targetCat = categories.find((c) => c.id === catId);
         if (targetCat) {
           const updateRes = await fetch("/api/admin/categories", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              id: activeUploadCatId,
+              id: catId,
               imageUrl: uploadedUrl,
             }),
           });
           if (updateRes.ok) {
             setCategories((prev) =>
-              prev.map((c) => (c.id === activeUploadCatId ? { ...c, imageUrl: uploadedUrl } : c))
+              prev.map((c) => (c.id === catId ? { ...c, imageUrl: uploadedUrl } : c))
             );
-            setFeedback({ type: "success", text: `Zaktualizowano zdjęcie główne dla kategorii: ${targetCat.name}` });
+            setFeedback({ type: "success", text: `Zaktualizowano wykadrowane zdjęcie dla kategorii: ${targetCat.name}` });
           }
         }
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Błąd przesyłania zdjęcia";
+      const msg = err instanceof Error ? err.message : "Błąd przesyłania wykadrowanego zdjęcia";
       setFeedback({ type: "error", text: msg });
     } finally {
       setIsUploading(false);
       setActiveUploadCatId(null);
+      activeUploadCatIdRef.current = null;
       if (fileInputRef.current) fileInputRef.current.value = "";
       if (cardFileInputRef.current) cardFileInputRef.current.value = "";
     }
+  };
+
+  const handleCropCancel = () => {
+    setCropImageSrc(null);
+    setActiveUploadCatId(null);
+    activeUploadCatIdRef.current = null;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cardFileInputRef.current) cardFileInputRef.current.value = "";
   };
 
   // Zapisanie nowej lub edytowanej kategorii
@@ -490,15 +531,16 @@ export function CategoryManagerClient({ initialCategories }: CategoryManagerClie
 
               {/* Dolna belka akcji na kafelku */}
               <div className="pt-3 border-t border-[#FAF6F1] flex items-center justify-between gap-2">
-                {/* Szybka zmiana zdjęcia z telefonu */}
+                {/* Szybka zmiana zdjęcia z telefonu z kadrowaniem */}
                 <button
                   type="button"
                   onClick={() => {
                     setActiveUploadCatId(cat.id);
+                    activeUploadCatIdRef.current = cat.id;
                     cardFileInputRef.current?.click();
                   }}
                   className="px-2.5 py-1.5 bg-[#FAF6F1] hover:bg-[#F2DCD7] border border-[#EADFD5] text-[11px] font-semibold text-[#241D1B] rounded flex items-center gap-1.5 transition-colors"
-                  title="Zmień zdjęcie główne tej kategorii"
+                  title="Zmień i wykadruj zdjęcie główne tej kategorii"
                 >
                   <Camera className="w-3.5 h-3.5 text-[#C5A069]" />
                   <span>Zmień zdjęcie</span>
@@ -528,6 +570,16 @@ export function CategoryManagerClient({ initialCategories }: CategoryManagerClie
           ))}
         </div>
       </div>
+
+      {/* Modal kadrowania zdjęcia kategorii (medalion 1:1) */}
+      {cropImageSrc && (
+        <CategoryCropModal
+          imageSrc={cropImageSrc}
+          categoryName={cropTargetCatName}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   );
 }
