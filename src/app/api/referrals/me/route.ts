@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getAllReferralParticipants,
+  getOrCreateReferralParticipant,
   getAllReferralRewardCodes,
   getAllProductReviews,
   getAllIndividualDiscounts,
   loadLocalStore,
+  migrateAllReferralCodes,
 } from "@/lib/store-data";
 
 export async function GET(req: NextRequest) {
@@ -17,14 +18,22 @@ export async function GET(req: NextRequest) {
     }
 
     const normalized = email.trim().toLowerCase();
-    const participants = await getAllReferralParticipants();
-    const participant = participants.find((p) => p.email.trim().toLowerCase() === normalized);
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://auraboutique.pl";
-    const referralLink = participant
-      ? `${baseUrl}/katalog?polecenie=${encodeURIComponent(participant.referralCode)}`
-      : undefined;
+    // Uruchomienie migracji kodów jeśli jakieś konto nie miało unikalnego kodu
+    migrateAllReferralCodes();
 
+    // Pobranie lub utworzenie trwałego unikalnego kodu dla tej klientki
+    const participant = await getOrCreateReferralParticipant(normalized);
+
+    // Wyznaczenie adresu bazowego sklepu z żądania
+    const proto = req.headers.get("x-forwarded-proto") || "https";
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "aura-boutique-w38e.vercel.app";
+    const baseUrl = `${proto}://${host}`;
+
+    // Link polecający wskazujący na stronę główną z parametrem ?ref=
+    const referralLink = `${baseUrl}/?ref=${encodeURIComponent(participant.referralCode)}`;
+
+    // Nagrody 15% polecającej za zrealizowane zamówienia koleżanek
     const allRewards = await getAllReferralRewardCodes();
     const myReferralRewards = allRewards.filter(
       (r) => r.referrerEmail.trim().toLowerCase() === normalized
@@ -56,15 +65,18 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({
+      success: true,
       participant,
+      referralCode: participant.referralCode,
       referralLink,
+      rewards: myReferralRewards,
       referralRewards: myReferralRewards,
       reviewRewards: myReviewRewards,
       individualDiscount: myIndividualDiscount,
       deliveredOrders: myDeliveredOrders,
     });
   } catch (err: any) {
+    console.error("Błąd api/referrals/me:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-

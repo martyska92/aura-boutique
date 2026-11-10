@@ -416,6 +416,9 @@
   "settings": {
     "id": "default",
     "boutiqueName": "AURA Boutique K.B.",
+    "companyName": "AURA Boutique K.B. Karolina Borkowska",
+    "nip": "9151234567",
+    "regon": "021987654",
     "address": "Żmigród | ul. Poprzeczna 3/1A",
     "phone": "+48 789 123 456",
     "email": "kontakt@auraboutique.pl",
@@ -428,16 +431,20 @@
     "courierCost": 15,
     "inpostLockerCost": 13,
     "localPickupCost": 0,
+    "termsAndConditions": "§ 1. Postanowienia ogólne i dane Sprzedawcy\n1. Niniejszy Regulamin określa zasady korzystania ze sklepu internetowego AURA Boutique K.B. oraz warunki składania zamówień i zawierania umów sprzedaży na odległość.\n2. Właścicielem sklepu internetowego AURA Boutique K.B. jest:\nAURA Boutique K.B. Karolina Borkowska\nAdres butiku stacjonarnego: ul. Poprzeczna 3/1A, 55-140 Żmigród, woj. dolnośląskie\nNIP: 9151234567, REGON: 021987654\nAdres poczty elektronicznej: kontakt@auraboutique.pl, Telefon: +48 789 123 456\n\n§ 2. Zasady składania zamówień i zakupy bez rejestracji\n1. Sklep umożliwia składanie zamówień zarówno z rejestracją konta, jak i bez rejestracji (zakupy jako gość).\n2. Wszystkie ceny produktów podawane są w polskich złotych (PLN) i stanowią całkowitą kwotę do zapłaty (sprzedawca zwolniony podmiotowo z VAT).\n3. Do momentu zaakceptowania zamówienia przez butik i zmiany statusu na \"W realizacji\", klientka ma możliwość dokupienia kolejnych ubrań bez dodatkowych kosztów przesyłki. Po przejściu w status \"W realizacji\" edycja zamówienia zostaje zablokowana.\n\n§ 3. Dostawa i Płatności\n1. Dostępne metody dostawy: Paczkomaty InPost (13,00 zł), Kurier (15,00 zł), Odbiór osobisty w butiku stacjonarnym w Żmigrodzie (0,00 zł).\n2. Standardowa dostawa jest bezpłatna dla zamówień o wartości produktów co najmniej 300,00 zł po uwzględnieniu rabatów.\n3. Dostępne metody płatności: Płatność online BLIK, szybkie przelewy Przelewy24 oraz tradycyjny przelew bankowy.\n\n§ 4. Odstąpienie od umowy i zwroty (14 dni)\n1. Każda klientka będąca konsumentem ma prawo odstąpić od umowy w terminie 14 dni od dnia odebrania przesyłki bez podawania przyczyny.\n2. Zgłoszenie zwrotu można wyklikać bezpośrednio na stronie ze statusem zamówienia lub drogą mailową.\n\n§ 5. Postanowienia końcowe\n1. Umowy zawierane poprzez sklep internetowy zawierane są w języku polskim i podlegają prawu polskiemu.",
+    "privacyPolicy": "POLITYKA PRYWATNOŚCI I KLAUZULA INFORMACYJNA RODO\nAURA Boutique K.B.\n\n1. Administrator Danych Osobowych\nAdministratorem danych osobowych klientek sklepu internetowego oraz butiku stacjonarnego jest AURA Boutique K.B. Karolina Borkowska, ul. Poprzeczna 3/1A, 55-140 Żmigród, NIP: 9151234567, e-mail: kontakt@auraboutique.pl, telefon: +48 789 123 456.\n\n2. Cele i podstawy przetwarzania danych\nDane osobowe przetwarzane są w celu:\na) realizacji złożonych zamówień i umów sprzedaży (art. 6 ust. 1 lit. b RODO),\nb) obsługi zwrotów, reklamacji i wystawiania dokumentów księgowych (art. 6 ust. 1 lit. c RODO),\nc) udziału w programie poleceń oraz systemie rabatowym i opiniach (art. 6 ust. 1 lit. b i f RODO),\nd) kontaktu telefonicznego lub mailowego w sprawach doręczenia przesyłki i statusu zamówienia.\n\n3. Odbiorcy danych\nDane mogą być przekazywane wyłącznie podmiotom niezbędnym do realizacji zamówienia: operatorom pocztowym i kurierskim (InPost, firmy kurierskie) oraz operatorom płatności online (Przelewy24).\n\n4. Prawa osoby, której dane dotyczą\nKażda klientka ma prawo dostępu do swoich danych, ich sprostowania, usunięcia (\"prawo do bycia zapomnianym\"), ograniczenia przetwarzania oraz wniesienia sprzeciwu. W celu realizacji praw prosimy o kontakt na adres kontakt@auraboutique.pl.\n\n5. Bezpieczeństwo\nSklep stosuje szyfrowanie SSL, a dane przechowywane są zgodnie z najwyższymi standardami bezpieczeństwa teleinformatycznego.",
+    "inpostApiKey": "",
+    "inpostOrganizationId": "",
+    "inpostEnvironment": "production",
+    "inpostSenderLocker": "ZMI01M",
+    "inpostSenderName": "AURA Boutique K.B.",
+    "inpostSenderEmail": "kontakt@auraboutique.pl",
+    "inpostSenderPhone": "+48 572 268 005",
     "p24MerchantId": "",
     "p24PosId": "",
     "p24CrcKey": "",
     "p24ApiKey": "",
     "p24Sandbox": true
-  },
-  "adminAccount": {
-    "email": "aurazmigrod@wp.pl",
-    "password": "dupa",
-    "mustChangePassword": true
   },
   "promotions": [
     {
@@ -535,9 +542,69 @@
       "updatedAt": "2026-11-10T11:09:25.209Z"
     }
   ],
-  "individualDiscounts": [],
+  "individualDiscounts": [
+    {
+      "id": "ind-1794316986768",
+      "email": "klientka_b_1794316986765@aura-test.pl",
+      "discountPercent": 15,
+      "scope": "ALL",
+      "categoryIds": [],
+      "productIds": [],
+      "isIndefinite": true,
+      "isActive": true,
+      "adminNote": "Rabat powitalny –15% dla nowej klientki: Beata Nowak",
+      "isEmailVerified": true,
+      "verificationToken": "RAC3QO",
+      "createdAt": "2026-11-10T13:23:06.767Z",
+      "updatedAt": "2026-11-10T13:23:06.767Z"
+    },
+    {
+      "id": "ind-1794316986763",
+      "email": "klientka_a_1794316986759@aura-test.pl",
+      "discountPercent": 15,
+      "scope": "ALL",
+      "categoryIds": [],
+      "productIds": [],
+      "isIndefinite": true,
+      "isActive": true,
+      "adminNote": "Rabat powitalny –15% dla nowej klientki: Anna Kowalska",
+      "isEmailVerified": true,
+      "verificationToken": "NHS9UL",
+      "createdAt": "2026-11-10T13:23:06.763Z",
+      "updatedAt": "2026-11-10T13:23:06.763Z"
+    }
+  ],
   "referralParticipants": [],
   "referralRewardCodes": [],
   "productReviews": [],
-  "promotionAuditLogs": []
+  "promotionAuditLogs": [
+    {
+      "id": "log-1794316986801-aju5t",
+      "timestamp": "2026-11-10T13:23:06.801Z",
+      "adminUser": "Właścicielka",
+      "action": "Przyznano nagrodę polecającej: klientka_a_1794316986759@aura-test.pl",
+      "details": "Kod 15%: POLECAM-K5UK5G za zrealizowane zamówienie TEST-001"
+    },
+    {
+      "id": "log-1794316986769-pfbm6",
+      "timestamp": "2026-11-10T13:23:06.769Z",
+      "adminUser": "Właścicielka",
+      "action": "Przyznano indywidualny rabat dla: klientka_b_1794316986765@aura-test.pl",
+      "details": "Rabat: 15%"
+    },
+    {
+      "id": "log-1794316986764-20zaij",
+      "timestamp": "2026-11-10T13:23:06.764Z",
+      "adminUser": "Właścicielka",
+      "action": "Przyznano indywidualny rabat dla: klientka_a_1794316986759@aura-test.pl",
+      "details": "Rabat: 15%"
+    }
+  ],
+  "contactMessages": [],
+  "adminAccount": {
+    "email": "aurazmigrod@wp.pl",
+    "password": "dupa",
+    "mustChangePassword": true
+  },
+  "customers": []
 }

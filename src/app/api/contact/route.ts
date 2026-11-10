@@ -6,9 +6,12 @@ export interface ContactMessage {
   name: string;
   email: string;
   message: string;
+  recipientEmail?: string;
   createdAt: string;
   isRead: boolean;
 }
+
+const OWNER_EMAIL = "aurazmigrod@wp.pl";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,11 +43,12 @@ export async function POST(req: NextRequest) {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       message: message.trim(),
+      recipientEmail: OWNER_EMAIL,
       createdAt: new Date().toISOString(),
       isRead: false,
     };
 
-    // Zapis do lokalnego magazynu
+    // 1. Zapis do lokalnego magazynu wiadomości butiku
     const store = loadLocalStore();
     if (!store.contactMessages) {
       store.contactMessages = [];
@@ -52,9 +56,32 @@ export async function POST(req: NextRequest) {
     store.contactMessages.unshift(newMessage);
     saveLocalStore(store);
 
+    // 2. Jeśli jest skonfigurowana usługa wysyłki maili (np. RESEND_API_KEY lub SMTP)
+    if (process.env.RESEND_API_KEY) {
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          },
+          body: JSON.stringify({
+            from: "AURA Boutique <kontakt@auraboutique.pl>",
+            to: [OWNER_EMAIL],
+            reply_to: newMessage.email,
+            subject: `Nowa wiadomość od klientki: ${newMessage.name}`,
+            text: `Imię: ${newMessage.name}\nEmail: ${newMessage.email}\nData: ${newMessage.createdAt}\n\nWiadomość:\n${newMessage.message}`,
+          }),
+        });
+      } catch (mailErr) {
+        console.error("Błąd wysyłki e-mail przez Resend:", mailErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Wiadomość została wysłana i zapisana.",
+      recipient: OWNER_EMAIL,
+      message: `Dziękujemy! Twoja wiadomość została przekazana na adres: ${OWNER_EMAIL}. Odpowiemy najszybciej jak to możliwe.`,
       id: newMessage.id,
     });
   } catch (err: any) {
@@ -65,4 +92,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

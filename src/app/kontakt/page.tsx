@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { BrandLogo } from "@/components/ui/BrandLogo";
 
 interface PublicSettings {
   boutiqueName?: string;
@@ -29,7 +28,7 @@ export default function ContactPage() {
   const [settings, setSettings] = useState<PublicSettings>({
     address: "Żmigród, ul. Poprzeczna 3/1A",
     phone: "+48 789 123 456",
-    email: "kontakt@auraboutique.pl",
+    email: "aurazmigrod@wp.pl",
     openingHours: "Pon - Pt: 10:00 - 17:00 | Sob: 9:00 - 13:00",
   });
 
@@ -109,7 +108,7 @@ export default function ContactPage() {
             {/* Lewa strona: Dane kontaktowe */}
             <div className="lg:col-span-5 bg-white p-8 border border-[#EADFD5] rounded-xs shadow-xs space-y-8">
               <div>
-                <BrandLogo size="md" className="mb-3" />
+                <h2 className="font-serif text-xl text-[#241D1B] mb-2">AURA Boutique</h2>
                 <p className="text-xs text-[#857670] leading-relaxed">
                   Zapraszamy do naszego butiku stacjonarnego w Żmigrodzie lub do kontaktu telefonicznego i mailowego.
                 </p>
@@ -188,7 +187,7 @@ export default function ContactPage() {
                   <CheckCircle2 className="w-10 h-10 text-[#C5A069] mx-auto" />
                   <h4 className="font-serif text-lg text-[#241D1B]">Dziękujemy za wiadomość!</h4>
                   <p className="text-xs text-[#857670]">
-                    Twoja wiadomość została zapisana i przekazana do właścicielki butiku. Odpowiemy na adres: <strong>{email}</strong>.
+                    Twoja wiadomość została wysłana bezpośrednio na adres: <strong>aurazmigrod@wp.pl</strong>. Odpowiemy na Twój e-mail: <strong>{email}</strong> najszybciej jak to możliwe!
                   </p>
                   <button
                     onClick={() => {

@@ -271,9 +271,10 @@ export type IndividualCustomerDiscount = {
 // Program poleceń
 export type ReferralParticipant = {
   id: string;
+  customerId?: string;
   email: string;
   customerName: string;
-  referralCode: string; // Stały, unikalny kod
+  referralCode: string; // Stały, unikalny losowy kod (np. AURA-7K9P2X8M)
   totalReferralsCount: number;
   isActive: boolean;
   createdAt: string;
@@ -365,6 +366,7 @@ export type CustomerAccount = {
   lastName: string;
   phone?: string;
   passwordHash?: string;
+  referralCode: string; // Stały, unikalny kod polecający np. AURA-7K9P2X8M (UNIQUE)
   createdAt: string;
   welcomeDiscountCode?: string;
 };

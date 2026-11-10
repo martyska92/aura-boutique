@@ -19,7 +19,6 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
-import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 
@@ -132,10 +131,9 @@ function AuthForms() {
 
   return (
     <div className="max-w-md w-full mx-auto">
-      {/* Brand & Tytuł */}
+      {/* Tytuł */}
       <div className="text-center mb-6 sm:mb-8">
-        <BrandLogo size="lg" />
-        <h1 className="mt-5 font-serif text-2xl sm:text-3xl text-[#241D1B]">
+        <h1 className="font-serif text-2xl sm:text-3xl text-[#241D1B]">
           {activeTab === "login" ? "Zaloguj się do Butiku" : "Dołącz do AURA Boutique"}
         </h1>
         <p className="text-xs text-[#857670] mt-1 font-light">
@@ -208,23 +206,13 @@ function AuthForms() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs uppercase tracking-wider text-[#63534B] font-semibold">
-                    Hasło dostępowe
-                  </label>
-                  {isOwnerEmail && (
-                    <span className="text-[10px] text-[#A66E22] bg-[#FFF2DE] px-1.5 py-0.5 rounded font-bold">
-                      Konto Właścicielki
-                    </span>
-                  )}
-                </div>
+                <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                  Hasło dostępowe
+                </label>
                 <div className="relative">
                   <input
                     type={showLoginPassword ? "text" : "password"}
-                    required={isOwnerEmail}
-                    placeholder={
-                      isOwnerEmail ? "Wpisz hasło do konta butiku..." : "Hasło (lub puste dla logowania gościa)"
-                    }
+                    placeholder="Wpisz swoje hasło..."
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
@@ -248,17 +236,11 @@ function AuthForms() {
                 >
                   {isLoginLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : isOwnerEmail ? (
-                    <ShieldCheck className="w-4 h-4 text-white" />
                   ) : (
                     <User className="w-4 h-4 text-white" />
                   )}
                   <span>
-                    {isLoginLoading
-                      ? "Weryfikacja..."
-                      : isOwnerEmail
-                      ? "Zaloguj do Panelu Właścicielki"
-                      : "Zaloguj się do Konta"}
+                    {isLoginLoading ? "Weryfikacja..." : "Zaloguj się do Konta"}
                   </span>
                   {!isLoginLoading && <ArrowRight className="w-4 h-4 ml-1" />}
                 </button>
@@ -281,11 +263,9 @@ function AuthForms() {
                 <Sparkles className="w-3.5 h-3.5 text-[#C5A069]" />
                 <span>Wygodny dostęp dla Klientek</span>
               </p>
+              <p className="text-[11px] text-[#8C6B38] font-medium">Nie wysyłamy spamu</p>
               <p>
                 Wpisz swój adres e-mail, aby sprawdzić historię zamówień, kody rabatowe oraz polecać butik koleżankom.
-              </p>
-              <p className="text-[10px] text-[#7A6458] pt-1 border-t border-[#EADFD5]">
-                Właścicielka butiku loguje się adresem: <code className="font-semibold text-[#241D1B]">aurazmigrod@wp.pl</code>.
               </p>
             </div>
           </>

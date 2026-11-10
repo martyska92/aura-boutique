@@ -134,9 +134,26 @@ export async function calculateOrderPromotions(params: {
     );
 
     // B) Program poleceń - stały kod polecający uczestniczki
-    const participant = (store.referralParticipants || []).find(
+    let participant = (store.referralParticipants || []).find(
       (p) => p.isActive && p.referralCode.trim().toUpperCase() === normalizedCoupon
     );
+    if (!participant && store.customers) {
+      const cust = store.customers.find(
+        (c) => c.referralCode && c.referralCode.trim().toUpperCase() === normalizedCoupon
+      );
+      if (cust) {
+        participant = {
+          id: `ref-p-${cust.id}`,
+          customerId: cust.id,
+          email: cust.email,
+          customerName: `${cust.firstName} ${cust.lastName}`.trim(),
+          referralCode: cust.referralCode,
+          totalReferralsCount: 0,
+          isActive: true,
+          createdAt: cust.createdAt,
+        };
+      }
+    }
 
     // C) Jednorazowy kod 15% polecającej za zrealizowane zamówienie
     const rewardCode = (store.referralRewardCodes || []).find(

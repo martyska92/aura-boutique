@@ -44,6 +44,18 @@ export function PromotionsShowcase() {
     return () => clearInterval(interval);
   }, []);
 
+  // Zapamiętanie kodu polecającego z linku (?ref= lub ?polecenie=)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const refCode = urlParams.get("ref") || urlParams.get("polecenie");
+      if (refCode) {
+        sessionStorage.setItem("aura_referral_code", refCode.trim().toUpperCase());
+      }
+    } catch (e) {}
+  }, []);
+
   return (
     <section className="py-10 sm:py-14 bg-gradient-to-b from-[#FAF6F1] to-[#F5ECE1] border-b border-[#EADFD5]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

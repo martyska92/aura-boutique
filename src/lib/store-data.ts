@@ -590,6 +590,7 @@ export async function updateOrderAdmin(
   const order = store.orders.find((o) => o.id === orderId);
   if (!order) throw new Error("Nie znaleziono zamówienia");
 
+  const prevFulfillmentStatus = order.fulfillmentStatus;
   if (updates.fulfillmentStatus) order.fulfillmentStatus = updates.fulfillmentStatus;
   if (updates.paymentStatus) order.paymentStatus = updates.paymentStatus;
   if (updates.trackingNumber !== undefined) order.trackingNumber = updates.trackingNumber;
@@ -597,6 +598,22 @@ export async function updateOrderAdmin(
   order.updatedAt = new Date().toISOString();
 
   saveLocalStore(store);
+
+  // Przyznanie jednorazowej nagrody 15% polecającej po pomyślnym doręczeniu (DELIVERED)
+  if (order.fulfillmentStatus === "DELIVERED" && prevFulfillmentStatus !== "DELIVERED") {
+    try {
+      await awardReferralRewardOnDelivered(order);
+    } catch (e) {
+      console.error("Błąd przyznawania nagrody polecającej:", e);
+    }
+  } else if (order.fulfillmentStatus === "CANCELLED" && prevFulfillmentStatus === "DELIVERED") {
+    try {
+      await revokeReferralRewardOnRefund(order.id);
+    } catch (e) {
+      console.error("Błąd cofania nagrody polecającej po anulowaniu:", e);
+    }
+  }
+
   return order;
 }
 
@@ -622,6 +639,16 @@ export async function bulkUpdateOrders(
   });
 
   saveLocalStore(store);
+  for (const o of updatedOrders) {
+    if (o.fulfillmentStatus === "DELIVERED") {
+      try {
+        await awardReferralRewardOnDelivered(o);
+      } catch (e) {
+        console.error("Błąd przyznawania nagrody polecającej (bulk):", e);
+      }
+    }
+  }
+
   return updatedOrders;
 }
 
@@ -979,6 +1006,7 @@ export async function deleteIndividualDiscount(id: string): Promise<boolean> {
 // PROGRAM POLECEŃ
 // ==========================================
 export async function getAllReferralParticipants(): Promise<ReferralParticipant[]> {
+  migrateAllReferralCodes();
   const store = loadLocalStore();
   return store.referralParticipants || [];
 }
@@ -988,37 +1016,183 @@ export async function getAllReferralRewardCodes(): Promise<ReferralRewardCode[]>
   return store.referralRewardCodes || [];
 }
 
+/**
+ * Generuje losowy, unikalny kod polecający bez danych osobowych.
+ * Format: AURA-XXXXXXXX (np. AURA-7K9P2X8M)
+ * Alfabet bez mylących znaków (wykluczone 0, 1, I, O)
+ */
+export function generateRandomReferralCode(): string {
+  const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  let randomPart = "";
+  for (let i = 0; i < 8; i++) {
+    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `AURA-${randomPart}`;
+}
+
+export function generateUniqueReferralCode(existingCodes: Set<string>): string {
+  let code = generateRandomReferralCode();
+  let attempts = 0;
+  while (existingCodes.has(code.toUpperCase()) && attempts < 1000) {
+    code = generateRandomReferralCode();
+    attempts++;
+  }
+  return code;
+}
+
+/**
+ * Pobiera lub generuje trwały, unikalny kod polecający dla klientki.
+ * Kod jest powiązany z kontem i pozostaje STAŁY po ponownym logowaniu,
+ * zmianie e-maila oraz na innych urządzeniach.
+ */
 export async function getOrCreateReferralParticipant(
   email: string,
-  customerName: string
+  customerName?: string
 ): Promise<ReferralParticipant> {
   const store = loadLocalStore();
   if (!store.referralParticipants) store.referralParticipants = [];
+  if (!store.customers) store.customers = [];
+
   const normalizedEmail = email.trim().toLowerCase();
 
-  const existing = store.referralParticipants.find(
-    (p) => p.email.trim().toLowerCase() === normalizedEmail
+  // Zbierz wszystkie kody w systemie
+  const existingCodes = new Set<string>();
+  for (const c of store.customers) {
+    if (c.referralCode) existingCodes.add(c.referralCode.toUpperCase());
+  }
+  for (const p of store.referralParticipants) {
+    if (p.referralCode) existingCodes.add(p.referralCode.toUpperCase());
+  }
+
+  // 1. Sprawdź konto klientki w store.customers
+  const customer = store.customers.find((c) => c.email.toLowerCase() === normalizedEmail);
+  const resolvedName = customer
+    ? `${customer.firstName} ${customer.lastName}`.trim()
+    : customerName?.trim() || email.split("@")[0];
+
+  // 2. Sprawdź czy uczestnik już istnieje
+  let participant = store.referralParticipants.find(
+    (p) =>
+      p.email.toLowerCase() === normalizedEmail ||
+      (customer && p.customerId && p.customerId === customer.id)
   );
-  if (existing) return existing;
 
-  // Tworzymy unikalny, czytelny kod polecający
-  const firstName = customerName.split(" ")[0].toUpperCase().replace(/[^A-Z]/g, "") || "AURA";
-  const randomSuffix = Math.floor(100 + Math.random() * 900);
-  const code = `${firstName}-AURA${randomSuffix}`;
+  // A) Klientka ma już przypisany stały unikalny kod AURA-XXXXXXXX
+  if (customer?.referralCode && /^AURA-[2-9A-Z]{8}$/i.test(customer.referralCode)) {
+    if (!participant) {
+      participant = {
+        id: `ref-p-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        customerId: customer.id,
+        email: normalizedEmail,
+        customerName: resolvedName,
+        referralCode: customer.referralCode,
+        totalReferralsCount: 0,
+        isActive: true,
+        createdAt: customer.createdAt || new Date().toISOString(),
+      };
+      store.referralParticipants.unshift(participant);
+      saveLocalStore(store);
+    } else {
+      let changed = false;
+      if (participant.referralCode !== customer.referralCode) {
+        participant.referralCode = customer.referralCode;
+        changed = true;
+      }
+      if (customer.id && participant.customerId !== customer.id) {
+        participant.customerId = customer.id;
+        changed = true;
+      }
+      if (changed) saveLocalStore(store);
+    }
+    return participant;
+  }
 
-  const newParticipant: ReferralParticipant = {
-    id: `ref-p-${Date.now()}`,
-    email: normalizedEmail,
-    customerName: customerName.trim(),
-    referralCode: code,
-    totalReferralsCount: 0,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  };
+  // B) Uczestnik w referralParticipants ma już kod AURA-XXXXXXXX
+  if (participant?.referralCode && /^AURA-[2-9A-Z]{8}$/i.test(participant.referralCode)) {
+    if (customer && customer.referralCode !== participant.referralCode) {
+      customer.referralCode = participant.referralCode;
+      saveLocalStore(store);
+    }
+    return participant;
+  }
 
-  store.referralParticipants.unshift(newParticipant);
+  // C) Wygeneruj NOWY unikalny stały kod
+  const newCode = generateUniqueReferralCode(existingCodes);
+  existingCodes.add(newCode.toUpperCase());
+
+  if (customer) {
+    customer.referralCode = newCode;
+  }
+
+  if (participant) {
+    participant.referralCode = newCode;
+    if (customer) participant.customerId = customer.id;
+    participant.customerName = resolvedName;
+  } else {
+    participant = {
+      id: `ref-p-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      customerId: customer?.id,
+      email: normalizedEmail,
+      customerName: resolvedName,
+      referralCode: newCode,
+      totalReferralsCount: 0,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    };
+    store.referralParticipants.unshift(participant);
+  }
+
   saveLocalStore(store);
-  return newParticipant;
+
+  if (isNeonConfigured()) {
+    try {
+      await prisma.referralParticipant.upsert({
+        where: { email: normalizedEmail },
+        update: { referralCode: newCode, customerName: resolvedName },
+        create: {
+          email: normalizedEmail,
+          customerName: resolvedName,
+          referralCode: newCode,
+          customerId: customer?.id,
+        },
+      });
+    } catch (e) {
+      console.warn("Neon referral sync error:", e);
+    }
+  }
+
+  return participant;
+}
+
+/**
+ * Wyszukuje uczestniczkę polecającą po jej kodzie polecającym
+ */
+export async function getReferralParticipantByCode(code: string): Promise<ReferralParticipant | null> {
+  const store = loadLocalStore();
+  const normalized = code.trim().toUpperCase();
+
+  const participant = (store.referralParticipants || []).find(
+    (p) => p.referralCode.trim().toUpperCase() === normalized
+  );
+  if (participant) return participant;
+
+  const customer = (store.customers || []).find(
+    (c) => c.referralCode && c.referralCode.trim().toUpperCase() === normalized
+  );
+  if (customer) {
+    return {
+      id: `ref-p-${customer.id}`,
+      customerId: customer.id,
+      email: customer.email,
+      customerName: `${customer.firstName} ${customer.lastName}`.trim(),
+      referralCode: customer.referralCode,
+      totalReferralsCount: 0,
+      isActive: true,
+      createdAt: customer.createdAt,
+    };
+  }
+
+  return null;
 }
 
 // Przyznanie nagrody 15% polecającej, gdy zamówienie koleżanki zostaje oznaczone jako zrealizowane (DELIVERED)
@@ -1073,6 +1247,26 @@ export async function awardReferralRewardOnDelivered(
     `Przyznano nagrodę polecającej: ${referrerEmail}`,
     `Kod 15%: ${rewardCodeString} za zrealizowane zamówienie ${order.orderNumber}`
   );
+
+  if (isNeonConfigured()) {
+    try {
+      await prisma.referralRewardCode.create({
+        data: {
+          id: rewardCode.id,
+          code: rewardCode.code,
+          referrerEmail: rewardCode.referrerEmail,
+          referredEmail: rewardCode.referredEmail,
+          referredOrderId: rewardCode.referredOrderId,
+          discountPercent: rewardCode.discountPercent,
+          validUntil: new Date(rewardCode.validUntil),
+          isUsed: false,
+          isRevoked: false,
+        },
+      });
+    } catch (e) {
+      console.warn("Neon referral reward sync error:", e);
+    }
+  }
 
   return rewardCode;
 }
@@ -1335,6 +1529,7 @@ export async function createCustomerAccount(data: {
 }): Promise<CustomerAccount> {
   const store = loadLocalStore();
   if (!store.customers) store.customers = [];
+  if (!store.referralParticipants) store.referralParticipants = [];
 
   const normalizedEmail = data.email.trim().toLowerCase();
   const existing = store.customers.find((c) => c.email.toLowerCase() === normalizedEmail);
@@ -1342,20 +1537,47 @@ export async function createCustomerAccount(data: {
     throw new Error("Konto z tym adresem e-mail już istnieje. Zaloguj się.");
   }
 
+  // Zbierz istniejące kody, by zagwarantować unikalność (UNIQUE)
+  const existingCodes = new Set<string>();
+  for (const c of store.customers) {
+    if (c.referralCode) existingCodes.add(c.referralCode.toUpperCase());
+  }
+  for (const p of store.referralParticipants) {
+    if (p.referralCode) existingCodes.add(p.referralCode.toUpperCase());
+  }
+
+  // Generuj losowy, stały i unikalny kod polecający bez danych osobowych (np. AURA-7K9P2X8M)
+  const permanentReferralCode = generateUniqueReferralCode(existingCodes);
+  existingCodes.add(permanentReferralCode.toUpperCase());
+
   const welcomeCode = `WITAJ15-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
   const newCustomer: CustomerAccount = {
-    id: `cust-${Date.now()}`,
+    id: `cust-${Date.now()}-${Math.random().toString(36).substring(7)}`,
     email: normalizedEmail,
     firstName: data.firstName.trim(),
     lastName: data.lastName.trim(),
     phone: data.phone?.trim() || "",
     passwordHash: data.password ? data.password.trim() : undefined,
+    referralCode: permanentReferralCode,
     createdAt: new Date().toISOString(),
     welcomeDiscountCode: welcomeCode,
   };
 
   store.customers.push(newCustomer);
+
+  // Dodaj odpowiadający stały rekord uczestniczki programu poleceń
+  store.referralParticipants.unshift({
+    id: `ref-p-${Date.now()}`,
+    customerId: newCustomer.id,
+    email: normalizedEmail,
+    customerName: `${newCustomer.firstName} ${newCustomer.lastName}`.trim(),
+    referralCode: permanentReferralCode,
+    totalReferralsCount: 0,
+    isActive: true,
+    createdAt: newCustomer.createdAt,
+  });
+
   saveLocalStore(store);
 
   // Dodajemy też kod powitalny –15% jako indywidualny rabat
@@ -1373,5 +1595,107 @@ export async function createCustomerAccount(data: {
     console.error("Błąd zapisu rabatu powitalnego:", err);
   }
 
+  if (isNeonConfigured()) {
+    try {
+      await prisma.customerAccount.create({
+        data: {
+          id: newCustomer.id,
+          email: newCustomer.email,
+          firstName: newCustomer.firstName,
+          lastName: newCustomer.lastName,
+          phone: newCustomer.phone,
+          passwordHash: newCustomer.passwordHash,
+          referralCode: newCustomer.referralCode,
+        },
+      });
+      await prisma.referralParticipant.create({
+        data: {
+          id: `ref-p-${newCustomer.id}`,
+          customerId: newCustomer.id,
+          email: newCustomer.email,
+          customerName: `${newCustomer.firstName} ${newCustomer.lastName}`.trim(),
+          referralCode: newCustomer.referralCode,
+        },
+      });
+    } catch (e) {
+      console.warn("Neon create customer error:", e);
+    }
+  }
+
   return newCustomer;
+}
+
+/**
+ * Automatyczna migracja: dla wszystkich istniejących kont bez kodu lub ze starym kodem
+ * generuje trwały, unikalny kod AURA-XXXXXXXX i zapisuje go w bazie.
+ * Ponowne uruchomienie nie modyfikuje już przypisanych kodów!
+ */
+export function migrateAllReferralCodes(): void {
+  const store = loadLocalStore();
+  let modified = false;
+
+  const existingCodes = new Set<string>();
+  for (const c of store.customers || []) {
+    if (c.referralCode && /^AURA-[2-9A-Z]{8}$/i.test(c.referralCode)) {
+      existingCodes.add(c.referralCode.toUpperCase());
+    }
+  }
+  for (const p of store.referralParticipants || []) {
+    if (p.referralCode && /^AURA-[2-9A-Z]{8}$/i.test(p.referralCode)) {
+      existingCodes.add(p.referralCode.toUpperCase());
+    }
+  }
+
+  if (!store.customers) store.customers = [];
+  if (!store.referralParticipants) store.referralParticipants = [];
+
+  for (const customer of store.customers) {
+    if (!customer.referralCode || !/^AURA-[2-9A-Z]{8}$/i.test(customer.referralCode)) {
+      const code = generateUniqueReferralCode(existingCodes);
+      customer.referralCode = code;
+      existingCodes.add(code.toUpperCase());
+      modified = true;
+    }
+  }
+
+  for (const customer of store.customers) {
+    const norm = customer.email.toLowerCase();
+    let participant = store.referralParticipants.find(
+      (p) => p.email.toLowerCase() === norm || p.customerId === customer.id
+    );
+
+    if (!participant) {
+      participant = {
+        id: `ref-p-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        customerId: customer.id,
+        email: norm,
+        customerName: `${customer.firstName} ${customer.lastName}`.trim(),
+        referralCode: customer.referralCode,
+        totalReferralsCount: 0,
+        isActive: true,
+        createdAt: customer.createdAt || new Date().toISOString(),
+      };
+      store.referralParticipants.push(participant);
+      modified = true;
+    } else {
+      if (participant.referralCode !== customer.referralCode) {
+        participant.referralCode = customer.referralCode;
+        participant.customerId = customer.id;
+        modified = true;
+      }
+    }
+  }
+
+  for (const participant of store.referralParticipants) {
+    if (!participant.referralCode || !/^AURA-[2-9A-Z]{8}$/i.test(participant.referralCode)) {
+      const code = generateUniqueReferralCode(existingCodes);
+      participant.referralCode = code;
+      existingCodes.add(code.toUpperCase());
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    saveLocalStore(store);
+  }
 }

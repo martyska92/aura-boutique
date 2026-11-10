@@ -1,5 +1,4 @@
 import React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   MapPin,
@@ -25,27 +24,17 @@ export default function AboutPage() {
     <>
       <Header />
       <main className="flex-1 bg-[#FAF6F1]">
-        {/* ========================================================
-            GŁÓWNE ZDJĘCIE - Dokładnie tak samo szerokie jak na stronie głównej
-           ======================================================== */}
-        <section className="relative bg-[#FAF6F1] border-b border-[#EADFD5]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-6">
-            <h1 className="sr-only">
-              AURA Boutique K.B. — Styl, który zachwyca, ceny, które kuszą, jakość, którą poczujesz
-            </h1>
-
-            {/* Panoramiczny baner w pełnej szerokości - identyczny jak na stronie głównej */}
-            <div className="relative w-full aspect-[1024/394] rounded-sm sm:rounded-md overflow-hidden shadow-[0_6px_24px_rgba(197,160,105,0.18)] border border-[#EADFD5]">
-              <Image
-                src="/images/hero/aura-hero-motto.png"
-                alt="AURA Boutique K.B. - Styl, który zachwyca, ceny, które kuszą, jakość, którą poczujesz"
-                fill
-                priority
-                sizes="(max-width: 1280px) 100vw, 1280px"
-                className="object-cover object-center"
-              />
-            </div>
-          </div>
+        {/* Nagłówek podstrony */}
+        <section className="pt-10 sm:pt-14 pb-4 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-[#C5A069] font-semibold mb-1">
+            Poznaj Nas Bliżej
+          </p>
+          <h1 className="font-serif text-3xl sm:text-4xl text-[#241D1B]">
+            O Butiku AURA
+          </h1>
+          <p className="text-xs sm:text-sm text-[#857670] mt-2 font-light max-w-xl mx-auto">
+            Kobiece piękno, szlachetne tkaniny i ponadczasowa elegancja w sercu Żmigrodu.
+          </p>
         </section>
 
         {/* ========================================================

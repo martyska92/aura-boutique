@@ -963,6 +963,66 @@ export function PromotionsManagerClient() {
           </div>
 
           <div className="bg-white rounded-lg border border-[#BCAB9B] shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-[#EADFD5] font-serif font-semibold text-sm text-[#241D1B] flex items-center justify-between">
+              <span>Zarejestrowane Klientki — Przypisane Kody i Linki Polecające</span>
+              <span className="text-xs text-[#7A6458] font-normal">Razem klientek: {referrals.length}</span>
+            </div>
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#FAF6F1] border-b border-[#EADFD5] text-[#63534B] uppercase tracking-wider font-semibold text-[10px]">
+                  <th className="py-3 px-4">Klientka</th>
+                  <th className="py-3 px-4">Stały Kod Polecający</th>
+                  <th className="py-3 px-4">Link Polecający</th>
+                  <th className="py-3 px-4 text-center">Polecone Zamówienia</th>
+                  <th className="py-3 px-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#EADFD5]">
+                {referrals.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-[#7A6458]">
+                      Brak zarejestrowanych klientek w programie poleceń.
+                    </td>
+                  </tr>
+                ) : (
+                  referrals.map((ref) => (
+                    <tr key={ref.id} className="hover:bg-[#FAF6F1]/50">
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-[#241D1B]">{ref.customerName || "Klientka AURA"}</div>
+                        <div className="text-[11px] text-[#7A6458]">{ref.email}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-mono font-bold bg-[#FAF2EB] text-[#241D1B] px-2 py-1 border border-[#DFCA9B] rounded">
+                          {ref.referralCode}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-[#7A6458] max-w-xs truncate">
+                        /?ref={ref.referralCode}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 font-bold">
+                          {ref.totalReferralsCount || 0}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {ref.isActive ? (
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-bold">
+                            Aktywny
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[10px] font-bold">
+                            Nieaktywny
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bg-white rounded-lg border border-[#BCAB9B] shadow-sm overflow-hidden">
             <div className="p-4 border-b border-[#EADFD5] font-serif font-semibold text-sm text-[#241D1B]">
               Wygenerowane Kody Nagród z Poleceń (15% na 30 dni)
             </div>

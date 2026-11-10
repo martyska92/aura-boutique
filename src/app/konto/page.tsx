@@ -36,7 +36,9 @@ export default function AccountPage() {
   const [copiedCode, setCopiedCode] = useState(false);
 
   // Referral / promo data
-  const [referralCode, setReferralCode] = useState<string>("AURA-KB-15");
+  const [referralCode, setReferralCode] = useState<string>("");
+  const [serverReferralUrl, setServerReferralUrl] = useState<string>("");
+  const [totalReferralsCount, setTotalReferralsCount] = useState<number>(0);
   const [rewardCodes, setRewardCodes] = useState<any[]>([]);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function AccountPage() {
       setSession(data);
 
       if (data.isLoggedIn && data.email) {
-        // Pobierz dane poleceń dla tego użytkownika
+        // Pobierz indywidualny kod poleceń dla tej klientki
         fetchReferrals(data.email);
       }
     } catch (e) {
@@ -66,7 +68,13 @@ export default function AccountPage() {
       if (res.ok) {
         const d = await res.json();
         if (d.referralCode) setReferralCode(d.referralCode);
-        if (d.rewardCodes) setRewardCodes(d.rewardCodes);
+        if (d.referralLink) setServerReferralUrl(d.referralLink);
+        if (d.participant?.totalReferralsCount !== undefined) {
+          setTotalReferralsCount(d.participant.totalReferralsCount);
+        }
+        if (d.referralRewards || d.rewards) {
+          setRewardCodes(d.referralRewards || d.rewards || []);
+        }
       }
     } catch (e) {
       console.error("Błąd pobierania danych poleceń:", e);
@@ -83,9 +91,11 @@ export default function AccountPage() {
     }
   };
 
-  const referralUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/?ref=${referralCode}`
-    : `https://auraboutique.pl/?ref=${referralCode}`;
+  const referralUrl =
+    serverReferralUrl ||
+    (typeof window !== "undefined" && referralCode
+      ? `${window.location.origin}/?ref=${referralCode}`
+      : "");
 
   const copyToClipboard = (text: string, isUrl: boolean) => {
     navigator.clipboard.writeText(text);
@@ -261,16 +271,22 @@ export default function AccountPage() {
 
               {/* Twój kod polecający */}
               <div className="space-y-3">
-                <label className="text-xs font-semibold text-[#241D1B] block">
-                  Twój unikalny kod polecający:
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#241D1B] block">
+                    Twój unikalny stały kod polecający:
+                  </label>
+                  <span className="text-[11px] text-[#857670] font-medium">
+                    Zrealizowane polecenia: <strong className="text-[#241D1B] font-mono">{totalReferralsCount}</strong>
+                  </span>
+                </div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-[#FAF6F1] border-2 border-dashed border-[#C5A069] px-4 py-2.5 font-mono text-sm font-bold text-[#241D1B] tracking-wider text-center rounded">
-                    {referralCode}
+                    {referralCode || "Pobieranie kodu..."}
                   </div>
                   <button
+                    disabled={!referralCode}
                     onClick={() => copyToClipboard(referralCode, false)}
-                    className="px-4 py-2.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-wider rounded font-medium flex items-center gap-1.5 transition-colors shrink-0"
+                    className="px-4 py-2.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-wider rounded font-medium flex items-center gap-1.5 transition-colors shrink-0 disabled:opacity-50"
                   >
                     {copiedCode ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     <span>{copiedCode ? "Skopiowano" : "Kopiuj kod"}</span>
@@ -287,12 +303,13 @@ export default function AccountPage() {
                   <input
                     type="text"
                     readOnly
-                    value={referralUrl}
+                    value={referralUrl || "Generowanie linku..."}
                     className="flex-1 bg-[#FAF6F1] border border-[#BCAB9B] px-3 py-2 text-xs text-[#5A483D] rounded truncate font-mono"
                   />
                   <button
+                    disabled={!referralUrl}
                     onClick={() => copyToClipboard(referralUrl, true)}
-                    className="px-4 py-2 bg-[#241D1B] hover:bg-[#3E3430] text-white text-xs uppercase tracking-wider rounded font-medium flex items-center gap-1.5 transition-colors shrink-0"
+                    className="px-4 py-2 bg-[#241D1B] hover:bg-[#3E3430] text-white text-xs uppercase tracking-wider rounded font-medium flex items-center gap-1.5 transition-colors shrink-0 disabled:opacity-50"
                   >
                     {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     <span>{copiedLink ? "Skopiowano" : "Kopiuj link"}</span>

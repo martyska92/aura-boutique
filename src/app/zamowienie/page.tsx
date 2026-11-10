@@ -74,6 +74,26 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Automatyczne wczytanie kodu polecającego z linku (?ref= lub ?polecenie=) lub pamięci sesji
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlRef = urlParams.get("ref") || urlParams.get("polecenie");
+      const storedRef = sessionStorage.getItem("aura_referral_code");
+      const code = (urlRef || storedRef || "").trim().toUpperCase();
+
+      if (code) {
+        setCouponCodeInput(code);
+        sessionStorage.setItem("aura_referral_code", code);
+        // Automatyczne naliczenie zniżki 15% z linku polecającego
+        calculatePromotions(code);
+      }
+    } catch (e) {
+      // ignoruj
+    }
+  }, []);
+
   // Pobieranie punktów InPost (debounced)
   useEffect(() => {
     if (shippingMethod !== "INPOST_LOCKER") return;

@@ -186,3 +186,49 @@ model AdminSession {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+
+model CustomerAccount {
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  firstName           String
+  lastName            String
+  phone               String?
+  passwordHash        String?
+  referralCode        String?              @unique
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  referralParticipant ReferralParticipant?
+}
+
+model ReferralParticipant {
+  id                  String              @id @default(cuid())
+  customerId          String?             @unique
+  customer            CustomerAccount?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  email               String              @unique
+  customerName        String
+  referralCode        String              @unique
+  totalReferralsCount Int                 @default(0)
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  rewardCodes         ReferralRewardCode[]
+}
+
+model ReferralRewardCode {
+  id              String               @id @default(cuid())
+  participantId   String?
+  participant     ReferralParticipant? @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  code            String               @unique
+  referrerEmail   String
+  referredEmail   String
+  referredOrderId String               @unique
+  discountPercent Decimal              @default(15.00) @db.Decimal(5, 2)
+  validUntil      DateTime
+  isUsed          Boolean              @default(false)
+  usedAt          DateTime?
+  usedInOrderId   String?
+  isRevoked       Boolean              @default(false)
+  revokedReason   String?
+  adminFlagged    Boolean              @default(false)
+  createdAt       DateTime             @default(now())
+}
