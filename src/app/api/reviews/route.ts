@@ -68,14 +68,16 @@ export async function POST(req: NextRequest) {
     });
 
     // Wysłanie e-maila z kodem rabatowym
+    let emailSent = false;
     if (result.rewardCode && result.rewardPercent) {
-      await sendReviewRewardEmail({
+      const emailRes = await sendReviewRewardEmail({
         customerEmail: result.review.customerEmail,
         displayName: result.review.displayName,
         rewardCode: result.rewardCode,
         discountPercent: result.rewardPercent,
         validUntilIso: result.review.rewardCodeValidUntil!,
       });
+      emailSent = Boolean(emailRes.success);
     }
 
     return NextResponse.json({
@@ -84,6 +86,8 @@ export async function POST(req: NextRequest) {
       rewardCode: result.rewardCode,
       rewardPercent: result.rewardPercent,
       validUntil: result.review.rewardCodeValidUntil,
+      emailSent,
+      customerEmail: result.review.customerEmail,
       message: `Dziękujemy za opinię! Otrzymujesz jednorazowy kod rabatowy –${result.rewardPercent}% ważny przez 30 dni: ${result.rewardCode}`,
     });
   } catch (err: any) {

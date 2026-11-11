@@ -76,13 +76,13 @@ export function Header() {
         <AnnouncementBar />
 
         {/* Główny pasek nawigacyjny */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="h-16 sm:h-24 flex items-center justify-between gap-2 sm:gap-4">
-            {/* Lewa strona: Hamburger na mobile + Wyszukiwarka */}
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+          <div className="h-14 sm:h-20 lg:h-24 flex items-center justify-between gap-1 sm:gap-4">
+            {/* Lewa strona: Hamburger na mobile + Wyszukiwarka desktop */}
             <div className="flex items-center gap-1 sm:gap-4 flex-1">
               <button
                 type="button"
-                className="lg:hidden p-2 text-[#241D1B] hover:text-[#542823] transition-colors"
+                className="lg:hidden w-11 h-11 flex items-center justify-center text-[#241D1B] hover:text-[#542823] transition-colors rounded-sm"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 aria-label="Menu nawigacyjne"
               >
@@ -113,31 +113,33 @@ export function Header() {
               </div>
             </div>
 
-            {/* Środek: Złoty Brand Logo stapiający się z tłem cashmere */}
-            <div className="flex-shrink-0">
+            {/* Środek: Złoty Brand Logo */}
+            <div className="flex-shrink-0 flex items-center justify-center">
               <BrandLogo size="md" variant="cashmere" />
             </div>
 
             {/* Prawa strona: Akcje użytkownika */}
-            <div className="flex items-center justify-end gap-2.5 sm:gap-4 flex-1">
+            <div className="flex items-center justify-end gap-0.5 sm:gap-2 flex-1">
+              {/* Szukajka mobilna - min 44x44px touch target */}
               <button
                 type="button"
-                onClick={() => setSearchOpen(true)}
-                className="lg:hidden p-2 text-[#241D1B] hover:text-[#542823] transition-colors"
+                onClick={() => setSearchOpen(!searchOpen)}
+                className="w-11 h-11 flex items-center justify-center text-[#241D1B] hover:text-[#542823] transition-colors rounded-sm"
                 aria-label="Wyszukiwarka"
               >
                 <Search className="w-5 h-5 text-[#241D1B]" />
               </button>
 
+              {/* Ulubione i Bestsellery - na desktopie w nagłówku, na mobile w menu */}
               <Link
                 href="/katalog?filter=bestsellery"
-                className="p-2 text-[#241D1B] hover:text-[#542823] transition-colors"
+                className="hidden lg:flex w-11 h-11 items-center justify-center text-[#241D1B] hover:text-[#542823] transition-colors rounded-sm"
                 title="Ulubione i Bestsellery"
               >
                 <Heart className="w-5 h-5" />
               </Link>
 
-              {/* Przycisk Panelu Właścicielki (widoczny tylko dla zalogowanej właścicielki) */}
+              {/* Przycisk Panelu Właścicielki */}
               {auth.isAdmin && (
                 <Link
                   href="/admin"
@@ -149,10 +151,10 @@ export function Header() {
                 </Link>
               )}
 
-              {/* Konto klientki / Logowanie */}
+              {/* Konto klientki - na desktopie w nagłówku, na mobile w menu */}
               <Link
                 href={auth.isLoggedIn ? "/konto" : "/logowanie"}
-                className="flex items-center gap-1.5 text-xs text-[#241D1B] hover:text-[#542823] p-1.5 rounded transition-colors"
+                className="hidden lg:flex items-center gap-1.5 text-xs text-[#241D1B] hover:text-[#542823] px-2.5 py-1.5 rounded transition-colors"
                 title={auth.isLoggedIn ? "Moje konto" : "Zaloguj się"}
               >
                 <User className="w-5 h-5" />
@@ -161,15 +163,16 @@ export function Header() {
                 </span>
               </Link>
 
+              {/* Koszyk - min 44x44px touch target */}
               <button
                 type="button"
                 onClick={() => setIsCartOpen(true)}
-                className="relative p-2 text-[#241D1B] hover:text-[#542823] transition-colors"
+                className="relative w-11 h-11 flex items-center justify-center text-[#241D1B] hover:text-[#542823] transition-colors rounded-sm"
                 aria-label="Koszyk"
               >
                 <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-[#241D1B]" />
                 {itemCount > 0 && (
-                  <span className="absolute top-1 right-0 sm:right-1 bg-[#9E8359] text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold shadow-sm">
+                  <span className="absolute top-1.5 right-1 bg-[#9E8359] text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold shadow-sm">
                     {itemCount}
                   </span>
                 )}
@@ -239,20 +242,53 @@ export function Header() {
         {/* Menu mobilne drawer */}
         {mobileMenuOpen && (
           <div
-            className="lg:hidden fixed inset-0 top-[110px] z-50 flex flex-col overflow-y-auto border-t border-[#968372]"
+            className="lg:hidden fixed inset-x-0 bottom-0 top-[78px] sm:top-[106px] z-50 flex flex-col overflow-y-auto border-t border-[#968372] pb-10"
             style={{
               backgroundColor: "#BCAB9B",
               backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
               backgroundRepeat: "repeat",
             }}
           >
-            <div className="p-6 divide-y divide-[#968372]/60">
-              <div className="flex justify-center pb-4">
-                <BrandLogo size="md" variant="cashmere" />
+            <div className="p-4 sm:p-6 divide-y divide-[#968372]/60 space-y-4">
+              {/* Szybkie akcje: Konto i Ulubione na mobile */}
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <Link
+                  href={auth.isLoggedIn ? "/konto" : "/logowanie"}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="min-h-[44px] px-3 py-2.5 rounded bg-[#FAF6F1] border border-[#DFCA9B] flex items-center justify-center gap-2 text-xs font-semibold text-[#241D1B] shadow-xs active:scale-[0.98] transition-transform"
+                >
+                  <User className="w-4 h-4 text-[#8C7248]" />
+                  <span>{auth.isLoggedIn ? "Moje konto" : "Zaloguj się"}</span>
+                </Link>
+
+                <Link
+                  href="/katalog?filter=bestsellery"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="min-h-[44px] px-3 py-2.5 rounded bg-[#FAF6F1] border border-[#DFCA9B] flex items-center justify-center gap-2 text-xs font-semibold text-[#241D1B] shadow-xs active:scale-[0.98] transition-transform"
+                >
+                  <Heart className="w-4 h-4 text-[#8C7248]" />
+                  <span>Ulubione</span>
+                </Link>
               </div>
-              <div className="py-3 space-y-3">
+
+              {/* Panel Właścicielki jeśli zalogowana */}
+              {auth.isAdmin && (
+                <div className="pt-3">
+                  <Link
+                    href="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="min-h-[44px] w-full py-2.5 bg-[#9E8359] hover:bg-[#8B7147] text-white text-xs uppercase tracking-widest flex items-center justify-center gap-2 rounded shadow-md font-semibold"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Panel właścicielki (/admin)</span>
+                  </Link>
+                </div>
+              )}
+
+              {/* Kategorie sklepu */}
+              <div className="pt-4 space-y-2.5">
                 <p className="text-[10px] uppercase tracking-widest text-[#4A3B30] font-bold">
-                  Kategorie
+                  Kolekcje & Kategorie
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-xs uppercase tracking-wider">
                   {navLinks.map((link) => (
@@ -260,8 +296,8 @@ export function Header() {
                       key={link.href}
                       href={link.href}
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`p-2.5 rounded bg-[#DDD0C4]/70 border border-[#968372] flex items-center justify-between font-medium ${
-                        link.highlight ? "text-[#6E2222] bg-[#F2DDD9] font-bold" : "text-[#2E221E]"
+                      className={`min-h-[44px] p-2.5 rounded bg-[#DDD0C4]/70 border border-[#968372] flex items-center justify-between font-medium active:scale-[0.98] transition-transform ${
+                        link.highlight ? "text-[#6E2222] bg-[#F2DDD9] font-bold border-[#6E2222]/30" : "text-[#2E221E]"
                       }`}
                     >
                       <span>{link.label}</span>
@@ -271,55 +307,35 @@ export function Header() {
                 </div>
               </div>
 
-              <div className="py-4 space-y-2 text-xs uppercase tracking-widest text-[#2E221E] font-medium">
+              {/* Informacje o butiku */}
+              <div className="pt-4 space-y-1.5 text-xs uppercase tracking-widest text-[#2E221E] font-medium">
                 <Link
                   href="/o-butiku"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block py-2 hover:text-[#5E4738]"
+                  className="flex items-center min-h-[44px] px-2 hover:text-[#5E4738]"
                 >
                   O butiku AURA
                 </Link>
                 <Link
                   href="/kontakt"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block py-2 hover:text-[#5E4738]"
+                  className="flex items-center min-h-[44px] px-2 hover:text-[#5E4738]"
                 >
                   Kontakt & Butik w Żmigrodzie
                 </Link>
                 <Link
                   href="/dostawa-i-platnosci"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block py-2 hover:text-[#5E4738]"
+                  className="flex items-center min-h-[44px] px-2 hover:text-[#5E4738]"
                 >
                   Dostawa i płatności
                 </Link>
                 <Link
                   href="/zwroty-i-reklamacje"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block py-2 hover:text-[#5E4738]"
+                  className="flex items-center min-h-[44px] px-2 hover:text-[#5E4738]"
                 >
                   Zwroty i reklamacje
-                </Link>
-              </div>
-
-              <div className="pt-4 space-y-2">
-                {auth.isAdmin && (
-                  <Link
-                    href="/admin"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full py-3 bg-[#9E8359] hover:bg-[#8B7147] text-white text-xs uppercase tracking-widest flex items-center justify-center gap-2 rounded shadow-md font-semibold"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Panel właścicielki (/admin)</span>
-                  </Link>
-                )}
-                <Link
-                  href={auth.isLoggedIn ? "/konto" : "/logowanie"}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full py-3 bg-[#DDD0C4]/80 hover:bg-[#DDD0C4] text-[#241D1B] text-xs uppercase tracking-widest flex items-center justify-center gap-2 rounded border border-[#968372] font-semibold"
-                >
-                  <User className="w-4 h-4 text-[#8C7248]" />
-                  <span>{auth.isLoggedIn ? "Moje konto" : "Zaloguj się"}</span>
                 </Link>
               </div>
             </div>

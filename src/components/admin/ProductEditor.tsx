@@ -720,9 +720,8 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
       });
 
       setTimeout(() => {
-        router.push("/admin/produkty");
-        router.refresh();
-      }, 1000);
+        window.location.href = "/admin/produkty";
+      }, 800);
     } catch (err: any) {
       setFeedback({ type: "error", text: err.message || "Błąd zapisu." });
     } finally {

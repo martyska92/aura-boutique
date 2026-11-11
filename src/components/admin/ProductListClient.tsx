@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,7 @@ import {
   Square,
   Loader2,
   CheckCircle2,
+  RefreshCw,
 } from "lucide-react";
 import { Product, Category } from "@/lib/types";
 
@@ -38,6 +39,30 @@ export function ProductListClient({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [promotedFilter, setPromotedFilter] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
+
+  useEffect(() => {
+    handleRefresh();
+  }, []);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch("/api/admin/products", { cache: "no-store" });
+      const data = await res.json();
+      if (data.products) {
+        setProducts(data.products);
+      }
+    } catch (e) {
+      console.error("Błąd odświeżania:", e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Masowe zaznaczanie i operacje
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -231,13 +256,26 @@ export function ProductListClient({
           </button>
         </div>
 
-        <Link
-          href="/admin/produkty/nowy"
-          className="px-5 py-2.5 bg-[#C5A069] text-white text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#AF884F] transition-all flex items-center justify-center gap-2 shadow-sm"
-        >
-          <PlusCircle className="w-4 h-4 text-white" />
-          <span>Dodaj Ubranie</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="px-4 py-2.5 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] text-xs uppercase tracking-wider font-semibold rounded hover:border-[#C5A069] transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+            title="Odśwież listę ubrań"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-[#C5A069] ${isRefreshing ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">{isRefreshing ? "Odświeżanie..." : "Odśwież"}</span>
+          </button>
+
+          <Link
+            href="/admin/produkty/nowy"
+            className="px-5 py-2.5 bg-[#C5A069] text-white text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#AF884F] transition-all flex items-center justify-center gap-2 shadow-sm"
+          >
+            <PlusCircle className="w-4 h-4 text-white" />
+            <span>Dodaj Ubranie</span>
+          </Link>
+        </div>
       </div>
 
       {/* Pasek akcji masowych, gdy wybrano min. 1 produkt */}

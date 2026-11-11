@@ -5,7 +5,7 @@
       "name": "Bluzy",
       "slug": "bluzy",
       "description": "Wygodne, miękkie i stylowe bluzy damskie z wysokogatunkowych tkanin.",
-      "imageUrl": "/images/products/sweter-kaszmirowy-sand.jpg",
+      "imageUrl": "/images/categories/cat-bluzy.jpg",
       "orderIndex": 1,
       "isActive": true
     },
@@ -14,7 +14,7 @@
       "name": "Koszule",
       "slug": "koszule",
       "description": "Eleganckie koszule satynowe, bawełniane i wiskozowe na każdą okazję.",
-      "imageUrl": "/images/products/sukienka-satynowa-ivory.jpg",
+      "imageUrl": "/images/categories/cat-koszule.jpg",
       "orderIndex": 2,
       "isActive": true
     },
@@ -23,7 +23,7 @@
       "name": "Topy",
       "slug": "topy",
       "description": "Kobiece topy na ramiączkach, satynowe bazy i minimalistyczne fasony.",
-      "imageUrl": "/images/products/garnitur-blush-rose.jpg",
+      "imageUrl": "/images/categories/cat-topy.jpg",
       "orderIndex": 3,
       "isActive": true
     },
@@ -32,7 +32,7 @@
       "name": "T-shirty",
       "slug": "t-shirty",
       "description": "Klasyczne t-shirty z bawełny organicznej w odcieniach nude, bieli i czerni.",
-      "imageUrl": "/images/brand/aura-logo.png",
+      "imageUrl": "/images/categories/cat-t-shirty.jpg",
       "orderIndex": 4,
       "isActive": true
     },
@@ -41,12 +41,33 @@
       "name": "Marynarki",
       "slug": "marynarki",
       "description": "Dopasowane i oversize'owe marynarki dodające klasy każdej stylizacji.",
-      "imageUrl": "/images/products/plaszcz-welna-camel.jpg",
+      "imageUrl": "/images/categories/cat-marynarki.jpg",
       "orderIndex": 5,
       "isActive": true
     }
   ],
   "products": [
+    {
+      "id": "prod-1794347829372",
+      "name": "Nowa Sukienka Letnia",
+      "slug": "nowa-sukienka-letnia",
+      "description": "Piekna sukienka",
+      "composition": "",
+      "careGuide": "",
+      "sizeGuide": "",
+      "basePrice": 249,
+      "isPromoted": false,
+      "isNew": false,
+      "isBestseller": false,
+      "isPublished": true,
+      "isArchived": false,
+      "isDemo": false,
+      "categoryId": "cat-sukienki",
+      "images": [],
+      "variants": [],
+      "createdAt": "2026-11-10T21:57:09.372Z",
+      "updatedAt": "2026-11-10T21:57:09.372Z"
+    },
     {
       "id": "prod-1",
       "name": "Satynowa Sukienka Midi z Wiązaniem",
@@ -216,7 +237,7 @@
       "isPublished": true,
       "isArchived": false,
       "isDemo": true,
-      "categoryId": "cat-topy",
+      "categoryId": "cat-marynarki",
       "images": [
         {
           "id": "img-3-1",

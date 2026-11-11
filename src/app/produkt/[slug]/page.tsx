@@ -6,6 +6,9 @@ import { Footer } from "@/components/layout/Footer";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
 import { getProductBySlug, getProducts } from "@/lib/store-data";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface ProductPageProps {
   params: Promise<{
     slug: string;

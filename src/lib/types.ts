@@ -159,6 +159,16 @@ export type StoreSettings = {
   // Treści prawne edytowalne przez właścicielkę
   termsAndConditions?: string;
   privacyPolicy?: string;
+  // Konfiguracja wysyłki wiadomości e-mail (kody rabatowe, powiadomienia, opinie)
+  emailProvider?: "smtp" | "resend";
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPassword?: string;
+  smtpSecure?: boolean;
+  emailSenderName?: string;
+  emailSenderAddress?: string;
+  resendApiKey?: string;
   // Integracja InPost ShipX
   inpostApiKey?: string;
   inpostOrganizationId?: string;

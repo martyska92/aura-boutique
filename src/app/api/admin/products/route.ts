@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
-import { saveProduct, deleteProduct, getProductById } from "@/lib/store-data";
+import { saveProduct, deleteProduct, getProductById, getProducts } from "@/lib/store-data";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export async function GET(req: NextRequest) {
+  const isAuth = await verifyAdminSession();
+  if (!isAuth) {
+    return NextResponse.json({ error: "Brak autoryzacji sesji." }, { status: 401 });
+  }
+
+  try {
+    const products = await getProducts({ includeArchived: true });
+    return NextResponse.json({ success: true, products });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   const isAuth = await verifyAdminSession();

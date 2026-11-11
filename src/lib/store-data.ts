@@ -82,10 +82,6 @@ function getStorageWritePath(): string {
 
 // Pomocnicza funkcja inicjalizacji pliku lokalnego
 export function loadLocalStore(): StoreFileState {
-  if (globalThis.__aura_store) {
-    return globalThis.__aura_store;
-  }
-
   const readPath = getStorageReadPath();
 
   try {
@@ -113,6 +109,10 @@ export function loadLocalStore(): StoreFileState {
     }
   } catch (err) {
     console.error("Błąd odczytu lokalnego magazynu:", err);
+  }
+
+  if (globalThis.__aura_store) {
+    return globalThis.__aura_store;
   }
 
   const defaultState: StoreFileState = {

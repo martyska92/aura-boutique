@@ -1,12 +1,14 @@
+import nodemailer from "nodemailer";
 import { formatDateTimeWarsaw } from "./date-utils";
 import { loadLocalStore, saveLocalStore } from "./store-data";
+import { StoreSettings } from "./types";
 
 export interface OutboxEmail {
   id: string;
   to: string;
   subject: string;
   html: string;
-  type: "REFERRAL_JOINED" | "REFERRAL_REWARD" | "REVIEW_REWARD" | "INDIVIDUAL_DISCOUNT" | "ORDER_CONFIRMATION";
+  type: "REFERRAL_JOINED" | "REFERRAL_REWARD" | "REVIEW_REWARD" | "INDIVIDUAL_DISCOUNT" | "ORDER_CONFIRMATION" | "PASSWORD_RESET" | "TEST_EMAIL";
   status: "SENT" | "FAILED" | "NOT_CONFIGURED";
   errorMessage?: string;
   createdAt: string;
@@ -55,7 +57,7 @@ function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
             <td align="center" style="background-color: #FAF6F1; padding: 24px 20px; border-top: 1px solid #EADFD5; font-size: 11px; color: #857670;">
               <p style="margin: 0 0 6px 0; font-weight: bold; color: #241D1B;">AURA Boutique K.B.</p>
               <p style="margin: 0 0 6px 0;">Żmigród, ul. Poprzeczna 3/1A • Butik stacjonarny & Sklep online</p>
-              <p style="margin: 0;">W razie pytań napisz do nas: <a href="mailto:kontakt@auraboutique.pl" style="color: #C5A069; text-decoration: none;">kontakt@auraboutique.pl</a></p>
+              <p style="margin: 0;">W razie pytań napisz do nas: <a href="mailto:aurazmigrod@wp.pl" style="color: #C5A069; text-decoration: none;">aurazmigrod@wp.pl</a></p>
             </td>
           </tr>
 
@@ -69,18 +71,50 @@ function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
 }
 
 /**
- * Sprawdza, czy konfiguracja SMTP lub Resend jest obecna w środowisku
+ * Pobiera aktualną konfigurację wysyłki poczty (z ustawień sklepu w panelu lub zmiennych środowiskowych)
  */
-export function isEmailConfigured(): boolean {
-  const hasSmtp = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
-  const hasResend = Boolean(process.env.RESEND_API_KEY);
-  return hasSmtp || hasResend;
+export function getEmailConfig() {
+  const store = loadLocalStore();
+  const settings: Partial<StoreSettings> = store.settings || {};
+
+  const resendApiKey = (settings.resendApiKey || process.env.RESEND_API_KEY || "").trim();
+  const smtpHost = (settings.smtpHost || process.env.SMTP_HOST || "").trim();
+  const smtpUser = (settings.smtpUser || process.env.SMTP_USER || "").trim();
+  const smtpPassword = (settings.smtpPassword || process.env.SMTP_PASS || process.env.SMTP_PASSWORD || "").trim();
+  const smtpPort = Number(settings.smtpPort || process.env.SMTP_PORT || (settings.smtpSecure ? 465 : 587));
+  const smtpSecure = settings.smtpSecure !== undefined ? Boolean(settings.smtpSecure) : (smtpPort === 465);
+
+  const senderName = settings.emailSenderName || "AURA Boutique K.B.";
+  const senderAddress = settings.emailSenderAddress || smtpUser || process.env.EMAIL_FROM || "aurazmigrod@wp.pl";
+  const from = `"${senderName}" <${senderAddress}>`;
+
+  const isConfigured = Boolean(resendApiKey || (smtpHost && smtpUser && smtpPassword));
+
+  return {
+    isConfigured,
+    resendApiKey,
+    smtpHost,
+    smtpPort,
+    smtpUser,
+    smtpPassword,
+    smtpSecure,
+    senderName,
+    senderAddress,
+    from,
+  };
 }
 
 /**
- * Uniwersalny wysyłacz e-maili
+ * Sprawdza, czy konfiguracja SMTP lub Resend jest obecna
  */
-async function dispatchEmail(options: {
+export function isEmailConfigured(): boolean {
+  return getEmailConfig().isConfigured;
+}
+
+/**
+ * Uniwersalny wysyłacz e-maili (obsługuje SMTP WP.pl / Gmail / dowolne oraz Resend API)
+ */
+export async function dispatchEmail(options: {
   to: string;
   subject: string;
   html: string;
@@ -88,8 +122,9 @@ async function dispatchEmail(options: {
 }): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
   const store = loadLocalStore();
   const outboxId = `eml-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  const config = getEmailConfig();
 
-  if (!isEmailConfigured()) {
+  if (!config.isConfigured) {
     const queuedEmail: OutboxEmail = {
       id: outboxId,
       to: options.to,
@@ -97,7 +132,7 @@ async function dispatchEmail(options: {
       html: options.html,
       type: options.type,
       status: "NOT_CONFIGURED",
-      errorMessage: "Brak skonfigurowanych zmiennych SMTP lub RESEND_API_KEY w pliku .env.",
+      errorMessage: "Brak skonfigurowanej poczty. Podaj dane SMTP (np. poczty WP) lub klucz Resend API w panelu /admin/ustawienia.",
       createdAt: new Date().toISOString(),
     };
 
@@ -108,21 +143,21 @@ async function dispatchEmail(options: {
     return {
       success: false,
       notConfigured: true,
-      error: "Poczta e-mail nie jest skonfigurowana. Wiadomość została zapisana w kolejce panelu.",
+      error: "Poczta e-mail nie jest jeszcze skonfigurowana. Wpisz hasło do poczty w Ustawieniach Butiku.",
     };
   }
 
-  // Jeśli Resend jest skonfigurowany
-  if (process.env.RESEND_API_KEY) {
+  // 1. Jeśli Resend jest skonfigurowany
+  if (config.resendApiKey) {
     try {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          Authorization: `Bearer ${config.resendApiKey}`,
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM || "AURA Boutique <kontakt@auraboutique.pl>",
+          from: config.from,
           to: [options.to],
           subject: options.subject,
           html: options.html,
@@ -130,12 +165,99 @@ async function dispatchEmail(options: {
       });
 
       if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.message || "Błąd wysyłki Resend API");
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Błąd Resend API (${res.status})`);
       }
+
+      const successEmail: OutboxEmail = {
+        id: outboxId,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        type: options.type,
+        status: "SENT",
+        createdAt: new Date().toISOString(),
+        sentAt: new Date().toISOString(),
+      };
+      if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
+      (store as any).emailOutbox.unshift(successEmail);
+      saveLocalStore(store);
 
       return { success: true };
     } catch (err: any) {
+      console.error("Błąd wysyłki e-mail przez Resend:", err);
+      const failedEmail: OutboxEmail = {
+        id: outboxId,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        type: options.type,
+        status: "FAILED",
+        errorMessage: err.message,
+        createdAt: new Date().toISOString(),
+      };
+      if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
+      (store as any).emailOutbox.unshift(failedEmail);
+      saveLocalStore(store);
+
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 2. Jeśli SMTP jest skonfigurowany (np. poczta WP.pl lub dowolna skrzynka)
+  if (config.smtpHost && config.smtpUser && config.smtpPassword) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: config.smtpSecure,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPassword,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
+
+      await transporter.sendMail({
+        from: config.from,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      });
+
+      const successEmail: OutboxEmail = {
+        id: outboxId,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        type: options.type,
+        status: "SENT",
+        createdAt: new Date().toISOString(),
+        sentAt: new Date().toISOString(),
+      };
+      if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
+      (store as any).emailOutbox.unshift(successEmail);
+      saveLocalStore(store);
+
+      return { success: true };
+    } catch (err: any) {
+      console.error("Błąd wysyłki e-mail przez SMTP:", err);
+      const failedEmail: OutboxEmail = {
+        id: outboxId,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        type: options.type,
+        status: "FAILED",
+        errorMessage: err.message,
+        createdAt: new Date().toISOString(),
+      };
+      if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
+      (store as any).emailOutbox.unshift(failedEmail);
+      saveLocalStore(store);
+
       return { success: false, error: err.message };
     }
   }
@@ -317,6 +439,30 @@ export async function sendIndividualDiscountNoticeEmail(params: {
     subject: `Twój indywidualny rabat VIP –${params.discountPercent}% w AURA Boutique K.B.`,
     html,
     type: "INDIVIDUAL_DISCOUNT",
+  });
+}
+
+/**
+ * 5. Test wysyłki poczty e-mail
+ */
+export async function sendTestEmail(targetEmail: string) {
+  const content = `
+    <h2 style="font-family: Georgia, serif; font-size: 20px; color: #241D1B; margin-top: 0;">
+      Test konfiguracji poczty e-mail w AURA Boutique ✨
+    </h2>
+    <p>To jest testowa wiadomość potwierdzająca, że wysyłka e-maili (kody rabatowe, powiadomienia o poleceniach i opiniach) działa w 100% poprawnie.</p>
+    <div style="background-color: #FAF6F1; border: 1px solid #DFCA9B; border-radius: 4px; padding: 18px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 13px; color: #241D1B;">
+        Wszystkie generowane kody rabatowe będą automatycznie trafiać na skrzynki Twoich klientek.
+      </p>
+    </div>
+  `;
+  const html = wrapBoutiqueEmailTemplate("Test poczty AURA Boutique", content);
+  return dispatchEmail({
+    to: targetEmail,
+    subject: "Test konfiguracji poczty e-mail | AURA Boutique K.B.",
+    html,
+    type: "TEST_EMAIL",
   });
 }
 

@@ -4,6 +4,9 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { getProductById, getCategories } from "@/lib/store-data";
 import { ProductEditor } from "@/components/admin/ProductEditor";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface EditProductPageProps {
   params: Promise<{
     id: string;

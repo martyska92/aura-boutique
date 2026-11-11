@@ -274,6 +274,11 @@ export function ProductReviewsSection({
                 <h4 className="font-serif text-xl text-[#241D1B]">Dziękujemy za Twoją opinię!</h4>
                 <p className="text-xs text-[#6E6259] max-w-md mx-auto">{successData.message}</p>
 
+                <p className="text-xs text-[#241D1B] font-medium max-w-md mx-auto bg-amber-50/80 border border-[#EADFD5] p-2.5 rounded">
+                  ✉️ Kod rabatowy został również przesłany na Twój adres e-mail:{" "}
+                  <strong>{customerEmail || (successData as any).customerEmail}</strong>.
+                </p>
+
                 {successData.rewardCode && (
                   <div className="max-w-xs mx-auto p-4 bg-white border border-[#DFCA9B] rounded-xs shadow-xs space-y-2">
                     <p className="text-[11px] uppercase tracking-wider text-[#8C6B38] font-semibold">
@@ -588,3 +593,4 @@ export function ProductReviewsSection({
     </section>
   );
 }
+

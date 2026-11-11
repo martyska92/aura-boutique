@@ -13,6 +13,8 @@ import {
   CreditCard,
   Truck,
   Info,
+  Mail,
+  Send,
 } from "lucide-react";
 import { StoreSettings } from "@/lib/types";
 
@@ -29,6 +31,34 @@ export function StoreSettingsClient({
   const [settings, setSettings] = useState<StoreSettings>(initialSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  const [testEmailAddress, setTestEmailAddress] = useState(
+    settings.emailSenderAddress || settings.smtpUser || "aurazmigrod@wp.pl"
+  );
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleSendTestEmail = async () => {
+    setIsSendingTest(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin/email/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetEmail: testEmailAddress }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestResult({ success: true, message: data.message || "Wiadomość testowa została wysłana!" });
+      } else {
+        setTestResult({ success: false, message: data.error || "Błąd wysyłki e-mail." });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: "Błąd połączenia: " + err.message });
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
 
   const handleChange = (field: keyof StoreSettings, value: any) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
@@ -437,6 +467,180 @@ export function StoreSettingsClient({
               >
                 Otwórz InPost ↗
               </a>
+            </div>
+          </div>
+
+          {/* Konfiguracja Wysyłki E-mail (Kody Rabatowe, Opinie, Powiadomienia) */}
+          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#EADFD5]">
+              <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] flex items-center gap-2">
+                <Mail className="w-4 h-4 text-[#C5A069]" />
+                <span>Wysyłka E-mail (Kody Rabatowe, Opinie, Powiadomienia)</span>
+              </h2>
+              <span className="text-[11px] text-[#7A6458]">
+                Poczta WP.pl / Własny SMTP / Resend API
+              </span>
+            </div>
+
+            <p className="text-xs text-[#6E6259] leading-relaxed">
+              Skonfiguruj wysyłkę e-maili, aby wygenerowane kody rabatowe (–2% i –5% za opinię, –15% za polecenia, rabaty VIP) oraz powiadomienia o zamówieniach automatycznie trafiały na skrzynki pocztowe Twoich klientek.
+            </p>
+
+            {/* Wybór metody wysyłki */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Sposób wysyłki wiadomości
+                </label>
+                <select
+                  value={settings.emailProvider || "smtp"}
+                  onChange={(e) => handleChange("emailProvider", e.target.value as any)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                >
+                  <option value="smtp">Poczta WP.pl / Własny serwer SMTP (Zalecane)</option>
+                  <option value="resend">Resend API (Nowoczesna usługa e-mail)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Nazwa nadawcy w e-mailu
+                </label>
+                <input
+                  type="text"
+                  placeholder="AURA Boutique K.B."
+                  value={settings.emailSenderName || "AURA Boutique K.B."}
+                  onChange={(e) => handleChange("emailSenderName", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+            </div>
+
+            {/* Opcje SMTP */}
+            {(!settings.emailProvider || settings.emailProvider === "smtp") && (
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                      Serwer pocztowy SMTP
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="smtp.wp.pl (lub smtp.gmail.com)"
+                      value={settings.smtpHost || "smtp.wp.pl"}
+                      onChange={(e) => handleChange("smtpHost", e.target.value)}
+                      className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                      Port serwera SMTP
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="465"
+                      value={settings.smtpPort || 465}
+                      onChange={(e) => handleChange("smtpPort", Number(e.target.value))}
+                      className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                      Adres e-mail (Login do skrzynki)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="aurazmigrod@wp.pl"
+                      value={settings.smtpUser || "aurazmigrod@wp.pl"}
+                      onChange={(e) => handleChange("smtpUser", e.target.value)}
+                      className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                      Hasło do skrzynki pocztowej
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="Wpisz hasło do poczty WP"
+                      value={settings.smtpPassword || ""}
+                      onChange={(e) => handleChange("smtpPassword", e.target.value)}
+                      className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="smtpSecure"
+                    checked={settings.smtpSecure !== undefined ? settings.smtpSecure : true}
+                    onChange={(e) => handleChange("smtpSecure", e.target.checked)}
+                    className="w-4 h-4 accent-[#C5A069]"
+                  />
+                  <label htmlFor="smtpSecure" className="text-xs text-[#3E3835]">
+                    Bezpieczne połączenie SSL/TLS (zalecane dla portu 465)
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Opcje Resend */}
+            {settings.emailProvider === "resend" && (
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded space-y-3">
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Klucz Resend API Key
+                </label>
+                <input
+                  type="password"
+                  placeholder="re_123456789..."
+                  value={settings.resendApiKey || ""}
+                  onChange={(e) => handleChange("resendApiKey", e.target.value)}
+                  className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                />
+                <p className="text-[11px] text-[#7A6458]">
+                  Klucz API możesz wygenerować bezpłatnie na <a href="https://resend.com" target="_blank" className="text-[#C5A069] underline">resend.com</a>.
+                </p>
+              </div>
+            )}
+
+            {/* Test wysyłki wiadomości e-mail */}
+            <div className="pt-2 border-t border-[#EADFD5] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1 max-w-md">
+                <input
+                  type="email"
+                  placeholder="Adres do testu (np. aurazmigrod@wp.pl)"
+                  value={testEmailAddress}
+                  onChange={(e) => setTestEmailAddress(e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] px-3 py-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+                <button
+                  type="button"
+                  onClick={handleSendTestEmail}
+                  disabled={isSendingTest}
+                  className="px-4 py-2 bg-[#241D1B] text-white text-xs uppercase tracking-wider rounded hover:bg-[#3E3835] transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5 text-white" />
+                  <span>{isSendingTest ? "Wysyłanie..." : "Wyślij Test"}</span>
+                </button>
+              </div>
+
+              {testResult && (
+                <div
+                  className={`text-xs p-2.5 rounded border ${
+                    testResult.success
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : "bg-red-50 text-red-800 border-red-200"
+                  }`}
+                >
+                  {testResult.message}
+                </div>
+              )}
             </div>
           </div>
 

@@ -4,6 +4,9 @@ import { Footer } from "@/components/layout/Footer";
 import { CatalogClient } from "@/components/catalog/CatalogClient";
 import { getProducts, getCategories } from "@/lib/store-data";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface CatalogPageProps {
   searchParams: Promise<{
     kategoria?: string;

@@ -44,32 +44,32 @@ export function AnnouncementBar() {
 
   return (
     <div
-      className="text-[#FAF6F1] text-[11px] sm:text-xs py-2 px-4 transition-colors border-b border-[#968372] shadow-xs"
+      className="text-[#FAF6F1] text-[10px] sm:text-xs py-1 sm:py-1.5 px-2.5 sm:px-4 transition-colors border-b border-[#968372] shadow-xs"
       style={{
         backgroundColor: "#A18D7C",
         backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
         backgroundRepeat: "repeat",
       }}
     >
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 tracking-wider uppercase font-medium">
-        <div className="flex items-center gap-1.5 text-[#FFF9F2]">
-          <MapPin className="w-3.5 h-3.5 text-[#F2DFBD]" />
+      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-0.5 sm:gap-4 tracking-wider uppercase font-medium leading-tight">
+        <div className="flex items-center gap-1 text-[#FFF9F2] text-[9.5px] sm:text-xs">
+          <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#F2DFBD] shrink-0" />
           <span>Żmigród | ul. Poprzeczna 3/1A</span>
         </div>
 
-        <div className="flex items-center gap-2 text-center text-[#FFF9F2]">
+        <div className="flex items-center gap-1.5 text-center text-[#FFF9F2] text-[9.5px] sm:text-xs">
           {isWeekend ? (
             <Link
               href="/katalog?kategoria=marynarki"
-              className="hover:underline flex items-center gap-1.5 text-[#FFF9E6] font-bold"
+              className="hover:underline flex items-center gap-1 text-[#FFF9E6] font-bold"
             >
-              <Clock className="w-3.5 h-3.5 text-[#FFE5A3] animate-pulse" />
-              <span>Weekend w AURA: –15% na Marynarki (do ndz 23:59) • Sprawdź →</span>
+              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#FFE5A3] animate-pulse shrink-0" />
+              <span>Weekend w AURA: –15% na Marynarki • Sprawdź →</span>
             </Link>
           ) : (
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#F2DFBD]" />
-              <span>Darmowa dostawa od 300 PLN • Skarpetki gratis od 100 PLN</span>
+            <div className="flex items-center gap-1">
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#F2DFBD] shrink-0" />
+              <span>Darmowa dostawa od 300 zł • Skarpetki gratis powyżej 100 zł</span>
             </div>
           )}
         </div>

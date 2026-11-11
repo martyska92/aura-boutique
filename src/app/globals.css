@@ -46,6 +46,17 @@
 html {
   max-width: 100vw;
   overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Zapobieganie zasłanianiu nagłówków przez sticky header */
+h1, h2, h3, section[id], div[id], [id] {
+  scroll-margin-top: 84px;
+}
+@media (min-width: 640px) {
+  h1, h2, h3, section[id], div[id], [id] {
+    scroll-margin-top: 112px;
+  }
 }
 
 body {

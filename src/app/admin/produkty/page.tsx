@@ -3,6 +3,9 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { getProducts, getCategories } from "@/lib/store-data";
 import { ProductListClient } from "@/components/admin/ProductListClient";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminProductsPage() {
   await requireAdmin();
 
