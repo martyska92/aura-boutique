@@ -48,6 +48,57 @@
   ],
   "products": [
     {
+      "id": "prod-dupa",
+      "name": "dupa",
+      "slug": "dupa",
+      "description": "Elegancka koszula damska z miękkiej tkaniny.",
+      "composition": "100% Bawełna",
+      "careGuide": "Prać w temperaturze 30°C",
+      "sizeGuide": "Tabela rozmiarów standardowa",
+      "basePrice": 50,
+      "isPromoted": false,
+      "isNew": true,
+      "isBestseller": false,
+      "isPublished": true,
+      "isArchived": false,
+      "isDemo": false,
+      "categoryId": "cat-koszule",
+      "images": [
+        {
+          "id": "img-dupa-1",
+          "productId": "prod-dupa",
+          "url": "/images/categories/cat-koszule.jpg",
+          "altText": "Koszula dupa",
+          "orderIndex": 0,
+          "isPrimary": true
+        }
+      ],
+      "variants": [
+        {
+          "id": "var-dupa-s",
+          "productId": "prod-dupa",
+          "size": "S",
+          "color": "Biały",
+          "colorHex": "#FAFAFA",
+          "sku": "DUPA-KOSZ-S",
+          "stockQuantity": 5,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-dupa-m",
+          "productId": "prod-dupa",
+          "size": "M",
+          "color": "Biały",
+          "colorHex": "#FAFAFA",
+          "sku": "DUPA-KOSZ-M",
+          "stockQuantity": 5,
+          "reservedQuantity": 0
+        }
+      ],
+      "createdAt": "2026-11-11T20:00:00.000Z",
+      "updatedAt": "2026-11-11T20:00:00.000Z"
+    },
+    {
       "id": "prod-1794347829372",
       "name": "Nowa Sukienka Letnia",
       "slug": "nowa-sukienka-letnia",

@@ -54,8 +54,31 @@ export function ProductListClient({
     try {
       const res = await fetch("/api/admin/products", { cache: "no-store" });
       const data = await res.json();
-      if (data.products) {
-        setProducts(data.products);
+      if (data.products && Array.isArray(data.products)) {
+        let serverProducts: Product[] = data.products;
+
+        // Sprawdzamy czy w localStorage są zapisane produkty butiku
+        try {
+          const raw = localStorage.getItem("aura_custom_products");
+          if (raw) {
+            const customList: Product[] = JSON.parse(raw);
+            const serverIds = new Set(serverProducts.map((p) => p.id));
+            const missing = customList.filter((p) => !serverIds.has(p.id));
+
+            if (missing.length > 0) {
+              for (const m of missing) {
+                fetch("/api/admin/products", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(m),
+                }).catch(() => {});
+              }
+              serverProducts = [...missing, ...serverProducts];
+            }
+          }
+        } catch (_) {}
+
+        setProducts(serverProducts);
       }
     } catch (e) {
       console.error("Błąd odświeżania:", e);
@@ -111,6 +134,13 @@ export function ProductListClient({
       if (res.ok) {
         setProducts((prev) => prev.filter((p) => p.id !== id));
         setSelectedIds((prev) => prev.filter((item) => item !== id));
+        try {
+          const raw = localStorage.getItem("aura_custom_products");
+          if (raw) {
+            const list: Product[] = JSON.parse(raw);
+            localStorage.setItem("aura_custom_products", JSON.stringify(list.filter((x) => x.id !== id)));
+          }
+        } catch (_) {}
       } else {
         alert("Nie udało się usunąć produktu.");
       }

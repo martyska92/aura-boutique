@@ -712,16 +712,26 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
         throw new Error(data.error || "Wystąpił błąd podczas zapisywania produktu.");
       }
 
+      // Kopia zapasowa w pamięci przeglądarki (localStorage) dla bezpieczeństwa
+      try {
+        if (data.product) {
+          const raw = localStorage.getItem("aura_custom_products");
+          const list: Product[] = raw ? JSON.parse(raw) : [];
+          const updatedList = [data.product, ...list.filter((x) => x.id !== data.product.id)];
+          localStorage.setItem("aura_custom_products", JSON.stringify(updatedList.slice(0, 50)));
+        }
+      } catch (_) {}
+
       setFeedback({
         type: "success",
         text: isEditing
-          ? "Zmiany w produkcie zostały pomyślnie zapisane!"
-          : "Nowy produkt został dodany do oferty butiku! Przekierowywanie do listy produktów...",
+          ? "Zmiany w produkcie zostały pomyślnie i trwale zapisane w bazie!"
+          : "Nowy produkt został pomyślnie dodany do oferty butiku! Przekierowywanie do listy ubrań...",
       });
 
       setTimeout(() => {
         window.location.href = "/admin/produkty";
-      }, 800);
+      }, 1000);
     } catch (err: any) {
       setFeedback({ type: "error", text: err.message || "Błąd zapisu." });
     } finally {

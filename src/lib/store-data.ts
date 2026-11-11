@@ -169,7 +169,10 @@ export function saveLocalStore(state: StoreFileState) {
 
 // Sprawdzenie czy Neon PostgreSQL jest skonfigurowany
 export function isNeonConfigured(): boolean {
-  const url = process.env.DATABASE_URL;
+  const url =
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL;
   return Boolean(
     url &&
     !url.includes("localhost:51213") &&
@@ -434,7 +437,65 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 
 export async function getProductById(id: string): Promise<Product | null> {
   const store = loadLocalStore();
-  const product = store.products.find((p) => p.id === id);
+  let product = store.products.find((p) => p.id === id);
+  if (!product) {
+    product = store.products.find((p) => p.slug === id);
+  }
+
+  // Jeśli nie ma w lokalnym cache, a Neon/Prisma jest aktywny - sprawdź bazę Postgres
+  if (!product && isNeonConfigured()) {
+    try {
+      const dbProd = await prisma.product.findFirst({
+        where: { OR: [{ id }, { slug: id }] },
+        include: { images: true, variants: true, category: true },
+      });
+      if (dbProd) {
+        product = {
+          id: dbProd.id,
+          name: dbProd.name,
+          slug: dbProd.slug,
+          description: dbProd.description,
+          composition: dbProd.composition || "",
+          careGuide: dbProd.careGuide || "",
+          sizeGuide: dbProd.sizeGuide || "",
+          basePrice: Number(dbProd.basePrice),
+          promotionalPrice: dbProd.promotionalPrice ? Number(dbProd.promotionalPrice) : undefined,
+          isPromoted: dbProd.isPromoted,
+          isNew: dbProd.isNew,
+          isBestseller: dbProd.isBestseller,
+          isPublished: dbProd.isPublished,
+          isArchived: dbProd.isArchived,
+          isDemo: dbProd.isDemo,
+          categoryId: dbProd.categoryId,
+          images: dbProd.images.map((im) => ({
+            id: im.id,
+            productId: im.productId,
+            url: im.url,
+            altText: im.altText || undefined,
+            orderIndex: im.orderIndex,
+            isPrimary: im.isPrimary,
+          })),
+          variants: dbProd.variants.map((v) => ({
+            id: v.id,
+            productId: v.productId,
+            size: v.size,
+            color: v.color,
+            colorHex: v.colorHex || undefined,
+            sku: v.sku,
+            stockQuantity: v.stockQuantity,
+            reservedQuantity: v.reservedQuantity,
+          })),
+          createdAt: dbProd.createdAt.toISOString(),
+          updatedAt: dbProd.updatedAt.toISOString(),
+        };
+        store.products.unshift(product);
+        saveLocalStore(store);
+      }
+    } catch (e) {
+      console.warn("Błąd wyszukiwania produktu w bazie Prisma:", e);
+    }
+  }
+
   if (!product) return null;
   return {
     ...product,
@@ -442,70 +503,161 @@ export async function getProductById(id: string): Promise<Product | null> {
   };
 }
 
+async function syncProductToPrisma(prod: Product): Promise<void> {
+  if (!isNeonConfigured()) return;
+  try {
+    await prisma.product.upsert({
+      where: { id: prod.id },
+      update: {
+        name: prod.name,
+        slug: prod.slug,
+        description: prod.description || "",
+        composition: prod.composition || null,
+        careGuide: prod.careGuide || null,
+        sizeGuide: prod.sizeGuide || null,
+        basePrice: prod.basePrice,
+        promotionalPrice: prod.promotionalPrice || null,
+        isPromoted: Boolean(prod.isPromoted),
+        isNew: Boolean(prod.isNew),
+        isBestseller: Boolean(prod.isBestseller),
+        isPublished: Boolean(prod.isPublished),
+        isArchived: Boolean(prod.isArchived),
+        isDemo: Boolean(prod.isDemo),
+        categoryId: prod.categoryId,
+      },
+      create: {
+        id: prod.id,
+        name: prod.name,
+        slug: prod.slug,
+        description: prod.description || "",
+        composition: prod.composition || null,
+        careGuide: prod.careGuide || null,
+        sizeGuide: prod.sizeGuide || null,
+        basePrice: prod.basePrice,
+        promotionalPrice: prod.promotionalPrice || null,
+        isPromoted: Boolean(prod.isPromoted),
+        isNew: Boolean(prod.isNew),
+        isBestseller: Boolean(prod.isBestseller),
+        isPublished: Boolean(prod.isPublished),
+        isArchived: Boolean(prod.isArchived),
+        isDemo: Boolean(prod.isDemo),
+        categoryId: prod.categoryId,
+      },
+    });
+
+    if (prod.variants && prod.variants.length > 0) {
+      for (const v of prod.variants) {
+        await prisma.productVariant.upsert({
+          where: { id: v.id },
+          update: {
+            size: v.size,
+            color: v.color,
+            colorHex: v.colorHex || null,
+            sku: v.sku,
+            stockQuantity: v.stockQuantity,
+            reservedQuantity: v.reservedQuantity || 0,
+          },
+          create: {
+            id: v.id,
+            productId: prod.id,
+            size: v.size,
+            color: v.color,
+            colorHex: v.colorHex || null,
+            sku: v.sku,
+            stockQuantity: v.stockQuantity,
+            reservedQuantity: v.reservedQuantity || 0,
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("Ostrzeżenie: synchronizacja produktu z Prisma:", err);
+  }
+}
+
 export async function saveProduct(productData: Partial<Product>): Promise<Product> {
   const store = loadLocalStore();
   const now = new Date().toISOString();
 
+  // Sprawdzamy czy produkt z takim ID już istnieje
   if (productData.id) {
-    // Edycja
     const idx = store.products.findIndex((p) => p.id === productData.id);
-    if (idx === -1) throw new Error("Produkt nie został znaleziony");
+    if (idx !== -1) {
+      // Istnieje w pamięci -> aktualizujemy
+      const updated: Product = {
+        ...store.products[idx],
+        ...productData,
+        updatedAt: now,
+      } as Product;
 
-    const updated: Product = {
-      ...store.products[idx],
-      ...productData,
-      updatedAt: now,
-    } as Product;
-
-    store.products[idx] = updated;
-    saveLocalStore(store);
-    return updated;
-  } else {
-    // Nowy produkt
-    const newId = `prod-${Date.now()}`;
-    const slug =
-      productData.slug ||
-      productData.name
-        ?.toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)+/g, "") ||
-      `produkt-${Date.now()}`;
-
-    const newProduct: Product = {
-      id: newId,
-      name: productData.name || "Nowy produkt",
-      slug,
-      description: productData.description || "",
-      composition: productData.composition || "",
-      careGuide: productData.careGuide || "",
-      sizeGuide: productData.sizeGuide || "",
-      basePrice: Number(productData.basePrice || 0),
-      promotionalPrice: productData.promotionalPrice ? Number(productData.promotionalPrice) : undefined,
-      isPromoted: Boolean(productData.isPromoted),
-      isNew: Boolean(productData.isNew),
-      isBestseller: Boolean(productData.isBestseller),
-      isPublished: productData.isPublished !== undefined ? productData.isPublished : true,
-      isArchived: Boolean(productData.isArchived),
-      isDemo: false,
-      categoryId: productData.categoryId || store.categories[0]?.id || "cat-sukienki",
-      images: productData.images || [],
-      variants: productData.variants || [],
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    store.products.unshift(newProduct);
-    saveLocalStore(store);
-    return newProduct;
+      store.products[idx] = updated;
+      saveLocalStore(store);
+      syncProductToPrisma(updated).catch(() => {});
+      return updated;
+    }
   }
+
+  // Nowy produkt (lub upsert produktu o zadanym ID)
+  const newId = productData.id || `prod-${Date.now()}`;
+  const slug =
+    productData.slug ||
+    productData.name
+      ?.toLowerCase()
+      .replace(/ą/g, "a")
+      .replace(/ć/g, "c")
+      .replace(/ę/g, "e")
+      .replace(/ł/g, "l")
+      .replace(/ń/g, "n")
+      .replace(/ó/g, "o")
+      .replace(/ś/g, "s")
+      .replace(/ź/g, "z")
+      .replace(/ż/g, "z")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)+/g, "") ||
+    `produkt-${Date.now()}`;
+
+  const newProduct: Product = {
+    id: newId,
+    name: productData.name || "Nowy produkt",
+    slug,
+    description: productData.description || "",
+    composition: productData.composition || "",
+    careGuide: productData.careGuide || "",
+    sizeGuide: productData.sizeGuide || "",
+    basePrice: Number(productData.basePrice || 0),
+    promotionalPrice: productData.promotionalPrice ? Number(productData.promotionalPrice) : undefined,
+    isPromoted: Boolean(productData.isPromoted),
+    isNew: Boolean(productData.isNew),
+    isBestseller: Boolean(productData.isBestseller),
+    isPublished: productData.isPublished !== undefined ? productData.isPublished : true,
+    isArchived: Boolean(productData.isArchived),
+    isDemo: false,
+    categoryId: productData.categoryId || store.categories[0]?.id || "cat-koszule",
+    images: productData.images || [],
+    variants: productData.variants || [],
+    createdAt: productData.createdAt || now,
+    updatedAt: now,
+  };
+
+  store.products.unshift(newProduct);
+  saveLocalStore(store);
+  syncProductToPrisma(newProduct).catch(() => {});
+  return newProduct;
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
   const store = loadLocalStore();
   const idx = store.products.findIndex((p) => p.id === id);
-  if (idx === -1) return false;
-  store.products.splice(idx, 1);
-  saveLocalStore(store);
+  if (idx !== -1) {
+    store.products.splice(idx, 1);
+    saveLocalStore(store);
+  }
+
+  if (isNeonConfigured()) {
+    try {
+      await prisma.product.delete({ where: { id } });
+    } catch (_) {}
+  }
   return true;
 }
 
