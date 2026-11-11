@@ -500,7 +500,7 @@ export function ProductListClient({
                   const isSelected = selectedIds.includes(p.id);
                   const totalStock = p.variants.reduce((sum, v) => sum + v.stockQuantity, 0);
                   const categoryName = categories.find((c) => c.id === p.categoryId)?.name || "—";
-                  const primaryImg = p.images[0]?.url || "/images/products/sukienka-satynowa-ivory.jpg";
+                  const primaryImg = p.images[0]?.url || "/images/products/neutral-placeholder.svg";
 
                   return (
                     <tr

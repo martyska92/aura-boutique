@@ -40,6 +40,18 @@ export function CatalogClient({
   const [priceMax, setPriceMax] = useState<number>(1000);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
+  // Synchronizacja parametrów URL z nawigacji bocznego panelu kategorii
+  React.useEffect(() => {
+    const k = searchParams.get("kategoria");
+    const f = searchParams.get("filter");
+    const s = searchParams.get("szukaj");
+    setSelectedCategory(k || "all");
+    setActiveFilterTab(f || "all");
+    if (s !== null) {
+      setSearchQuery(s);
+    }
+  }, [searchParams]);
+
   // Dostępne rozmiary i kolory w całym katalogu
   const allSizes = ["XS", "S", "M", "L", "XL", "UNI"];
   const allColors = [
@@ -143,11 +155,23 @@ export function CatalogClient({
     inStockOnly ||
     priceMax < 1000;
 
+  // Nazwa wybranej kategorii do nagłówka
+  const currentCategoryName = useMemo(() => {
+    if (activeFilterTab === "nowosci") return "Nowości w Butiku";
+    if (activeFilterTab === "bestsellery") return "Bestsellery";
+    if (activeFilterTab === "promocje") return "Promocje & Okazje";
+    if (selectedCategory !== "all") {
+      const cat = categories.find((c) => c.slug === selectedCategory);
+      if (cat) return cat.name;
+    }
+    return "Wszystkie Produkty";
+  }, [activeFilterTab, selectedCategory, categories]);
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+    <div className="w-full space-y-4 sm:space-y-6">
       {/* Baner Kolekcji z mottem butiku */}
       <h1 className="sr-only">Katalog AURA Boutique K.B. - Ekskluzywna Kolekcja Damska</h1>
-      <div className="mb-8 rounded-sm overflow-hidden border border-[#D8BE8E]/70 shadow-[0_6px_24px_rgba(197,160,105,0.14)] bg-[#FAF6F1]">
+      <div className="rounded-md overflow-hidden border border-[#D8BE8E]/70 shadow-[0_4px_16px_rgba(197,160,105,0.12)] bg-[#FAF6F1]">
         <div className="relative aspect-[1024/394] w-full overflow-hidden">
           <Image
             src="/images/hero/aura-hero-motto.png"
@@ -160,35 +184,23 @@ export function CatalogClient({
         </div>
       </div>
 
-      {/* Pasek kategorii horyzontalny - Stylistyka Wizualizacji nr 2 */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-8 no-scrollbar text-xs uppercase tracking-wider justify-start sm:justify-center border-b border-[#EADFD5]">
-        <button
-          onClick={() => setSelectedCategory("all")}
-          className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-            selectedCategory === "all"
-              ? "bg-[#C5A069] text-white font-medium shadow-xs"
-              : "bg-white text-[#5E4F49] border border-[#EADFD5] hover:border-[#C5A069] hover:bg-[#FAF6F1]"
-          }`}
-        >
-          Wszystkie
-        </button>
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setSelectedCategory(cat.slug)}
-            className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-              selectedCategory === cat.slug
-                ? "bg-[#C5A069] text-white font-medium shadow-xs"
-                : "bg-white text-[#5E4F49] border border-[#EADFD5] hover:border-[#C5A069] hover:bg-[#FAF6F1]"
-            }`}
-          >
-            {cat.name}
-          </button>
-        ))}
+      {/* Nagłówek aktywnej kolekcji */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#EADFD5] pb-2 sm:pb-3">
+        <div>
+          <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-[#C5A069] font-semibold">
+            Kolekcja AURA
+          </p>
+          <h2 className="font-serif text-lg sm:text-2xl text-[#241D1B]">
+            {currentCategoryName}
+          </h2>
+        </div>
+        <p className="text-xs text-[#857670]">
+          Liczba modeli: <strong className="text-[#241D1B]">{filteredProducts.length}</strong>
+        </p>
       </div>
 
       {/* Pasek kontrolny: Wyszukiwarka, Filtry mobilne, Sortowanie */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-8 bg-white p-4 border border-[#EADFD5] rounded-xs shadow-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 border border-[#EADFD5] rounded-md shadow-xs">
         {/* Szukaj */}
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 text-[#857670] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -197,7 +209,7 @@ export function CatalogClient({
             placeholder="Szukaj w kolekcji..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#FAF6F1] border border-[#D8BE8E] pl-9 pr-8 py-2 text-xs text-[#241D1B] placeholder-[#857670] focus:outline-none focus:border-[#C5A069] rounded-xs"
+            className="w-full bg-[#FAF6F1] border border-[#D8BE8E] pl-9 pr-8 py-2 text-xs text-[#241D1B] placeholder-[#857670] focus:outline-none focus:border-[#C5A069] rounded"
           />
           {searchQuery && (
             <button
@@ -214,7 +226,7 @@ export function CatalogClient({
           <button
             type="button"
             onClick={() => setMobileFiltersOpen(true)}
-            className="lg:hidden px-4 py-2 border border-[#D8BE8E] bg-[#F2DCD7] text-[#542823] text-xs uppercase tracking-wider flex items-center gap-2 hover:border-[#C5A069] rounded-xs"
+            className="lg:hidden px-3.5 py-2 border border-[#D8BE8E] bg-[#F2DCD7] text-[#542823] text-xs uppercase tracking-wider flex items-center gap-1.5 hover:border-[#C5A069] rounded font-medium"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#C5A069]" />
             <span>Filtry {hasActiveFilters && "•"}</span>
@@ -226,7 +238,7 @@ export function CatalogClient({
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-[#FAF6F1] border border-[#D8BE8E] px-3 py-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069] cursor-pointer rounded-xs"
+              className="bg-[#FAF6F1] border border-[#D8BE8E] px-3 py-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069] cursor-pointer rounded"
             >
               <option value="newest">Najnowsze</option>
               <option value="price_asc">Cena: rosnąco</option>
@@ -422,7 +434,7 @@ export function CatalogClient({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 min-[500px]:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-5">
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}

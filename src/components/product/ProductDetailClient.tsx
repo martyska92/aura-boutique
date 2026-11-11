@@ -36,7 +36,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
 
   // Zdjęcia produktu
   const images = product.images.length > 0 ? product.images : [
-    { id: "def", productId: product.id, url: "/images/products/sukienka-satynowa-ivory.jpg", orderIndex: 0, isPrimary: true }
+    { id: "def", productId: product.id, url: "/images/products/neutral-placeholder.svg", orderIndex: 0, isPrimary: true }
   ];
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const activeImage = images[activeImageIndex]?.url || images[0]?.url;
@@ -169,7 +169,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-10 pb-24 lg:pb-12">
+    <div className="w-full py-2 sm:py-4 pb-24 lg:pb-12 space-y-4 sm:space-y-6">
       {/* Okruszki (Breadcrumbs) */}
       <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-[#857670] uppercase tracking-wider mb-3 sm:mb-6 flex-wrap">
         <Link href="/" className="hover:text-[#C5A069]">Sklep</Link>
@@ -658,7 +658,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
               <div key={p.id} className="group bg-white border border-[#EADFD5] hover:border-[#C5A069] transition-all rounded-xs shadow-xs overflow-hidden flex flex-col justify-between">
                 <Link href={`/produkt/${p.slug}`} className="block relative aspect-[3/4] bg-[#FAF6F1] overflow-hidden">
                   <Image
-                    src={p.images[0]?.url || "/images/products/sukienka-satynowa-ivory.jpg"}
+                    src={p.images[0]?.url || "/images/products/neutral-placeholder.svg"}
                     alt={p.name}
                     fill
                     unoptimized={Boolean(p.images[0]?.url && p.images[0]?.url.startsWith("data:"))}

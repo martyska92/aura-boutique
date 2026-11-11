@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Metadata } from "next";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { CategorySidebar } from "@/components/layout/CategorySidebar";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
 import { getProductBySlug, getProducts } from "@/lib/store-data";
 
@@ -53,11 +54,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
   return (
     <>
       <Header />
-      <main className="flex-1 bg-[#FAF8F5]">
-        <ProductDetailClient
-          product={product}
-          relatedProducts={relatedProducts}
-        />
+      <main className="flex-1 bg-[#FAF6F1]">
+        {/* ========================================================
+            UKŁAD SKLEPU: PIONOWY PANEL KATEGORII PO LEWEJ STRONIE
+            + KARTA PRODUKTU PO PRAWEJ STRONIE
+           ======================================================== */}
+        <div className="max-w-[1600px] mx-auto px-1.5 sm:px-4 lg:px-6 flex gap-1.5 sm:gap-4 lg:gap-6 items-start">
+          {/* Lewy pionowy panel kategorii (stale widoczny na laptopie i telefonie) */}
+          <CategorySidebar />
+
+          {/* Prawa kolumna: Karta produktu */}
+          <div className="flex-1 min-w-0 py-2 sm:py-4">
+            <ProductDetailClient
+              product={product}
+              relatedProducts={relatedProducts}
+            />
+          </div>
+        </div>
       </main>
       <Footer />
     </>

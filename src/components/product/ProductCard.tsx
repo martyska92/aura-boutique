@@ -11,10 +11,20 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const primaryImage =
+  const initialImg =
     product.images.find((img) => img.isPrimary)?.url ||
     product.images[0]?.url ||
-    "/images/products/sukienka-satynowa-ivory.jpg";
+    "/images/products/neutral-placeholder.svg";
+
+  const [imgSrc, setImgSrc] = React.useState(initialImg);
+
+  React.useEffect(() => {
+    const nextImg =
+      product.images.find((img) => img.isPrimary)?.url ||
+      product.images[0]?.url ||
+      "/images/products/neutral-placeholder.svg";
+    setImgSrc(nextImg);
+  }, [product.images]);
 
   const hasPromotion =
     product.isPromoted &&
@@ -48,12 +58,13 @@ export function ProductCard({ product }: ProductCardProps) {
         className="relative aspect-[3/4] w-full overflow-hidden bg-[#F7EFE8] block"
       >
         <Image
-          src={primaryImage}
+          src={imgSrc}
           alt={product.name}
           fill
-          unoptimized={typeof primaryImage === "string" && primaryImage.startsWith("data:")}
+          unoptimized={typeof imgSrc === "string" && imgSrc.startsWith("data:")}
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           className="object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
+          onError={() => setImgSrc("/images/products/neutral-placeholder.svg")}
         />
 
         {/* Badge'e w stylistyce wizualizacji 2 (pudrowy róż i satynowe złoto) */}
