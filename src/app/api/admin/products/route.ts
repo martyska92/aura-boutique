@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
-import { saveProduct, deleteProduct, getProductById, getProducts } from "@/lib/store-data";
+import { saveProduct, deleteProduct, getProductById, getProductBySlug, getProducts } from "@/lib/store-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,10 +12,27 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (id) {
+      let product = await getProductById(id);
+      if (!product) {
+        product = await getProductBySlug(id);
+      }
+      if (!product) {
+        return NextResponse.json(
+          { error: `Produkt o ID "${id}" nie istnieje w bazie danych.` },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json({ success: true, product });
+    }
+
     const products = await getProducts({ includeArchived: true });
     return NextResponse.json({ success: true, products });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Błąd pobierania produktów:", err);
+    return NextResponse.json({ error: err.message || "Błąd serwera bazy danych." }, { status: 500 });
   }
 }
 

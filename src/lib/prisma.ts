@@ -4,9 +4,21 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+export function getDatabaseUrl(): string | undefined {
+  const raw =
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL;
+  if (!raw) return undefined;
+  const clean = raw.trim().replace(/^["']|["']$/g, "");
+  return clean || undefined;
+}
+
 function createPrismaClient(): PrismaClient {
+  const dbUrl = getDatabaseUrl();
   try {
     return new PrismaClient({
+      ...(dbUrl ? { datasources: { db: { url: dbUrl } } } : {}),
       log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
     });
   } catch (error) {

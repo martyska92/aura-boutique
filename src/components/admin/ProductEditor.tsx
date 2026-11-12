@@ -712,26 +712,32 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
         throw new Error(data.error || "Wystąpił błąd podczas zapisywania produktu.");
       }
 
+      if (!data.product || !data.product.id) {
+        throw new Error("Serwer nie zwrócił poprawnego rekordu utworzonego produktu.");
+      }
+
+      const savedProduct: Product = data.product;
+      const targetId = String(savedProduct.id);
+
       // Kopia zapasowa w pamięci przeglądarki (localStorage) dla bezpieczeństwa
       try {
-        if (data.product) {
-          const raw = localStorage.getItem("aura_custom_products");
-          const list: Product[] = raw ? JSON.parse(raw) : [];
-          const updatedList = [data.product, ...list.filter((x) => x.id !== data.product.id)];
-          localStorage.setItem("aura_custom_products", JSON.stringify(updatedList.slice(0, 50)));
-        }
+        const raw = localStorage.getItem("aura_custom_products");
+        const list: Product[] = raw ? JSON.parse(raw) : [];
+        const updatedList = [savedProduct, ...list.filter((x) => x.id !== targetId)];
+        localStorage.setItem("aura_custom_products", JSON.stringify(updatedList.slice(0, 50)));
       } catch (_) {}
 
       setFeedback({
         type: "success",
         text: isEditing
           ? "Zmiany w produkcie zostały pomyślnie i trwale zapisane w bazie!"
-          : "Nowy produkt został pomyślnie dodany do oferty butiku! Przekierowywanie do listy ubrań...",
+          : "Nowy produkt został pomyślnie dodany do oferty butiku! Przekierowywanie do edycji...",
       });
 
+      // Przekierowanie do edycji z użyciem dokładnego ID zwróconego przez serwer
       setTimeout(() => {
-        window.location.href = "/admin/produkty";
-      }, 1000);
+        window.location.href = `/admin/produkty/${targetId}`;
+      }, 700);
     } catch (err: any) {
       setFeedback({ type: "error", text: err.message || "Błąd zapisu." });
     } finally {

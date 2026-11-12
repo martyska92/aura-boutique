@@ -182,18 +182,46 @@ export function saveLocalStore(state: StoreFileState) {
   } catch (_) {}
 }
 
-// Sprawdzenie czy Neon PostgreSQL jest skonfigurowany
+// Sprawdzenie czy Neon / PostgreSQL jest poprawnie skonfigurowany
 export function isNeonConfigured(): boolean {
-  const url =
+  const raw =
     process.env.POSTGRES_PRISMA_URL ||
     process.env.DATABASE_URL ||
     process.env.POSTGRES_URL;
+  if (!raw) return false;
+  const url = raw.trim().replace(/^["']|["']$/g, "");
   return Boolean(
     url &&
     !url.includes("localhost:51213") &&
     !url.includes("username:password") &&
-    (url.startsWith("postgresql://") || url.startsWith("postgres://"))
+    !url.includes("twoja_baza") &&
+    (url.startsWith("postgresql://") ||
+      url.startsWith("postgres://") ||
+      url.startsWith("prisma+postgres://") ||
+      url.startsWith("prisma://"))
   );
+}
+
+let prismaConnectedCache: boolean | null = null;
+let lastPrismaCheckTime = 0;
+
+export async function isDatabaseConnected(): Promise<boolean> {
+  if (!isNeonConfigured()) return false;
+  const now = Date.now();
+  if (prismaConnectedCache !== null && now - lastPrismaCheckTime < 20000) {
+    return prismaConnectedCache;
+  }
+  try {
+    // Sprawdzamy aktywne połączenie z bazą
+    await prisma.$queryRaw`SELECT 1`;
+    prismaConnectedCache = true;
+    lastPrismaCheckTime = now;
+    return true;
+  } catch (err) {
+    prismaConnectedCache = false;
+    lastPrismaCheckTime = now;
+    return false;
+  }
 }
 
 // ==========================================
@@ -337,6 +365,64 @@ export async function deleteCategory(id: string): Promise<boolean> {
 // ==========================================
 // PRODUKTY
 // ==========================================
+function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
+  return {
+    id: dbProd.id,
+    name: dbProd.name,
+    slug: dbProd.slug,
+    description: dbProd.description || "",
+    composition: dbProd.composition || "",
+    careGuide: dbProd.careGuide || "",
+    sizeGuide: dbProd.sizeGuide || "",
+    basePrice: Number(dbProd.basePrice),
+    promotionalPrice: dbProd.promotionalPrice ? Number(dbProd.promotionalPrice) : undefined,
+    isPromoted: Boolean(dbProd.isPromoted),
+    isNew: Boolean(dbProd.isNew),
+    isBestseller: Boolean(dbProd.isBestseller),
+    isPublished: Boolean(dbProd.isPublished),
+    isArchived: Boolean(dbProd.isArchived),
+    isDemo: Boolean(dbProd.isDemo),
+    categoryId: dbProd.categoryId,
+    category: dbProd.category
+      ? {
+          id: dbProd.category.id,
+          name: dbProd.category.name,
+          slug: dbProd.category.slug,
+          description: dbProd.category.description || undefined,
+          imageUrl: dbProd.category.imageUrl || undefined,
+          orderIndex: dbProd.category.orderIndex,
+          isActive: dbProd.category.isActive !== undefined ? Boolean(dbProd.category.isActive) : true,
+        }
+      : store.categories.find((c) => c.id === dbProd.categoryId),
+    images:
+      dbProd.images && dbProd.images.length > 0
+        ? dbProd.images.map((im: any) => ({
+            id: im.id,
+            productId: im.productId,
+            url: im.url,
+            altText: im.altText || undefined,
+            orderIndex: im.orderIndex,
+            isPrimary: im.isPrimary,
+          }))
+        : store.products.find((p) => p.id === dbProd.id)?.images || [],
+    variants:
+      dbProd.variants && dbProd.variants.length > 0
+        ? dbProd.variants.map((v: any) => ({
+            id: v.id,
+            productId: v.productId,
+            size: v.size,
+            color: v.color,
+            colorHex: v.colorHex || undefined,
+            sku: v.sku,
+            stockQuantity: v.stockQuantity,
+            reservedQuantity: v.reservedQuantity || 0,
+          }))
+        : [],
+    createdAt: dbProd.createdAt instanceof Date ? dbProd.createdAt.toISOString() : String(dbProd.createdAt),
+    updatedAt: dbProd.updatedAt instanceof Date ? dbProd.updatedAt.toISOString() : String(dbProd.updatedAt),
+  };
+}
+
 export async function getProducts(options?: {
   categorySlug?: string;
   isPromotedOnly?: boolean;
@@ -352,6 +438,83 @@ export async function getProducts(options?: {
   sortBy?: "price_asc" | "price_desc" | "newest";
 }): Promise<Product[]> {
   const store = loadLocalStore();
+
+  // Sprawdzamy aktywne połączenie z bazą PostgreSQL/Neon
+  if (await isDatabaseConnected()) {
+    try {
+      const where: any = {};
+      if (!options?.includeArchived) {
+        where.isArchived = false;
+        where.isPublished = true;
+      }
+      if (options?.categorySlug) {
+        where.category = { slug: options.categorySlug };
+      }
+      if (options?.isPromotedOnly) {
+        where.isPromoted = true;
+      }
+      if (options?.isNewOnly) {
+        where.isNew = true;
+      }
+      if (options?.isBestsellerOnly) {
+        where.isBestseller = true;
+      }
+      if (options?.search) {
+        const q = options.search.trim();
+        where.OR = [
+          { name: { contains: q, mode: "insensitive" } },
+          { description: { contains: q, mode: "insensitive" } },
+        ];
+      }
+      if (options?.minPrice !== undefined) {
+        where.basePrice = { ...where.basePrice, gte: options.minPrice };
+      }
+      if (options?.maxPrice !== undefined) {
+        where.basePrice = { ...where.basePrice, lte: options.maxPrice };
+      }
+
+      const dbProducts = await prisma.product.findMany({
+        where,
+        include: {
+          images: { orderBy: { orderIndex: "asc" } },
+          variants: true,
+          category: true,
+        },
+        orderBy:
+          options?.sortBy === "price_asc"
+            ? { basePrice: "asc" }
+            : options?.sortBy === "price_desc"
+            ? { basePrice: "desc" }
+            : { createdAt: "desc" },
+      });
+
+      if (dbProducts && dbProducts.length > 0) {
+        let mapped = dbProducts.map((p) => mapPrismaProduct(p, store));
+
+        if (options?.size) {
+          mapped = mapped.filter((p) =>
+            p.variants.some((v) => v.size.toLowerCase() === options.size!.toLowerCase() && v.stockQuantity > 0)
+          );
+        }
+        if (options?.color) {
+          mapped = mapped.filter((p) =>
+            p.variants.some((v) => v.color.toLowerCase().includes(options.color!.toLowerCase()))
+          );
+        }
+        if (options?.inStockOnly) {
+          mapped = mapped.filter((p) =>
+            p.variants.some((v) => v.stockQuantity - v.reservedQuantity > 0)
+          );
+        }
+
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Ostrzeżenie: Błąd pobierania produktów z bazy Prisma:", err);
+    }
+  }
+
+  // Fallback do lokalnego magazynu
   let list = [...store.products];
 
   if (!options?.includeArchived) {
@@ -442,7 +605,24 @@ export async function getProducts(options?: {
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const store = loadLocalStore();
-  const product = store.products.find((p) => p.slug === slug);
+  let product = store.products.find((p) => p.slug === slug);
+
+  if (!product && (await isDatabaseConnected())) {
+    try {
+      const dbProd = await prisma.product.findFirst({
+        where: { slug },
+        include: { images: { orderBy: { orderIndex: "asc" } }, variants: true, category: true },
+      });
+      if (dbProd) {
+        product = mapPrismaProduct(dbProd, store);
+        store.products.unshift(product);
+        saveLocalStore(store);
+      }
+    } catch (e) {
+      console.warn("Błąd wyszukiwania produktu po slug w bazie Prisma:", e);
+    }
+  }
+
   if (!product) return null;
   return {
     ...product,
@@ -452,60 +632,17 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 
 export async function getProductById(id: string): Promise<Product | null> {
   const store = loadLocalStore();
-  let product = store.products.find((p) => p.id === id);
-  if (!product) {
-    product = store.products.find((p) => p.slug === id);
-  }
+  let product = store.products.find((p) => p.id === id || p.slug === id);
 
   // Jeśli nie ma w lokalnym cache, a Neon/Prisma jest aktywny - sprawdź bazę Postgres
-  if (!product && isNeonConfigured()) {
+  if (!product && (await isDatabaseConnected())) {
     try {
       const dbProd = await prisma.product.findFirst({
         where: { OR: [{ id }, { slug: id }] },
-        include: { images: true, variants: true, category: true },
+        include: { images: { orderBy: { orderIndex: "asc" } }, variants: true, category: true },
       });
       if (dbProd) {
-        product = {
-          id: dbProd.id,
-          name: dbProd.name,
-          slug: dbProd.slug,
-          description: dbProd.description,
-          composition: dbProd.composition || "",
-          careGuide: dbProd.careGuide || "",
-          sizeGuide: dbProd.sizeGuide || "",
-          basePrice: Number(dbProd.basePrice),
-          promotionalPrice: dbProd.promotionalPrice ? Number(dbProd.promotionalPrice) : undefined,
-          isPromoted: dbProd.isPromoted,
-          isNew: dbProd.isNew,
-          isBestseller: dbProd.isBestseller,
-          isPublished: dbProd.isPublished,
-          isArchived: dbProd.isArchived,
-          isDemo: dbProd.isDemo,
-          categoryId: dbProd.categoryId,
-          images:
-            dbProd.images && dbProd.images.length > 0
-              ? dbProd.images.map((im) => ({
-                  id: im.id,
-                  productId: im.productId,
-                  url: im.url,
-                  altText: im.altText || undefined,
-                  orderIndex: im.orderIndex,
-                  isPrimary: im.isPrimary,
-                }))
-              : store.products.find((p) => p.id === dbProd.id)?.images || [],
-          variants: dbProd.variants.map((v) => ({
-            id: v.id,
-            productId: v.productId,
-            size: v.size,
-            color: v.color,
-            colorHex: v.colorHex || undefined,
-            sku: v.sku,
-            stockQuantity: v.stockQuantity,
-            reservedQuantity: v.reservedQuantity,
-          })),
-          createdAt: dbProd.createdAt.toISOString(),
-          updatedAt: dbProd.updatedAt.toISOString(),
-        };
+        product = mapPrismaProduct(dbProd, store);
         store.products.unshift(product);
         saveLocalStore(store);
       }
@@ -524,6 +661,33 @@ export async function getProductById(id: string): Promise<Product | null> {
 async function syncProductToPrisma(prod: Product): Promise<void> {
   if (!isNeonConfigured()) return;
   try {
+    // 1. Zapewnij, że kategoria istnieje w tabeli Category bazy danych (ochrona przed błędem klucza obcego P2003)
+    const store = loadLocalStore();
+    const cat = store.categories.find((c) => c.id === prod.categoryId);
+    if (cat) {
+      await prisma.category.upsert({
+        where: { id: cat.id },
+        update: {
+          name: cat.name,
+          slug: cat.slug,
+          description: cat.description || null,
+          imageUrl: cat.imageUrl || null,
+          orderIndex: cat.orderIndex,
+          isActive: true,
+        },
+        create: {
+          id: cat.id,
+          name: cat.name,
+          slug: cat.slug,
+          description: cat.description || null,
+          imageUrl: cat.imageUrl || null,
+          orderIndex: cat.orderIndex,
+          isActive: true,
+        },
+      });
+    }
+
+    // 2. Zapisz produkt
     await prisma.product.upsert({
       where: { id: prod.id },
       update: {
@@ -646,7 +810,7 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
 
       store.products[idx] = updated;
       saveLocalStore(store);
-      syncProductToPrisma(updated).catch(() => {});
+      await syncProductToPrisma(updated);
       return updated;
     }
   }
@@ -702,7 +866,7 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
 
   store.products.unshift(newProduct);
   saveLocalStore(store);
-  syncProductToPrisma(newProduct).catch(() => {});
+  await syncProductToPrisma(newProduct);
   return newProduct;
 }
 
@@ -717,7 +881,9 @@ export async function deleteProduct(id: string): Promise<boolean> {
   if (isNeonConfigured()) {
     try {
       await prisma.product.delete({ where: { id } });
-    } catch (_) {}
+    } catch (e) {
+      console.warn("Błąd usuwania produktu z Prisma:", e);
+    }
   }
   return true;
 }
