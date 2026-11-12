@@ -606,24 +606,22 @@ export async function getProducts(options?: {
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const store = loadLocalStore();
-  let product = store.products.find((p) => p.slug === slug);
 
-  if (!product && (await isDatabaseConnected())) {
+  if (await isDatabaseConnected()) {
     try {
       const dbProd = await prisma.product.findFirst({
         where: { slug },
         include: { images: { orderBy: { orderIndex: "asc" } }, variants: true, category: true },
       });
       if (dbProd) {
-        product = mapPrismaProduct(dbProd, store);
-        store.products.unshift(product);
-        saveLocalStore(store);
+        return mapPrismaProduct(dbProd, store);
       }
     } catch (e) {
       console.warn("Błąd wyszukiwania produktu po slug w bazie Prisma:", e);
     }
   }
 
+  const product = store.products.find((p) => p.slug === slug);
   if (!product) return null;
   return {
     ...product,
@@ -633,25 +631,22 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 
 export async function getProductById(id: string): Promise<Product | null> {
   const store = loadLocalStore();
-  let product = store.products.find((p) => p.id === id || p.slug === id);
 
-  // Jeśli nie ma w lokalnym cache, a Neon/Prisma jest aktywny - sprawdź bazę Postgres
-  if (!product && (await isDatabaseConnected())) {
+  if (await isDatabaseConnected()) {
     try {
       const dbProd = await prisma.product.findFirst({
         where: { OR: [{ id }, { slug: id }] },
         include: { images: { orderBy: { orderIndex: "asc" } }, variants: true, category: true },
       });
       if (dbProd) {
-        product = mapPrismaProduct(dbProd, store);
-        store.products.unshift(product);
-        saveLocalStore(store);
+        return mapPrismaProduct(dbProd, store);
       }
     } catch (e) {
       console.warn("Błąd wyszukiwania produktu w bazie Prisma:", e);
     }
   }
 
+  const product = store.products.find((p) => p.id === id || p.slug === id);
   if (!product) return null;
   return {
     ...product,
@@ -784,36 +779,54 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
   const store = loadLocalStore();
   const now = new Date().toISOString();
 
-  // Sprawdzamy czy produkt z takim ID już istnieje
+  // Sprawdzamy czy produkt z takim ID już istnieje w pamięci lub w bazie
+  let existingProduct: Product | null = null;
   if (productData.id) {
-    const idx = store.products.findIndex((p) => p.id === productData.id);
-    if (idx !== -1) {
-      // Istnieje w pamięci -> aktualizujemy
-      const existingImages = store.products[idx].images || [];
-      const finalImages =
-        productData.images !== undefined
-          ? productData.images.map((img, i) => ({
-              id: img.id || `img-${store.products[idx].id}-${i}`,
-              productId: store.products[idx].id,
-              url: img.url,
-              altText: img.altText || productData.name || store.products[idx].name,
-              orderIndex: img.orderIndex !== undefined ? img.orderIndex : i,
-              isPrimary: img.isPrimary !== undefined ? img.isPrimary : i === 0,
-            }))
-          : existingImages;
-
-      const updated: Product = {
-        ...store.products[idx],
-        ...productData,
-        images: finalImages,
-        updatedAt: now,
-      } as Product;
-
-      store.products[idx] = updated;
-      saveLocalStore(store);
-      await syncProductToPrisma(updated);
-      return updated;
+    existingProduct = store.products.find((p) => p.id === productData.id) || null;
+    if (!existingProduct && (await isDatabaseConnected())) {
+      try {
+        const dbProd = await prisma.product.findUnique({
+          where: { id: productData.id },
+          include: { images: true, variants: true, category: true },
+        });
+        if (dbProd) {
+          existingProduct = mapPrismaProduct(dbProd, store);
+        }
+      } catch (_) {}
     }
+  }
+
+  if (existingProduct) {
+    // Istnieje -> aktualizujemy
+    const existingImages = existingProduct.images || [];
+    const finalImages =
+      productData.images !== undefined
+        ? productData.images.map((img, i) => ({
+            id: img.id || `img-${existingProduct!.id}-${i}`,
+            productId: existingProduct!.id,
+            url: img.url,
+            altText: img.altText || productData.name || existingProduct!.name,
+            orderIndex: img.orderIndex !== undefined ? img.orderIndex : i,
+            isPrimary: img.isPrimary !== undefined ? img.isPrimary : i === 0,
+          }))
+        : existingImages;
+
+    const updated: Product = {
+      ...existingProduct,
+      ...productData,
+      images: finalImages,
+      updatedAt: now,
+    } as Product;
+
+    const idx = store.products.findIndex((p) => p.id === updated.id);
+    if (idx !== -1) {
+      store.products[idx] = updated;
+    } else {
+      store.products.unshift(updated);
+    }
+    saveLocalStore(store);
+    await syncProductToPrisma(updated);
+    return updated;
   }
 
   // Nowy produkt (lub upsert produktu o zadanym ID)
