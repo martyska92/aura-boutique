@@ -1,12 +1,30 @@
 {
   "categories": [
     {
+      "id": "cat-sukienki",
+      "name": "Sukienki",
+      "slug": "sukienki",
+      "description": "Kobiece sukienki na co dzień, do pracy i na wyjątkowe okazje.",
+      "imageUrl": "/images/categories/cat-sukienki.jpg",
+      "orderIndex": 1,
+      "isActive": true
+    },
+    {
+      "id": "cat-swetry",
+      "name": "Swetry",
+      "slug": "swetry",
+      "description": "Ciepłe i otulające swetry z dodatkiem wełny, alpaki i kaszmiru.",
+      "imageUrl": "/images/categories/cat-swetry.jpg",
+      "orderIndex": 2,
+      "isActive": true
+    },
+    {
       "id": "cat-bluzy",
       "name": "Bluzy",
       "slug": "bluzy",
       "description": "Wygodne, miękkie i stylowe bluzy damskie z wysokogatunkowych tkanin.",
       "imageUrl": "/images/categories/cat-bluzy.jpg",
-      "orderIndex": 1,
+      "orderIndex": 3,
       "isActive": true
     },
     {
@@ -15,7 +33,7 @@
       "slug": "koszule",
       "description": "Eleganckie koszule satynowe, bawełniane i wiskozowe na każdą okazję.",
       "imageUrl": "/images/categories/cat-koszule.jpg",
-      "orderIndex": 2,
+      "orderIndex": 4,
       "isActive": true
     },
     {
@@ -24,7 +42,7 @@
       "slug": "topy",
       "description": "Kobiece topy na ramiączkach, satynowe bazy i minimalistyczne fasony.",
       "imageUrl": "/images/categories/cat-topy.jpg",
-      "orderIndex": 3,
+      "orderIndex": 5,
       "isActive": true
     },
     {
@@ -33,7 +51,7 @@
       "slug": "t-shirty",
       "description": "Klasyczne t-shirty z bawełny organicznej w odcieniach nude, bieli i czerni.",
       "imageUrl": "/images/categories/cat-t-shirty.jpg",
-      "orderIndex": 4,
+      "orderIndex": 6,
       "isActive": true
     },
     {
@@ -42,7 +60,7 @@
       "slug": "marynarki",
       "description": "Dopasowane i oversize'owe marynarki dodające klasy każdej stylizacji.",
       "imageUrl": "/images/categories/cat-marynarki.jpg",
-      "orderIndex": 5,
+      "orderIndex": 7,
       "isActive": true
     }
   ],
@@ -67,7 +85,7 @@
         {
           "id": "img-dupa-1",
           "productId": "prod-dupa",
-          "url": "/images/categories/cat-koszule.jpg",
+          "url": "/images/products/neutral-placeholder.svg",
           "altText": "Koszula dupa",
           "orderIndex": 0,
           "isPrimary": true
@@ -134,8 +152,8 @@
       "isBestseller": true,
       "isPublished": true,
       "isArchived": false,
-      "isDemo": true,
-      "categoryId": "cat-koszule",
+      "isDemo": false,
+      "categoryId": "cat-sukienki",
       "images": [
         {
           "id": "img-1-1",
@@ -225,8 +243,8 @@
       "isBestseller": true,
       "isPublished": true,
       "isArchived": false,
-      "isDemo": true,
-      "categoryId": "cat-bluzy",
+      "isDemo": false,
+      "categoryId": "cat-swetry",
       "images": [
         {
           "id": "img-2-1",

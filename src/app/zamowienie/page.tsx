@@ -23,7 +23,9 @@ import {
   ShoppingBag,
   Lock,
 } from "lucide-react";
+import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { ContinueShoppingButton } from "@/components/ui/ContinueShoppingButton";
 import { useCart } from "@/context/CartContext";
 import { ShippingMethod, PaymentMethod } from "@/lib/types";
 
@@ -101,6 +103,66 @@ export default function CheckoutPage() {
     city: useRef<HTMLInputElement>(null),
     acceptTerms: useRef<HTMLDivElement>(null),
   };
+
+  const FORM_DRAFT_KEY = "aura_checkout_form_draft";
+
+  // Wczytanie zapisanego szkicu formularza zamówienia (zachowanie danych przy powrocie do zakupów)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const savedDraft = sessionStorage.getItem(FORM_DRAFT_KEY);
+      if (savedDraft) {
+        const d = JSON.parse(savedDraft);
+        if (d.firstName) setFirstName(d.firstName);
+        if (d.lastName) setLastName(d.lastName);
+        if (d.email) setEmail(d.email);
+        if (d.phone) setPhone(d.phone);
+        if (d.shippingMethod) setShippingMethod(d.shippingMethod);
+        if (d.parcelLockerCode) setParcelLockerCode(d.parcelLockerCode);
+        if (d.selectedPoint) setSelectedPoint(d.selectedPoint);
+        if (d.street) setStreet(d.street);
+        if (d.city) setCity(d.city);
+        if (d.postalCode) setPostalCode(d.postalCode);
+        if (d.paymentMethod) setPaymentMethod(d.paymentMethod);
+        if (d.notes) setNotes(d.notes);
+      }
+    } catch {}
+  }, []);
+
+  // Automatyczny zapis zmian w formularzu w pamięci sesji
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const draft = {
+        firstName,
+        lastName,
+        email,
+        phone,
+        shippingMethod,
+        parcelLockerCode,
+        selectedPoint,
+        street,
+        city,
+        postalCode,
+        paymentMethod,
+        notes,
+      };
+      sessionStorage.setItem(FORM_DRAFT_KEY, JSON.stringify(draft));
+    } catch {}
+  }, [
+    firstName,
+    lastName,
+    email,
+    phone,
+    shippingMethod,
+    parcelLockerCode,
+    selectedPoint,
+    street,
+    city,
+    postalCode,
+    paymentMethod,
+    notes,
+  ]);
 
   // Automatyczne wczytanie kodu polecającego z linku (?ref= lub ?polecenie=) lub pamięci sesji
   useEffect(() => {
@@ -344,6 +406,7 @@ export default function CheckoutPage() {
         throw new Error(data.error || "Wystąpił błąd podczas składania zamówienia.");
       }
 
+      sessionStorage.removeItem(FORM_DRAFT_KEY);
       clearCart();
       router.push(`/zamowienie/${data.orderId}/potwierdzenie`);
     } catch (err: any) {
@@ -356,25 +419,8 @@ export default function CheckoutPage() {
   if (items.length === 0) {
     return (
       <div className="min-h-screen flex flex-col bg-[#FAF6F1]">
-        {/* Minimalistyczny nagłówek koszyka */}
-        <header className="bg-[#FAF6F1] border-b border-[#EADFD5] py-3.5 px-4 sm:px-8">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <Link
-              href="/katalog"
-              className="inline-flex items-center gap-1.5 text-xs text-[#857670] hover:text-[#241D1B] min-h-[44px] min-w-[44px]"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Wróć do zakupów</span>
-            </Link>
-            <Link href="/" className="font-serif text-lg tracking-[0.2em] font-semibold text-[#241D1B]">
-              AURA
-            </Link>
-            <div className="w-20 text-right text-[11px] text-[#857670] flex items-center justify-end gap-1">
-              <Lock className="w-3.5 h-3.5 text-[#C5A069]" />
-              <span>Bezpieczne</span>
-            </div>
-          </div>
-        </header>
+        {/* Wspólny nagłówek sklepu AURA */}
+        <Header />
 
         <main className="flex-1 flex items-center justify-center p-4">
           <div className="max-w-md w-full p-8 bg-white border border-[#EADFD5] rounded-xl shadow-xs text-center">
@@ -385,12 +431,7 @@ export default function CheckoutPage() {
             <p className="text-xs text-[#857670] mb-6">
               Dodaj wybrane produkty do koszyka, aby przejść do kasy.
             </p>
-            <Link
-              href="/katalog"
-              className="inline-flex items-center justify-center min-h-[48px] px-8 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-widest rounded-lg font-medium shadow-xs transition-colors"
-            >
-              Przejdź do katalogu
-            </Link>
+            <ContinueShoppingButton label="← Przejdź do zakupów" />
           </div>
         </main>
         <Footer />
@@ -400,37 +441,16 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF6F1]">
-      {/* ─── Kompaktowy nagłówek kasy bez rozpraszającego paska promocyjnego ─── */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-[#EADFD5] sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between">
-          <Link
-            href="/katalog"
-            className="inline-flex items-center gap-1.5 text-xs text-[#857670] hover:text-[#241D1B] font-medium min-h-[44px] min-w-[44px] active:scale-95 transition-transform"
-          >
-            <ArrowLeft className="w-4 h-4 text-[#C5A069]" />
-            <span className="hidden sm:inline">Wróć do zakupów</span>
-            <span className="sm:hidden">Wróć</span>
-          </Link>
+      {/* ─── Wspólny nagłówek sklepu AURA na wszystkich stronach ─── */}
+      <Header />
 
-          <Link href="/" className="flex flex-col items-center">
-            <span className="font-serif text-lg sm:text-xl tracking-[0.25em] font-bold text-[#241D1B]">
-              AURA
-            </span>
-            <span className="text-[9px] tracking-[0.3em] uppercase text-[#C5A069] font-medium -mt-1">
-              Boutique
-            </span>
-          </Link>
-
-          <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#6B5E57] bg-[#FAF6F1] px-2.5 py-1 rounded-full border border-[#EADFD5]">
-            <Lock className="w-3.5 h-3.5 text-[#C5A069]" />
-            <span className="hidden sm:inline">Szyfrowane połączenie</span>
-            <span className="sm:hidden font-medium">Kasa</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 py-5 sm:py-10">
+      <main className="flex-1 py-4 sm:py-8">
         <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8">
+          {/* Wyraźny przycisk powrotu do zakupów widoczny od razu nad zawartością kasy */}
+          <div className="mb-4 sm:mb-6">
+            <ContinueShoppingButton />
+          </div>
+
           {/* Tytuł kasy */}
           <div className="text-center max-w-xl mx-auto mb-4 sm:mb-8">
             <h1 className="font-serif text-2xl sm:text-[28px] text-[#241D1B] tracking-tight">

@@ -67,7 +67,20 @@ const BUNDLED_DATA_FILE = path.join(BUNDLED_DATA_DIR, "store-storage.json");
 const TMP_DATA_FILE = path.join(os.tmpdir(), "aura-store-storage.json");
 
 function getStorageReadPath(): string {
-  if (fs.existsSync(TMP_DATA_FILE)) {
+  const tmpExists = fs.existsSync(TMP_DATA_FILE);
+  const bundledExists = fs.existsSync(BUNDLED_DATA_FILE);
+
+  if (tmpExists && bundledExists) {
+    try {
+      const tmpMtime = fs.statSync(TMP_DATA_FILE).mtimeMs;
+      const bundledMtime = fs.statSync(BUNDLED_DATA_FILE).mtimeMs;
+      return tmpMtime >= bundledMtime ? TMP_DATA_FILE : BUNDLED_DATA_FILE;
+    } catch {
+      return TMP_DATA_FILE;
+    }
+  }
+
+  if (tmpExists) {
     return TMP_DATA_FILE;
   }
   return BUNDLED_DATA_FILE;
@@ -147,24 +160,26 @@ export function loadLocalStore(): StoreFileState {
 
 export function saveLocalStore(state: StoreFileState) {
   globalThis.__aura_store = state;
-  const writeTarget = getStorageWritePath();
 
+  // 1. Zapis do pliku BUNDLED_DATA_FILE (jeśli system plików pozwala na zapis)
   try {
-    const dir = path.dirname(writeTarget);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    const bundledDir = path.dirname(BUNDLED_DATA_FILE);
+    if (!fs.existsSync(bundledDir)) {
+      fs.mkdirSync(bundledDir, { recursive: true });
     }
-    fs.writeFileSync(writeTarget, JSON.stringify(state, null, 2), "utf-8");
-  } catch (err) {
-    console.warn("Błąd zapisu danych do ścieżki roboczej:", err);
+    fs.writeFileSync(BUNDLED_DATA_FILE, JSON.stringify(state, null, 2), "utf-8");
+  } catch (_) {
+    // Na platformach read-only (np. Vercel lambda poza /tmp) zapis ten może rzucić EROFS
   }
 
-  // Jeśli jesteśmy na serwerze z dostępem do zapisu do /tmp
-  if (writeTarget !== TMP_DATA_FILE) {
-    try {
-      fs.writeFileSync(TMP_DATA_FILE, JSON.stringify(state, null, 2), "utf-8");
-    } catch (_) {}
-  }
+  // 2. Zapis do TMP_DATA_FILE (dostępny w środowiskach serverless)
+  try {
+    const tmpDir = path.dirname(TMP_DATA_FILE);
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+    fs.writeFileSync(TMP_DATA_FILE, JSON.stringify(state, null, 2), "utf-8");
+  } catch (_) {}
 }
 
 // Sprawdzenie czy Neon PostgreSQL jest skonfigurowany
@@ -467,14 +482,17 @@ export async function getProductById(id: string): Promise<Product | null> {
           isArchived: dbProd.isArchived,
           isDemo: dbProd.isDemo,
           categoryId: dbProd.categoryId,
-          images: dbProd.images.map((im) => ({
-            id: im.id,
-            productId: im.productId,
-            url: im.url,
-            altText: im.altText || undefined,
-            orderIndex: im.orderIndex,
-            isPrimary: im.isPrimary,
-          })),
+          images:
+            dbProd.images && dbProd.images.length > 0
+              ? dbProd.images.map((im) => ({
+                  id: im.id,
+                  productId: im.productId,
+                  url: im.url,
+                  altText: im.altText || undefined,
+                  orderIndex: im.orderIndex,
+                  isPrimary: im.isPrimary,
+                }))
+              : store.products.find((p) => p.id === dbProd.id)?.images || [],
           variants: dbProd.variants.map((v) => ({
             id: v.id,
             productId: v.productId,
@@ -570,6 +588,28 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
         });
       }
     }
+
+    if (prod.images && prod.images.length > 0) {
+      for (const im of prod.images) {
+        await prisma.productImage.upsert({
+          where: { id: im.id },
+          update: {
+            url: im.url,
+            altText: im.altText || null,
+            orderIndex: im.orderIndex,
+            isPrimary: im.isPrimary,
+          },
+          create: {
+            id: im.id,
+            productId: prod.id,
+            url: im.url,
+            altText: im.altText || null,
+            orderIndex: im.orderIndex,
+            isPrimary: im.isPrimary,
+          },
+        });
+      }
+    }
   } catch (err) {
     console.warn("Ostrzeżenie: synchronizacja produktu z Prisma:", err);
   }
@@ -584,9 +624,23 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
     const idx = store.products.findIndex((p) => p.id === productData.id);
     if (idx !== -1) {
       // Istnieje w pamięci -> aktualizujemy
+      const existingImages = store.products[idx].images || [];
+      const finalImages =
+        productData.images !== undefined
+          ? productData.images.map((img, i) => ({
+              id: img.id || `img-${store.products[idx].id}-${i}`,
+              productId: store.products[idx].id,
+              url: img.url,
+              altText: img.altText || productData.name || store.products[idx].name,
+              orderIndex: img.orderIndex !== undefined ? img.orderIndex : i,
+              isPrimary: img.isPrimary !== undefined ? img.isPrimary : i === 0,
+            }))
+          : existingImages;
+
       const updated: Product = {
         ...store.products[idx],
         ...productData,
+        images: finalImages,
         updatedAt: now,
       } as Product;
 
@@ -633,7 +687,14 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
     isArchived: Boolean(productData.isArchived),
     isDemo: false,
     categoryId: productData.categoryId || store.categories[0]?.id || "cat-koszule",
-    images: productData.images || [],
+    images: (productData.images || []).map((img, i) => ({
+      id: img.id || `img-${newId}-${i}`,
+      productId: newId,
+      url: img.url,
+      altText: img.altText || productData.name || "Zdjęcie produktu",
+      orderIndex: img.orderIndex !== undefined ? img.orderIndex : i,
+      isPrimary: img.isPrimary !== undefined ? img.isPrimary : i === 0,
+    })),
     variants: productData.variants || [],
     createdAt: productData.createdAt || now,
     updatedAt: now,

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Trash2, Plus, Minus, ArrowRight, ShoppingBag, ArrowLeft } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { ContinueShoppingButton } from "@/components/ui/ContinueShoppingButton";
 import { useCart } from "@/context/CartContext";
 
 export default function CartPage() {
@@ -17,9 +18,14 @@ export default function CartPage() {
   return (
     <>
       <Header />
-      <main className="flex-1 bg-[#FAF6F1] py-10 sm:py-16">
+      <main className="flex-1 bg-[#FAF6F1] py-6 sm:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-xl mx-auto mb-10">
+          {/* Wyraźny przycisk powrotu do zakupów widoczny od razu nad zawartością */}
+          <div className="mb-6 sm:mb-8">
+            <ContinueShoppingButton />
+          </div>
+
+          <div className="text-center max-w-xl mx-auto mb-8 sm:mb-10">
             <h1 className="font-serif text-3xl sm:text-4xl text-[#241D1B]">
               Twój Koszyk
             </h1>
@@ -152,17 +158,11 @@ export default function CartPage() {
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-[#EADFD5] flex items-center justify-between text-xs">
-                  <Link
-                    href="/katalog"
-                    className="inline-flex items-center gap-1.5 text-[#857670] hover:text-[#C5A069]"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Kontynuuj zakupy</span>
-                  </Link>
+                  <ContinueShoppingButton className="!py-2 !px-3.5 !text-xs !min-h-[38px]" />
 
                   <button
                     onClick={clearCart}
-                    className="text-[#857670] hover:text-red-700 underline"
+                    className="text-[#857670] hover:text-red-700 underline cursor-pointer"
                   >
                     Wyczyść koszyk
                   </button>

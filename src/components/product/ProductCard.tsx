@@ -51,11 +51,11 @@ export function ProductCard({ product }: ProductCardProps) {
   const isOutOfStock = product.variants.every((v) => v.stockQuantity <= 0);
 
   return (
-    <div className="group flex flex-col bg-white border border-[#EADFD5] hover:border-[#C5A069] rounded-sm transition-all duration-300 shadow-[0_2px_8px_rgba(234,223,213,0.3)] hover:shadow-[0_6px_20px_rgba(197,160,105,0.2)] overflow-hidden">
+    <div className="group flex flex-col bg-white border border-[#EADFD5] hover:border-[#C5A069] rounded-sm transition-all duration-300 shadow-[0_2px_8px_rgba(234,223,213,0.3)] hover:shadow-[0_6px_20px_rgba(197,160,105,0.2)] overflow-hidden h-full">
       {/* Zdjęcie produktu */}
       <Link
         href={`/produkt/${product.slug}`}
-        className="relative aspect-[3/4] w-full overflow-hidden bg-[#F7EFE8] block"
+        className="relative aspect-[3/4] w-full overflow-hidden bg-[#F7EFE8] block shrink-0"
       >
         <Image
           src={imgSrc}
@@ -122,7 +122,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <div>
           {/* Próbki kolorów */}
           {availableColors.length > 0 && (
-            <div className="flex items-center gap-1 mb-1.5">
+            <div className="flex items-center gap-1 mb-1.5 min-h-[14px]">
               {availableColors.slice(0, 4).map((c, idx) => (
                 <span
                   key={idx}
@@ -141,21 +141,21 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* Kategoria */}
           {product.category && (
-            <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[#C5A069] font-semibold mb-0.5">
+            <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[#C5A069] font-semibold mb-0.5 truncate">
               {product.category.name}
             </p>
           )}
 
-          {/* Tytuł */}
+          {/* Tytuł produktu - stałe dwie linie na wysokość dla idealnego wyrównania */}
           <Link href={`/produkt/${product.slug}`} className="block">
-            <h3 className="font-serif text-xs sm:text-base font-normal text-[#241D1B] group-hover:text-[#C5A069] transition-colors line-clamp-2 leading-snug">
+            <h3 className="font-serif text-xs sm:text-sm font-normal text-[#241D1B] group-hover:text-[#C5A069] transition-colors line-clamp-2 leading-snug h-8 sm:h-10">
               {product.name}
             </h3>
           </Link>
         </div>
 
-        {/* Cena i Złoty Przycisk Do Koszyka */}
-        <div className="pt-1.5 sm:pt-2 border-t border-[#EADFD5]/70 space-y-2 sm:space-y-3">
+        {/* Cena i Złoty Przycisk Do Koszyka - wyrównane do dołu */}
+        <div className="pt-1.5 sm:pt-2 border-t border-[#EADFD5]/70 space-y-2 sm:space-y-3 mt-auto">
           <div className="flex items-baseline justify-between flex-wrap gap-1">
             <span className="hidden sm:inline text-[11px] uppercase tracking-wider text-[#857670]">Cena:</span>
             {hasPromotion ? (

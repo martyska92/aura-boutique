@@ -30,15 +30,14 @@ export default async function HomePage() {
       <Header />
       <main className="flex-1 bg-[#FAF6F1]">
         {/* ========================================================
-            UKŁAD SKLEPU: PIONOWY PANEL KATEGORII PO LEWEJ STRONIE
-            + GŁÓWNA TREŚĆ, BANER I PRODUKTY PO PRAWEJ STRONIE
+            UKŁAD SKLEPU: PIONOWY PANEL KATEGORII NA DESKTOPIE
+            + PEŁNA SZEROKOŚĆ (MARGINESY 12-16PX) NA TELEFONIE
            ======================================================== */}
-        <div className="max-w-[1600px] mx-auto px-1.5 sm:px-4 lg:px-6 flex gap-1.5 sm:gap-4 lg:gap-6 items-start">
-          {/* Lewy pionowy panel kategorii (Stale widoczny na laptopie i telefonie) */}
-          <CategorySidebar />
+        <CategorySidebar />
 
-          {/* Prawa kolumna: Główny baner, Nowości, Bestsellery i O butiku */}
-          <div className="flex-1 min-w-0 py-2 sm:py-4 space-y-6 sm:space-y-10">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 flex flex-col lg:flex-row gap-4 lg:gap-8 items-start">
+          {/* Prawa kolumna (na mobile pełna szerokość): Główny baner, Nowości, Bestsellery i O butiku */}
+          <div className="w-full flex-1 min-w-0 py-2 sm:py-4 space-y-6 sm:space-y-10">
             {/* 1. GŁÓWNY BANER BUTIKU */}
             <section className="relative w-full aspect-[1024/394] rounded-md overflow-hidden shadow-xs border border-[#EADFD5]">
               <Image
@@ -72,7 +71,7 @@ export default async function HomePage() {
                   </Link>
                 </div>
 
-                <div className="grid grid-cols-1 min-[500px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-5">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-5">
                   {newProducts.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
@@ -101,7 +100,7 @@ export default async function HomePage() {
                   </Link>
                 </div>
 
-                <div className="grid grid-cols-1 min-[500px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-5">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-5">
                   {bestsellers.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
