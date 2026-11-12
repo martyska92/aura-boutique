@@ -282,11 +282,11 @@ export function CatalogClient({
       {/* ========================================================
           2. GŁÓWNY KONTENER KATALOGU (DESKTOP + MOBILE)
          ======================================================== */}
-      <div className="max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-6 flex gap-6 lg:gap-8 items-start">
-        {/* ─── JEDEN LEWY PANEL NA KOMPUTERZE (240–260 px) ─── */}
+      <div className="max-w-[1600px] mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4 lg:py-6 grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4 lg:gap-6 items-start">
+        {/* ─── JEDEN LEWY PANEL NA KOMPUTERZE (220 px) ─── */}
         <aside
           aria-label="Kategorie i filtry"
-          className="hidden lg:block w-[240px] xl:w-[260px] shrink-0 sticky top-[108px] self-start z-30 max-h-[calc(100dvh-118px)] overflow-y-auto no-scrollbar space-y-4"
+          className="hidden lg:block w-full sticky top-[114px] self-start z-30 max-h-[calc(100dvh-7.75rem)] overflow-y-auto no-scrollbar space-y-4"
         >
           <div className="bg-white border border-[#EADFD5] rounded-lg p-4 shadow-xs space-y-5">
             {/* 1. SEKCJA: KATEGORIE ODZIEŻY (Z bazy danych) */}

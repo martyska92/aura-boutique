@@ -56,14 +56,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <Header />
       <main className="flex-1 bg-[#FAF6F1]">
         {/* ========================================================
-            UKŁAD SKLEPU: PIONOWY PANEL KATEGORII NA DESKTOPIE
-            + PEŁNA SZEROKOŚĆ (MARGINESY 12-16PX) NA TELEFONIE
+            UKŁAD SKLEPU: 2 KOLUMNY OBOK SIEBIE (CSS GRID)
+            – Lewa kolumna: kategorie (100–110px mobile, 220px desktop)
+            – Prawa kolumna: karta produktu i rekomendacje
            ======================================================== */}
-        <CategorySidebar />
+        <div className="max-w-[1600px] mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4 lg:py-6 grid grid-cols-[105px_minmax(0,1fr)] min-[400px]:grid-cols-[110px_minmax(0,1fr)] lg:grid-cols-[220px_minmax(0,1fr)] gap-2.5 sm:gap-4 lg:gap-6 items-start">
+          {/* Lewa kolumna: Panel kategorii stale widoczny pod nagłówkiem */}
+          <CategorySidebar />
 
-        <div className="max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 flex flex-col lg:flex-row gap-4 lg:gap-8 items-start">
-          {/* Prawa kolumna (na mobile pełna szerokość): Karta produktu */}
-          <div className="w-full flex-1 min-w-0 py-2 sm:py-4">
+          {/* Prawa kolumna: Karta produktu */}
+          <div className="min-w-0">
             <ProductDetailClient
               product={product}
               relatedProducts={relatedProducts}
