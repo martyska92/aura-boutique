@@ -5,6 +5,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { CategorySidebar } from "@/components/layout/CategorySidebar";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
+import { ProductViewFallback } from "@/components/product/ProductViewFallback";
 import { getProductBySlug, getProducts } from "@/lib/store-data";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getProductBySlug(slug);
 
   if (!product) {
-    notFound();
+    return <ProductViewFallback slug={slug} />;
   }
 
   // Pobierz podobne produkty z tej samej kategorii lub inne

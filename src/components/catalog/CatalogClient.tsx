@@ -36,6 +36,7 @@ export function CatalogClient({
   const searchParams = useSearchParams();
 
   // Filtry stanu
+  const [productsList, setProductsList] = useState<Product[]>(initialProducts);
   const [selectedCategory, setSelectedCategory] = useState<string>(
     initialCategorySlug || "all"
   );
@@ -48,6 +49,25 @@ export function CatalogClient({
   const [inStockOnly, setInStockOnly] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<"newest" | "price_asc" | "price_desc">("newest");
   const [priceMax, setPriceMax] = useState<number>(1000);
+
+  // Synchronizacja produktów z lokalną pamięcią podręczną
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("aura_custom_products");
+        if (raw) {
+          const customList: Product[] = JSON.parse(raw);
+          const existingIds = new Set(initialProducts.map((p) => p.id));
+          const toAdd = customList.filter((p) => !existingIds.has(p.id));
+          if (toAdd.length > 0) {
+            setProductsList([...toAdd, ...initialProducts]);
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+    setProductsList(initialProducts);
+  }, [initialProducts]);
 
   // Panele wysuwane na mobile
   const [mobileCategoriesOpen, setMobileCategoriesOpen] = useState(false);
@@ -162,7 +182,7 @@ export function CatalogClient({
 
   // Filtrowanie produktów
   const filteredProducts = useMemo(() => {
-    return initialProducts.filter((product) => {
+    return productsList.filter((product) => {
       // 1. Kategoria
       if (selectedCategory !== "all") {
         const cat = categories.find((c) => c.slug === selectedCategory);
@@ -219,7 +239,7 @@ export function CatalogClient({
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }, [
-    initialProducts,
+    productsList,
     selectedCategory,
     activeFilterTab,
     searchQuery,
