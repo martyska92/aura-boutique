@@ -127,19 +127,45 @@ export function CategoryCropModal({
     ctx.fillRect(cx + cs - hs, cy + cs - hs, hs, hs);
   }, [imgLoaded, crop, zoom, rotation]);
 
-  const canvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!imgRef.current) return;
-    const rect = previewRef.current!.getBoundingClientRect();
+  // Zablokowanie przewijania strony w tle oraz obsługa klawisza Escape
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCancel();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onCancel]);
+
+  // Przeliczenie współrzędnych ekranowych na wewnętrzne piksele canvasu
+  const getCanvasCoords = (clientX: number, clientY: number) => {
+    if (!previewRef.current) return { mx: 0, my: 0 };
+    const rect = previewRef.current.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return { mx: 0, my: 0 };
+    const mx = ((clientX - rect.left) / rect.width) * PREVIEW_W;
+    const my = ((clientY - rect.top) / rect.height) * PREVIEW_H;
+    return { mx, my };
+  };
+
+  const handlePointerDown = (clientX: number, clientY: number) => {
+    if (!imgRef.current || !previewRef.current) return;
+    const { mx, my } = getCanvasCoords(clientX, clientY);
     const scale = getScale();
     const { ox, oy } = getOffset();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
 
     const cx = ox + crop.x * scale;
     const cy = oy + crop.y * scale;
     const cs = crop.size * scale;
 
-    if (mx >= cx + cs - 18 && my >= cy + cs - 18) {
+    if (mx >= cx + cs - 24 && my >= cy + cs - 24) {
       setDragging("resize");
     } else if (mx >= cx && mx <= cx + cs && my >= cy && my <= cy + cs) {
       setDragging("crop");
@@ -147,12 +173,10 @@ export function CategoryCropModal({
     setDragStart({ mx, my, cx: crop.x, cy: crop.y, cs: crop.size });
   };
 
-  const canvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!dragging || !imgRef.current) return;
-    const rect = previewRef.current!.getBoundingClientRect();
+  const handlePointerMove = (clientX: number, clientY: number) => {
+    if (!dragging || !imgRef.current || !previewRef.current) return;
+    const { mx, my } = getCanvasCoords(clientX, clientY);
     const scale = getScale();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
     const dx = (mx - dragStart.mx) / scale;
     const dy = (my - dragStart.my) / scale;
     const img = imgRef.current;
@@ -167,6 +191,10 @@ export function CategoryCropModal({
       const ns = Math.max(80, Math.min(maxPossible, dragStart.cs + delta));
       setCrop((c) => ({ ...c, size: Math.round(ns) }));
     }
+  };
+
+  const handlePointerUp = () => {
+    setDragging(null);
   };
 
   const handleConfirm = () => {
@@ -193,11 +221,16 @@ export function CategoryCropModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
-      <div className="bg-[#FAF6F1] border border-[#EADFD5] rounded-xs shadow-2xl max-w-lg w-full p-6 text-[#241D1B] space-y-4 animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between border-b border-[#EADFD5] pb-3">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-2 sm:p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="bg-[#FAF6F1] border border-[#EADFD5] rounded-xs shadow-2xl max-w-lg w-full flex flex-col overflow-hidden max-h-[calc(100vh-24px)] max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-32px)] text-[#241D1B] animate-in fade-in zoom-in-95 duration-150">
+        {/* 1. NAGŁÓWEK */}
+        <div className="flex items-center justify-between border-b border-[#EADFD5] px-4 py-2.5 sm:px-5 sm:py-3 shrink-0 bg-white">
           <div>
-            <h3 className="font-serif text-lg text-[#241D1B] flex items-center gap-2">
+            <h3 className="font-serif text-base sm:text-lg text-[#241D1B] flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#C5A069]" />
               Kadrowanie Ikony Kategorii (Medalion 1:1)
             </h3>
@@ -208,75 +241,88 @@ export function CategoryCropModal({
           <button
             type="button"
             onClick={onCancel}
-            className="p-1.5 text-[#857670] hover:text-[#241D1B] hover:bg-black/5 rounded-full"
+            className="p-1.5 text-[#857670] hover:text-[#241D1B] hover:bg-black/5 rounded-full transition-colors"
+            title="Zamknij (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Podgląd Canvas */}
-        <div className="flex justify-center">
-          <div className="relative border-2 border-[#C5A069] rounded-xs overflow-hidden shadow-inner bg-[#1a1a1a]">
-            <canvas
-              ref={previewRef}
-              onMouseDown={canvasMouseDown}
-              onMouseMove={canvasMouseMove}
-              onMouseUp={() => setDragging(null)}
-              onMouseLeave={() => setDragging(null)}
-              className="cursor-move select-none"
-              style={{ width: PREVIEW_W, height: PREVIEW_H }}
-            />
-          </div>
-        </div>
-
-        <canvas ref={canvasRef} className="hidden" />
-
-        {/* Pasek narzędzi zoom / obrót */}
-        <div className="flex items-center justify-between gap-3 text-xs text-[#857670] bg-white p-3 border border-[#EADFD5] rounded-xs">
-          <div className="flex items-center gap-2 flex-1">
-            <ZoomOut className="w-4 h-4 text-[#857670]" />
-            <input
-              type="range"
-              min="0.8"
-              max="2.5"
-              step="0.05"
-              value={zoom}
-              onChange={(e) => setZoom(parseFloat(e.target.value))}
-              className="flex-1 accent-[#C5A069] cursor-pointer"
-            />
-            <ZoomIn className="w-4 h-4 text-[#857670]" />
-            <span className="w-10 text-right font-mono text-[11px]">{Math.round(zoom * 100)}%</span>
+        {/* 2. ELASTYCZNY OBSZAR KADROWANIA */}
+        <div className="p-3 sm:p-4 space-y-2.5 sm:space-y-3 flex-1 min-h-0 overflow-y-auto">
+          {/* Podgląd Canvas */}
+          <div className="flex justify-center">
+            <div className="relative border-2 border-[#C5A069] rounded-xs overflow-hidden shadow-inner bg-[#1a1a1a] select-none cursor-move touch-none flex items-center justify-center p-1">
+              <canvas
+                ref={previewRef}
+                width={PREVIEW_W}
+                height={PREVIEW_H}
+                className="max-h-[35vh] sm:max-h-[42vh] max-w-full w-auto h-auto object-contain block"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture?.(e.pointerId);
+                  handlePointerDown(e.clientX, e.clientY);
+                }}
+                onPointerMove={(e) => {
+                  handlePointerMove(e.clientX, e.clientY);
+                }}
+                onPointerUp={(e) => {
+                  e.currentTarget.releasePointerCapture?.(e.pointerId);
+                  handlePointerUp();
+                }}
+                onPointerCancel={handlePointerUp}
+              />
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setRotation((r) => (r + 90) % 360)}
-            className="px-3 py-1.5 bg-[#FAF6F1] hover:bg-[#EADFD5] text-[#241D1B] border border-[#EADFD5] rounded-xs flex items-center gap-1.5 transition-colors"
-          >
-            <RotateCw className="w-3.5 h-3.5 text-[#C5A069]" />
-            <span>Obróć 90°</span>
-          </button>
+          <canvas ref={canvasRef} className="hidden" />
+
+          {/* Pasek narzędzi zoom / obrót */}
+          <div className="flex items-center justify-between gap-2 text-xs text-[#857670] bg-white p-2 sm:p-2.5 border border-[#EADFD5] rounded-xs">
+            <div className="flex items-center gap-2 flex-1">
+              <ZoomOut className="w-3.5 h-3.5 text-[#857670]" />
+              <input
+                type="range"
+                min="0.8"
+                max="2.5"
+                step="0.05"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="flex-1 accent-[#C5A069] cursor-pointer h-1.5"
+              />
+              <ZoomIn className="w-3.5 h-3.5 text-[#857670]" />
+              <span className="w-9 text-right font-mono text-[11px]">{Math.round(zoom * 100)}%</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setRotation((r) => (r + 90) % 360)}
+              className="px-2.5 py-1 bg-[#FAF6F1] hover:bg-[#EADFD5] text-[#241D1B] border border-[#EADFD5] rounded-xs flex items-center gap-1 transition-colors text-[11px]"
+            >
+              <RotateCw className="w-3.5 h-3.5 text-[#C5A069]" />
+              <span className="hidden sm:inline">Obróć 90°</span>
+            </button>
+          </div>
+
+          <p className="text-[11px] text-[#857670] text-center leading-tight">
+            💡 Przeciągaj myszką lub palcem po kadrze, aby go przemieścić. Prawy dolny narożnik zmienia wielkość kadru.
+          </p>
         </div>
 
-        <p className="text-[11px] text-[#857670] text-center">
-          💡 Przeciągaj myszką lub palcem po kadrze, aby go przemieścić. Prawy dolny narożnik zmienia wielkość kadru.
-        </p>
-
-        {/* Przyciski zatwierdzenia / anulowania */}
-        <div className="flex gap-3 pt-2">
+        {/* 3. DOLNY PASEK PRZYCISKÓW */}
+        <div className="flex gap-2 sm:gap-3 px-4 py-2.5 sm:px-5 sm:py-3 border-t border-[#EADFD5] shrink-0 bg-white">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-2.5 border border-[#EADFD5] hover:bg-white text-xs uppercase tracking-wider text-[#857670] transition-colors rounded-xs"
+            className="flex-1 py-2 sm:py-2.5 border border-[#EADFD5] hover:bg-[#FAF6F1] text-xs uppercase tracking-wider text-[#857670] transition-colors rounded-xs font-medium"
           >
             Anuluj
           </button>
           <button
             type="button"
             onClick={handleConfirm}
-            className="flex-1 py-2.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-wider font-semibold transition-colors rounded-xs flex items-center justify-center gap-2 shadow-xs"
+            className="flex-1 py-2 sm:py-2.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-wider font-semibold transition-colors rounded-xs flex items-center justify-center gap-1.5 shadow-xs"
           >
-            <Check className="w-4 h-4" />
+            <Check className="w-3.5 h-3.5" />
             <span>Zatwierdź Kadr</span>
           </button>
         </div>

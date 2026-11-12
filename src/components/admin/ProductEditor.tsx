@@ -151,85 +151,47 @@ function CropModal({ imageSrc, onConfirm, onCancel }: CropModalProps) {
   const [dragStart, setDragStart] = useState({ mx: 0, my: 0, cx: 0, cy: 0, cw: 0, ch: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Wymiary kontenera podglądu
+  // Wymiary bazowe podglądu
   const PREVIEW_W = 360;
   const PREVIEW_H = 400;
+
+  // Zablokowanie przewijania strony w tle oraz obsługa klawisza Escape
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCancel();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onCancel]);
 
   useEffect(() => {
     const img = new window.Image();
     img.onload = () => {
       imgRef.current = img;
-      // Domyślny kadr - 80% obrazu, wyśrodkowany, kwadrat lub 3:4
+      // Domyślny kadr - 85% krótszego boku, proporcja 3:4
       const shorter = Math.min(img.naturalWidth, img.naturalHeight);
       const side = Math.round(shorter * 0.85);
       setCrop({
         x: Math.round((img.naturalWidth - side) / 2),
         y: Math.round((img.naturalHeight - side) / 2),
         w: side,
-        h: Math.round(side * 4 / 3),
+        h: Math.round((side * 4) / 3),
       });
       setImgLoaded(true);
     };
     img.src = imageSrc;
   }, [imageSrc]);
 
-  // Rysuj podgląd na <canvas>
-  useEffect(() => {
-    if (!imgLoaded || !previewRef.current || !imgRef.current) return;
-    const canvas = previewRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const img = imgRef.current;
-
-    canvas.width = PREVIEW_W;
-    canvas.height = PREVIEW_H;
-
-    // Skala by zmieścić obraz w kontenerze
-    const scaleX = PREVIEW_W / img.naturalWidth;
-    const scaleY = PREVIEW_H / img.naturalHeight;
-    const scale = Math.min(scaleX, scaleY) * zoom;
-
-    const drawW = img.naturalWidth * scale;
-    const drawH = img.naturalHeight * scale;
-    const offsetX = (PREVIEW_W - drawW) / 2;
-    const offsetY = (PREVIEW_H - drawH) / 2;
-
-    ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
-
-    ctx.save();
-    ctx.translate(PREVIEW_W / 2, PREVIEW_H / 2);
-    ctx.rotate((rotation * Math.PI) / 180);
-    ctx.translate(-PREVIEW_W / 2, -PREVIEW_H / 2);
-    ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
-    ctx.restore();
-
-    // Overlay poza kadrem
-    const cx = offsetX + crop.x * scale;
-    const cy = offsetY + crop.y * scale;
-    const cw = crop.w * scale;
-    const ch = crop.h * scale;
-
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(0, 0, PREVIEW_W, cy);
-    ctx.fillRect(0, cy + ch, PREVIEW_W, PREVIEW_H - cy - ch);
-    ctx.fillRect(0, cy, cx, ch);
-    ctx.fillRect(cx + cw, cy, PREVIEW_W - cx - cw, ch);
-
-    // Ramka kadru
-    ctx.strokeStyle = "#C5A069";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(cx, cy, cw, ch);
-
-    // Uchwyty narożne
-    const hs = 10;
-    ctx.fillStyle = "#C5A069";
-    [[cx, cy], [cx + cw - hs, cy], [cx, cy + ch - hs], [cx + cw - hs, cy + ch - hs]].forEach(([rx, ry]) => {
-      ctx.fillRect(rx, ry, hs, hs);
-    });
-  }, [imgLoaded, crop, zoom, rotation]);
-
+  // Skala dopasowania obrazu do wymiarów canvasu
   const getScale = () => {
     if (!imgRef.current) return 1;
     const img = imgRef.current;
@@ -248,20 +210,92 @@ function CropModal({ imageSrc, onConfirm, onCancel }: CropModalProps) {
     };
   };
 
-  const canvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!imgRef.current) return;
-    const rect = previewRef.current!.getBoundingClientRect();
+  // Przeliczenie współrzędnych ekranowych (CSS px) na współrzędne wewnętrzne canvasu
+  const getCanvasCoords = (clientX: number, clientY: number) => {
+    if (!previewRef.current) return { mx: 0, my: 0 };
+    const rect = previewRef.current.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return { mx: 0, my: 0 };
+    const mx = ((clientX - rect.left) / rect.width) * PREVIEW_W;
+    const my = ((clientY - rect.top) / rect.height) * PREVIEW_H;
+    return { mx, my };
+  };
+
+  // Rysuj podgląd na <canvas>
+  useEffect(() => {
+    if (!imgLoaded || !previewRef.current || !imgRef.current) return;
+    const canvas = previewRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const img = imgRef.current;
+
+    canvas.width = PREVIEW_W;
+    canvas.height = PREVIEW_H;
+
     const scale = getScale();
     const { ox, oy } = getOffset();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const drawW = img.naturalWidth * scale;
+    const drawH = img.naturalHeight * scale;
 
-    // Check resize handle (bottom-right corner)
+    ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
+    ctx.fillStyle = "#1a1a1a";
+    ctx.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
+
+    ctx.save();
+    ctx.translate(PREVIEW_W / 2, PREVIEW_H / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.translate(-PREVIEW_W / 2, -PREVIEW_H / 2);
+    ctx.drawImage(img, ox, oy, drawW, drawH);
+    ctx.restore();
+
+    // Overlay poza kadrem
     const cx = ox + crop.x * scale;
     const cy = oy + crop.y * scale;
     const cw = crop.w * scale;
     const ch = crop.h * scale;
-    if (mx >= cx + cw - 16 && my >= cy + ch - 16) {
+
+    ctx.fillStyle = "rgba(0,0,0,0.52)";
+    ctx.fillRect(0, 0, PREVIEW_W, cy);
+    ctx.fillRect(0, cy + ch, PREVIEW_W, PREVIEW_H - cy - ch);
+    ctx.fillRect(0, cy, cx, ch);
+    ctx.fillRect(cx + cw, cy, PREVIEW_W - cx - cw, ch);
+
+    // Ramka kadru (złoty AURA)
+    ctx.strokeStyle = "#C5A069";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx, cy, cw, ch);
+
+    // Uchwyty narożne
+    const hs = 10;
+    ctx.fillStyle = "#C5A069";
+    [
+      [cx, cy],
+      [cx + cw - hs, cy],
+      [cx, cy + ch - hs],
+      [cx + cw - hs, cy + ch - hs],
+    ].forEach(([rx, ry]) => {
+      ctx.fillRect(rx, ry, hs, hs);
+    });
+  }, [imgLoaded, crop, zoom, rotation]);
+
+  const handlePointerDown = (clientX: number, clientY: number) => {
+    if (!imgRef.current || !previewRef.current) return;
+    const { mx, my } = getCanvasCoords(clientX, clientY);
+    const scale = getScale();
+    const { ox, oy } = getOffset();
+
+    const cx = ox + crop.x * scale;
+    const cy = oy + crop.y * scale;
+    const cw = crop.w * scale;
+    const ch = crop.h * scale;
+
+    // Uchwyt prawy dolny róg (szeroki obszar klikalny: 24px)
+    const handleHit = 24;
+    if (
+      mx >= cx + cw - handleHit &&
+      mx <= cx + cw + 12 &&
+      my >= cy + ch - handleHit &&
+      my <= cy + ch + 12
+    ) {
       setDragging("resize");
     } else if (mx >= cx && mx <= cx + cw && my >= cy && my <= cy + ch) {
       setDragging("crop");
@@ -269,12 +303,10 @@ function CropModal({ imageSrc, onConfirm, onCancel }: CropModalProps) {
     setDragStart({ mx, my, cx: crop.x, cy: crop.y, cw: crop.w, ch: crop.h });
   };
 
-  const canvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!dragging || !imgRef.current) return;
-    const rect = previewRef.current!.getBoundingClientRect();
+  const handlePointerMove = (clientX: number, clientY: number) => {
+    if (!dragging || !imgRef.current || !previewRef.current) return;
+    const { mx, my } = getCanvasCoords(clientX, clientY);
     const scale = getScale();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
     const dx = (mx - dragStart.mx) / scale;
     const dy = (my - dragStart.my) / scale;
     const img = imgRef.current;
@@ -288,6 +320,10 @@ function CropModal({ imageSrc, onConfirm, onCancel }: CropModalProps) {
       const nh = Math.max(40, Math.min(img.naturalHeight - dragStart.cy, dragStart.ch + dy));
       setCrop((c) => ({ ...c, w: Math.round(nw), h: Math.round(nh) }));
     }
+  };
+
+  const handlePointerUp = () => {
+    setDragging(null);
   };
 
   const handleConfirm = () => {
@@ -310,71 +346,128 @@ function CropModal({ imageSrc, onConfirm, onCancel }: CropModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[#EADFD5]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-xs"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full flex flex-col overflow-hidden max-h-[calc(100vh-24px)] max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-32px)] border border-[#EADFD5]">
+        {/* 1. NAGŁÓWEK - nie kurczy się */}
+        <div className="flex items-center justify-between px-4 py-2.5 sm:px-5 sm:py-3 border-b border-[#EADFD5] shrink-0 bg-white">
           <div className="flex items-center gap-2">
             <Crop className="w-4 h-4 text-[#C5A069]" />
             <h3 className="font-serif text-sm uppercase tracking-wider text-[#241D1B]">Kadruj zdjęcie</h3>
           </div>
-          <button type="button" onClick={onCancel} className="text-[#6E6259] hover:text-[#241D1B]">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="p-1 text-[#6E6259] hover:text-[#241D1B] rounded hover:bg-black/5 transition-colors"
+            title="Zamknij (Esc)"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-4 space-y-3">
+        {/* 2. ELASTYCZNY OBSZAR KADROWANIA - przewijalny jeśli ekran jest bardzo niski */}
+        <div className="p-3 sm:p-4 space-y-2.5 sm:space-y-3 flex-1 min-h-0 overflow-y-auto">
           {!imgLoaded ? (
-            <div className="flex items-center justify-center h-48">
+            <div className="flex flex-col items-center justify-center py-12 gap-2">
               <Loader2 className="w-8 h-8 animate-spin text-[#C5A069]" />
+              <p className="text-xs text-[#6E6259]">Ładowanie zdjęcia...</p>
             </div>
           ) : (
             <>
-              <p className="text-[11px] text-[#6E6259]">
+              <p className="text-[11px] text-[#6E6259] leading-tight">
                 Przeciągnij ramkę aby przesunąć kadr. Przeciągnij prawy dolny róg ramki, aby zmienić rozmiar.
               </p>
-              <div ref={containerRef} className="relative select-none cursor-crosshair" style={{ width: PREVIEW_W, height: PREVIEW_H }}>
+
+              {/* Kontener canvasu - elastyczny, skaluje się do wysokości ekranu */}
+              <div
+                ref={containerRef}
+                className="relative select-none cursor-crosshair touch-none flex items-center justify-center bg-[#1a1a1a] rounded overflow-hidden p-1 shadow-inner"
+              >
                 <canvas
                   ref={previewRef}
                   width={PREVIEW_W}
                   height={PREVIEW_H}
-                  className="rounded"
-                  onMouseDown={canvasMouseDown}
-                  onMouseMove={canvasMouseMove}
-                  onMouseUp={() => setDragging(null)}
-                  onMouseLeave={() => setDragging(null)}
+                  className="max-h-[35vh] sm:max-h-[42vh] max-w-full w-auto h-auto object-contain block rounded"
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture?.(e.pointerId);
+                    handlePointerDown(e.clientX, e.clientY);
+                  }}
+                  onPointerMove={(e) => {
+                    handlePointerMove(e.clientX, e.clientY);
+                  }}
+                  onPointerUp={(e) => {
+                    e.currentTarget.releasePointerCapture?.(e.pointerId);
+                    handlePointerUp();
+                  }}
+                  onPointerCancel={handlePointerUp}
                 />
               </div>
 
-              {/* Zoom i rotacja */}
-              <div className="flex items-center gap-3 pt-1">
-                <span className="text-[11px] text-[#6E6259] w-10">Zoom:</span>
-                <button type="button" onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))} className="p-1 border border-[#EADFD5] rounded hover:border-[#C5A069]">
+              {/* Pasek narzędzi zoom i rotacja */}
+              <div className="flex items-center gap-2 bg-[#FAF6F1] px-2.5 py-1.5 border border-[#EADFD5] rounded text-xs">
+                <span className="text-[11px] font-medium text-[#6E6259] shrink-0">Zoom:</span>
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.3, parseFloat((z - 0.1).toFixed(2))))}
+                  className="p-1 border border-[#EADFD5] bg-white rounded hover:border-[#C5A069] transition-colors"
+                  title="Oddal"
+                >
                   <ZoomOut className="w-3.5 h-3.5 text-[#6E6259]" />
                 </button>
-                <input type="range" min="0.3" max="3" step="0.05" value={zoom}
+                <input
+                  type="range"
+                  min="0.3"
+                  max="3"
+                  step="0.05"
+                  value={zoom}
                   onChange={(e) => setZoom(Number(e.target.value))}
-                  className="flex-1 accent-[#C5A069]" />
-                <button type="button" onClick={() => setZoom((z) => Math.min(3, z + 0.1))} className="p-1 border border-[#EADFD5] rounded hover:border-[#C5A069]">
+                  className="flex-1 accent-[#C5A069] cursor-pointer h-1.5"
+                />
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.min(3, parseFloat((z + 0.1).toFixed(2))))}
+                  className="p-1 border border-[#EADFD5] bg-white rounded hover:border-[#C5A069] transition-colors"
+                  title="Przybliż"
+                >
                   <ZoomIn className="w-3.5 h-3.5 text-[#6E6259]" />
                 </button>
-                <button type="button" onClick={() => setRotation((r) => (r + 90) % 360)}
-                  className="p-1 border border-[#EADFD5] rounded hover:border-[#C5A069] ml-2" title="Obróć o 90°">
-                  <RotateCw className="w-3.5 h-3.5 text-[#6E6259]" />
+                <span className="text-[11px] font-mono text-[#6E6259] w-9 text-right shrink-0">
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRotation((r) => (r + 90) % 360)}
+                  className="p-1 border border-[#EADFD5] bg-white rounded hover:border-[#C5A069] ml-1 shrink-0 flex items-center gap-1 text-[11px] text-[#6E6259] hover:text-[#241D1B] transition-colors"
+                  title="Obróć o 90°"
+                >
+                  <RotateCw className="w-3.5 h-3.5 text-[#C5A069]" />
+                  <span className="hidden sm:inline">90°</span>
                 </button>
               </div>
             </>
           )}
         </div>
 
-        <div className="flex gap-2 px-5 py-3 border-t border-[#EADFD5]">
-          <button type="button" onClick={onCancel}
-            className="flex-1 py-2 border border-[#EADFD5] text-xs text-[#6E6259] rounded hover:border-[#C5A069]">
+        {/* 3. DOLNY PASEK PRZYCISKÓW - ZAWSZE WIDOCZNY, NIE KURCZY SIĘ */}
+        <div className="flex gap-2 sm:gap-3 px-4 py-2.5 sm:px-5 sm:py-3 border-t border-[#EADFD5] shrink-0 bg-[#FAF6F1]">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 py-2 sm:py-2.5 border border-[#EADFD5] bg-white text-xs uppercase tracking-wider text-[#6E6259] rounded hover:border-[#C5A069] hover:text-[#241D1B] transition-colors font-medium"
+          >
             Anuluj
           </button>
-          <button type="button" onClick={handleConfirm} disabled={!imgLoaded}
-            className="flex-1 py-2 bg-[#C5A069] text-white text-xs rounded hover:bg-[#AF884F] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!imgLoaded}
+            className="flex-1 py-2 sm:py-2.5 bg-[#C5A069] text-white text-xs uppercase tracking-wider rounded hover:bg-[#AF884F] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50 transition-colors shadow-xs"
+          >
             <Check className="w-3.5 h-3.5" />
-            Zatwierdź kadr
+            <span>Dodaj zdjęcie</span>
           </button>
         </div>
 
