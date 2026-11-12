@@ -126,7 +126,7 @@ export default function CheckoutPage() {
         if (d.paymentMethod) setPaymentMethod(d.paymentMethod);
         if (d.notes) setNotes(d.notes);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   // Automatyczny zapis zmian w formularzu w pamięci sesji
@@ -148,7 +148,7 @@ export default function CheckoutPage() {
         notes,
       };
       sessionStorage.setItem(FORM_DRAFT_KEY, JSON.stringify(draft));
-    } catch {}
+    } catch { }
   }, [
     firstName,
     lastName,
@@ -608,9 +608,8 @@ export default function CheckoutPage() {
                             });
                           }
                         }}
-                        className={`w-full h-12 bg-[#FAF6F1] border ${
-                          fieldErrors.firstName ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
-                        } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg transition-colors`}
+                        className={`w-full h-12 bg-[#FAF6F1] border ${fieldErrors.firstName ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
+                          } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg transition-colors`}
                       />
                       {fieldErrors.firstName && (
                         <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
@@ -640,9 +639,8 @@ export default function CheckoutPage() {
                             });
                           }
                         }}
-                        className={`w-full h-12 bg-[#FAF6F1] border ${
-                          fieldErrors.lastName ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
-                        } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg transition-colors`}
+                        className={`w-full h-12 bg-[#FAF6F1] border ${fieldErrors.lastName ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
+                          } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg transition-colors`}
                       />
                       {fieldErrors.lastName && (
                         <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
@@ -676,9 +674,8 @@ export default function CheckoutPage() {
                             });
                           }
                         }}
-                        className={`w-full h-12 bg-[#FAF6F1] border ${
-                          fieldErrors.email ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
-                        } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg transition-colors`}
+                        className={`w-full h-12 bg-[#FAF6F1] border ${fieldErrors.email ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
+                          } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg transition-colors`}
                       />
                       <p className="text-[11px] text-[#857670] mt-1">
                         Na ten adres wyślemy potwierdzenie zamówienia
@@ -713,9 +710,8 @@ export default function CheckoutPage() {
                             });
                           }
                         }}
-                        className={`w-full h-12 bg-[#FAF6F1] border ${
-                          fieldErrors.phone ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
-                        } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg transition-colors`}
+                        className={`w-full h-12 bg-[#FAF6F1] border ${fieldErrors.phone ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
+                          } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg transition-colors`}
                       />
                       <p className="text-[11px] text-[#857670] mt-1">
                         Do powiadomień SMS o wysyłce i odbiorze paczki
@@ -742,11 +738,10 @@ export default function CheckoutPage() {
                   <div className="space-y-2.5">
                     {/* Paczkomaty InPost */}
                     <div
-                      className={`p-3.5 sm:p-4 border rounded-xl transition-all ${
-                        shippingMethod === "INPOST_LOCKER"
+                      className={`p-3.5 sm:p-4 border rounded-xl transition-all ${shippingMethod === "INPOST_LOCKER"
                           ? "border-[#C5A069] bg-[#FDFBF7] ring-1 ring-[#C5A069]"
                           : "border-[#EADFD5] hover:border-[#C5A069]/60"
-                      }`}
+                        }`}
                     >
                       <label className="flex items-center justify-between cursor-pointer min-h-[44px]">
                         <div className="flex items-center gap-3">
@@ -922,11 +917,10 @@ export default function CheckoutPage() {
 
                     {/* Kurier */}
                     <div
-                      className={`p-3.5 sm:p-4 border rounded-xl transition-all ${
-                        shippingMethod === "COURIER"
+                      className={`p-3.5 sm:p-4 border rounded-xl transition-all ${shippingMethod === "COURIER"
                           ? "border-[#C5A069] bg-[#FDFBF7] ring-1 ring-[#C5A069]"
                           : "border-[#EADFD5] hover:border-[#C5A069]/60"
-                      }`}
+                        }`}
                     >
                       <label className="flex items-center justify-between cursor-pointer min-h-[44px]">
                         <div className="flex items-center gap-3">
@@ -972,9 +966,8 @@ export default function CheckoutPage() {
                                   });
                                 }
                               }}
-                              className={`w-full h-12 bg-white border ${
-                                fieldErrors.street ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
-                              } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg`}
+                              className={`w-full h-12 bg-white border ${fieldErrors.street ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
+                                } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg`}
                             />
                             {fieldErrors.street && (
                               <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
@@ -1006,9 +999,8 @@ export default function CheckoutPage() {
                                     });
                                   }
                                 }}
-                                className={`w-full h-12 bg-white border ${
-                                fieldErrors.postalCode ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
-                              } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg`}
+                                className={`w-full h-12 bg-white border ${fieldErrors.postalCode ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
+                                  } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg`}
                               />
                               {fieldErrors.postalCode && (
                                 <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
@@ -1037,9 +1029,8 @@ export default function CheckoutPage() {
                                     });
                                   }
                                 }}
-                                className={`w-full h-12 bg-white border ${
-                                fieldErrors.city ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
-                              } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg`}
+                                className={`w-full h-12 bg-white border ${fieldErrors.city ? "border-red-500 bg-red-50/30" : "border-[#EADFD5]"
+                                  } px-3 text-base sm:text-sm text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded-lg`}
                               />
                               {fieldErrors.city && (
                                 <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
@@ -1055,11 +1046,10 @@ export default function CheckoutPage() {
 
                     {/* Odbiór osobisty */}
                     <div
-                      className={`p-3.5 sm:p-4 border rounded-xl transition-all ${
-                        shippingMethod === "LOCAL_PICKUP"
+                      className={`p-3.5 sm:p-4 border rounded-xl transition-all ${shippingMethod === "LOCAL_PICKUP"
                           ? "border-[#C5A069] bg-[#FDFBF7] ring-1 ring-[#C5A069]"
                           : "border-[#EADFD5] hover:border-[#C5A069]/60"
-                      }`}
+                        }`}
                     >
                       <label className="flex items-center justify-between cursor-pointer min-h-[44px]">
                         <div className="flex items-center gap-3">
@@ -1101,11 +1091,10 @@ export default function CheckoutPage() {
 
                   <div className="space-y-2.5">
                     <label
-                      className={`block p-3.5 sm:p-4 border rounded-xl cursor-pointer transition-all min-h-[50px] ${
-                        paymentMethod === "BLIK"
+                      className={`block p-3.5 sm:p-4 border rounded-xl cursor-pointer transition-all min-h-[50px] ${paymentMethod === "BLIK"
                           ? "border-[#C5A069] bg-[#FDFBF7] ring-1 ring-[#C5A069]"
                           : "border-[#EADFD5] hover:border-[#C5A069]/60"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -1132,11 +1121,10 @@ export default function CheckoutPage() {
                     </label>
 
                     <label
-                      className={`block p-3.5 sm:p-4 border rounded-xl cursor-pointer transition-all min-h-[50px] ${
-                        paymentMethod === "PRZELEWY24"
+                      className={`block p-3.5 sm:p-4 border rounded-xl cursor-pointer transition-all min-h-[50px] ${paymentMethod === "PRZELEWY24"
                           ? "border-[#C5A069] bg-[#FDFBF7] ring-1 ring-[#C5A069]"
                           : "border-[#EADFD5] hover:border-[#C5A069]/60"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -1161,11 +1149,10 @@ export default function CheckoutPage() {
                     </label>
 
                     <label
-                      className={`block p-3.5 sm:p-4 border rounded-xl cursor-pointer transition-all min-h-[50px] ${
-                        paymentMethod === "TRADITIONAL_TRANSFER"
+                      className={`block p-3.5 sm:p-4 border rounded-xl cursor-pointer transition-all min-h-[50px] ${paymentMethod === "TRADITIONAL_TRANSFER"
                           ? "border-[#C5A069] bg-[#FDFBF7] ring-1 ring-[#C5A069]"
                           : "border-[#EADFD5] hover:border-[#C5A069]/60"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -1405,9 +1392,8 @@ export default function CheckoutPage() {
 
                     {couponFeedback && (
                       <p
-                        className={`text-[11px] mt-1.5 flex items-center gap-1 ${
-                          couponFeedback.type === "error" ? "text-red-600" : "text-emerald-700"
-                        }`}
+                        className={`text-[11px] mt-1.5 flex items-center gap-1 ${couponFeedback.type === "error" ? "text-red-600" : "text-emerald-700"
+                          }`}
                       >
                         {couponFeedback.type === "error" ? (
                           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
