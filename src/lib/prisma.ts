@@ -8,6 +8,7 @@ export function getDatabaseUrl(): string | undefined {
   const raw =
     process.env.POSTGRES_PRISMA_URL ||
     process.env.DATABASE_URL ||
+    process.env.DATABASE_URL_UNPOOLED ||
     process.env.POSTGRES_URL;
   if (!raw) return undefined;
   const clean = raw.trim().replace(/^["']|["']$/g, "");
