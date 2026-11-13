@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCustomerAccount, getCustomerByEmail } from "@/lib/store-data";
 import { createUserSessionPayload, ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
+import { sendWelcomeCustomerEmail } from "@/lib/email-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,12 +54,23 @@ export async function POST(req: NextRequest) {
       password: password.trim(),
     });
 
+    // 🌟 Automatyczny mail powitalny wysyłany po pomyślnym utworzeniu konta
+    // Błąd wysyłki maila NIE może usuwać konta ani blokować pomyślnej rejestracji klientki
+    try {
+      await sendWelcomeCustomerEmail({
+        customerEmail: normalizedEmail,
+        firstName: newCustomer.firstName,
+      });
+    } catch (mailErr) {
+      console.warn("Ostrzeżenie: wysyłka automatycznego maila powitalnego nie powiodła się:", mailErr);
+    }
+
     const fullName = `${newCustomer.firstName} ${newCustomer.lastName}`;
     const sessionPayload = createUserSessionPayload(normalizedEmail, fullName);
 
     const response = NextResponse.json({
       success: true,
-      message: "Konto zostało pomyślnie utworzone! Otrzymujesz –15% rabatu powitalnego.",
+      message: "Konto zostało pomyślnie utworzone! Witamy w AURA Boutique.",
       welcomeCoupon: newCustomer.welcomeDiscountCode,
       redirect: "/konto",
     });

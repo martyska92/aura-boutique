@@ -8,7 +8,7 @@ export interface OutboxEmail {
   to: string;
   subject: string;
   html: string;
-  type: "REFERRAL_JOINED" | "REFERRAL_REWARD" | "REVIEW_REWARD" | "INDIVIDUAL_DISCOUNT" | "ORDER_CONFIRMATION" | "PASSWORD_RESET" | "TEST_EMAIL";
+  type: "REFERRAL_JOINED" | "REFERRAL_REWARD" | "REVIEW_REWARD" | "INDIVIDUAL_DISCOUNT" | "ORDER_CONFIRMATION" | "PASSWORD_RESET" | "TEST_EMAIL" | "WELCOME_CUSTOMER";
   status: "SENT" | "FAILED" | "NOT_CONFIGURED";
   errorMessage?: string;
   createdAt: string;
@@ -19,6 +19,7 @@ export interface OutboxEmail {
  * Szablon e-mail w luksusowej stylistyce butiku AURA
  */
 function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
   return `
 <!DOCTYPE html>
 <html lang="pl">
@@ -31,15 +32,15 @@ function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #FAF6F1; padding: 30px 10px;">
     <tr>
       <td align="center">
-        <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #EADFD5; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 16px rgba(197, 160, 105, 0.1);">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #EADFD5; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 16px rgba(197, 160, 105, 0.08);">
           
-          <!-- Nagłówek kaszmirowy ze złotym akcentem -->
+          <!-- Nagłówek beżowo-kaszmirowy z czystym logo AURA (bez złotej poświaty) -->
           <tr>
-            <td align="center" style="background-color: #BCAB9B; padding: 32px 20px; border-bottom: 2px solid #C5A069;">
-              <h1 style="margin: 0; font-family: Georgia, serif; font-size: 26px; letter-spacing: 0.15em; color: #241D1B; text-transform: uppercase; font-weight: normal;">
-                AURA Boutique K.B.
-              </h1>
-              <p style="margin: 6px 0 0 0; font-size: 11px; letter-spacing: 0.2em; color: #4A3F3B; text-transform: uppercase;">
+            <td align="center" style="background-color: #FAF6F1; padding: 28px 20px 22px; border-bottom: 2px solid #C5A069;">
+              <a href="${storeUrl}" target="_blank" style="text-decoration: none; display: inline-block;">
+                <img src="${storeUrl}/images/brand/aura-logo.png" alt="AURA Boutique K.B." width="200" style="display: block; max-width: 200px; width: 100%; height: auto; border: 0; margin: 0 auto;" />
+              </a>
+              <p style="margin: 8px 0 0 0; font-size: 11px; letter-spacing: 0.22em; color: #857670; text-transform: uppercase;">
                 Kobiecość • Klasa • Ponadczasowa Jakość
               </p>
             </td>
@@ -464,5 +465,75 @@ export async function sendTestEmail(targetEmail: string) {
     html,
     type: "TEST_EMAIL",
   });
+}
+
+/**
+ * 6. Automatyczny mail powitalny po założeniu konta przez klientkę
+ */
+export async function sendWelcomeCustomerEmail(params: {
+  customerEmail: string;
+  firstName?: string;
+}): Promise<{ success: boolean; notConfigured?: boolean; error?: string; alreadySent?: boolean }> {
+  const store = loadLocalStore();
+  const normalizedEmail = params.customerEmail.trim().toLowerCase();
+
+  // Zabezpieczenie przed duplikatem: sprawdź czy mail powitalny nie został już wysłany na ten adres
+  const alreadySent = ((store as any).emailOutbox || []).some(
+    (e: OutboxEmail) =>
+      e.to.toLowerCase() === normalizedEmail &&
+      e.type === "WELCOME_CUSTOMER" &&
+      e.status === "SENT"
+  );
+  if (alreadySent) {
+    return { success: true, alreadySent: true };
+  }
+
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
+  const greeting = params.firstName && params.firstName.trim()
+    ? `Cześć, ${params.firstName.trim()}!`
+    : "Cześć!";
+
+  const content = `
+    <div style="font-size: 15px; color: #241D1B; line-height: 1.7;">
+      <p style="font-size: 17px; font-weight: 600; color: #241D1B; margin: 0 0 16px 0;">
+        ${greeting}
+      </p>
+
+      <p style="margin: 0 0 16px 0;">
+        Dziękujemy za dołączenie do AURA Boutique! 💛 Cieszymy się, że jesteś z nami.
+      </p>
+
+      <p style="margin: 0 0 16px 0;">
+        Twoje konto jest już gotowe. Możesz wygodnie robić zakupy, sprawdzać swoje zamówienia i odkrywać nasze nowości.
+      </p>
+
+      <p style="margin: 0 0 24px 0;">
+        Życzymy Ci udanych zakupów i stylizacji, w których poczujesz się wyjątkowo!
+      </p>
+
+      <!-- Przycisk „Odwiedź butik” -->
+      <div style="text-align: center; margin: 32px 0 32px 0;">
+        <a href="${storeUrl}" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 13px 32px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(197, 160, 105, 0.25);">
+          Odwiedź butik
+        </a>
+      </div>
+
+      <p style="margin: 24px 0 0 0; color: #5A4E47; font-size: 14px; line-height: 1.6;">
+        Do zobaczenia w butiku,<br>
+        <strong style="color: #241D1B;">Zespół AURA Boutique</strong>
+      </p>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate("Witaj w AURA Boutique!", content);
+
+  const res = await dispatchEmail({
+    to: normalizedEmail,
+    subject: "Witaj w AURA Boutique! ✨ Dziękujemy, że jesteś z nami",
+    html,
+    type: "WELCOME_CUSTOMER",
+  });
+
+  return res;
 }
 

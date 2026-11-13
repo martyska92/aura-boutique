@@ -14,7 +14,7 @@ export function BrandLogo({
   className = "",
   size = "md",
   isLink = true,
-  withAura = true,
+  withAura = false,
   variant = "default",
 }: BrandLogoProps) {
   const heightClasses = {
@@ -24,35 +24,16 @@ export function BrandLogo({
     xl: "h-22 sm:h-32 lg:h-40",
   };
 
-  const auraSizes = {
-    sm: "w-28 h-10",
-    md: "w-36 sm:w-80 h-16 sm:h-26",
-    lg: "w-64 sm:w-96 h-24 sm:h-36",
-    xl: "w-80 sm:w-[460px] h-32 sm:h-46",
-  };
-
   const content = (
     <div className={`relative ${heightClasses[size]} max-w-full aspect-[983/374] shrink-0 flex items-center justify-center`}>
-      {/* 🌟 Promieniująca Złota Aura z Logo (Ciepłe, nastrojowe złociste światło) 🌟 */}
-      {withAura && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-0 overflow-hidden">
-          <div
-            className={`absolute ${auraSizes[size]} rounded-[100%] bg-[radial-gradient(ellipse_at_center,_rgba(235,190,120,0.32)_0%,_rgba(180,135,70,0.16)_48%,_transparent_75%)] blur-md sm:blur-lg animate-aura-pulse transition-opacity duration-500 group-hover:opacity-100 opacity-75`}
-          />
-          <div
-            className={`absolute ${auraSizes[size]} scale-75 rounded-[100%] bg-[radial-gradient(ellipse_at_center,_rgba(255,225,160,0.4)_0%,_rgba(215,165,90,0.2)_45%,_transparent_70%)] blur-sm sm:blur-md animate-aura-shimmer transition-transform duration-500 group-hover:scale-90`}
-          />
-        </div>
-      )}
-
-      {/* Nowy Złoty logotyp AURA BOUTIQUE z wyrazistym, ostrym konturem i głębią */}
+      {/* Czysty, elegancki logotyp AURA BOUTIQUE bez złotej poświaty */}
       <Image
         src="/images/brand/aura-logo.png"
         alt="AURA Boutique"
         fill
         priority
         sizes="(max-width: 640px) 240px, (max-width: 1024px) 340px, 420px"
-        className="relative z-10 object-contain object-center transition-all duration-300 drop-shadow-[0_2px_8px_rgba(25,18,14,0.32)] group-hover:drop-shadow-[0_4px_16px_rgba(215,165,85,0.4)]"
+        className="relative z-10 object-contain object-center transition-all duration-300"
       />
     </div>
   );
@@ -68,7 +49,7 @@ export function BrandLogo({
   return (
     <Link
       href="/"
-      className={`inline-flex items-center justify-center group cursor-pointer select-none transition-transform hover:scale-[1.03] duration-300 ${className}`}
+      className={`inline-flex items-center justify-center group cursor-pointer select-none transition-transform hover:scale-[1.02] duration-300 ${className}`}
       title="AURA Boutique K.B."
     >
       {content}

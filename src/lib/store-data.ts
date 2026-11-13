@@ -56,6 +56,7 @@ export interface StoreFileState {
   customers?: CustomerAccount[];
   passwordResetTokens?: { email: string; code: string; expiresAt: number }[];
   priceHistory?: PriceHistoryRecord[];
+  emailOutbox?: any[];
 }
 
 export const initialAdminAccount: AdminAccount = {
@@ -123,6 +124,7 @@ export function loadLocalStore(): StoreFileState {
         customers: parsed.customers || [],
         passwordResetTokens: parsed.passwordResetTokens || [],
         priceHistory: parsed.priceHistory || [],
+        emailOutbox: parsed.emailOutbox || [],
       };
       globalThis.__aura_store = state;
       return state;

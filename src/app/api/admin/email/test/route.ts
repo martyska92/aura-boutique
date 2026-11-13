@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
-import { sendTestEmail, getEmailConfig } from "@/lib/email-service";
+import { sendTestEmail, sendWelcomeCustomerEmail, getEmailConfig } from "@/lib/email-service";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -20,13 +20,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Poczta nie jest skonfigurowana. Wprowadź hasło poczty (lub klucz Resend API) i kliknij Zapisz Ustawienia Butiku.",
+          error: "Poczta nie jest skonfigurowana. Wprowadź hasło poczty (lub klucz Resend API) w Ustawieniach Butiku lub zmiennych środowiskowych Vercel.",
         },
         { status: 400 }
       );
     }
 
-    const result = await sendTestEmail(targetEmail);
+    let result;
+    if (body.type === "WELCOME_CUSTOMER") {
+      result = await sendWelcomeCustomerEmail({
+        customerEmail: targetEmail,
+        firstName: body.firstName || "Martyna",
+      });
+    } else {
+      result = await sendTestEmail(targetEmail);
+    }
+
     if (!result.success) {
       return NextResponse.json(
         {
@@ -39,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Wiadomość testowa została pomyślnie wysłana na adres ${targetEmail}!`,
+      message: `Wiadomość została pomyślnie wysłana na adres ${targetEmail}!`,
     });
   } catch (err: any) {
     return NextResponse.json(
