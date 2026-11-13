@@ -108,6 +108,15 @@ body {
   box-sizing: border-box;
 }
 
+/* Ukrywanie pasków przewijania przy zachowaniu możliwości przewijania */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 ::selection {
   background: #EED9D4;
   color: #241D1B;

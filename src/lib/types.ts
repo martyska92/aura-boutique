@@ -17,6 +17,15 @@ export type ProductImage = {
   isPrimary: boolean;
 };
 
+export type PriceHistoryRecord = {
+  id: string;
+  productId: string;
+  variantId?: string;
+  price: number;
+  isPromotion: boolean;
+  changedAt: string; // ISO date string
+};
+
 export type ProductVariant = {
   id: string;
   productId: string;
@@ -26,6 +35,9 @@ export type ProductVariant = {
   sku: string;
   stockQuantity: number;
   reservedQuantity: number;
+  price?: number; // Indywidualna cena wariantu (jeśli różna od bazowej)
+  promotionalPrice?: number;
+  lowestPrice30Days?: number;
 };
 
 export type Product = {
@@ -38,6 +50,8 @@ export type Product = {
   sizeGuide?: string; // Tabela wymiarów
   basePrice: number;
   promotionalPrice?: number;
+  promotionStartedAt?: string; // Data rozpoczęcia promocji
+  lowestPrice30Days?: number; // Dyrektywa Omnibus: najniższa cena z 30 dni przed obniżką
   isPromoted: boolean; // Dedykowana rubryka: produkt w promocji
   isNew: boolean;
   isBestseller: boolean;
@@ -48,6 +62,7 @@ export type Product = {
   category?: Category;
   images: ProductImage[];
   variants: ProductVariant[];
+  priceHistory?: PriceHistoryRecord[];
   createdAt: string;
   updatedAt: string;
 };

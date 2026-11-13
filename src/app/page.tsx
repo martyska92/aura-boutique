@@ -30,15 +30,15 @@ export default async function HomePage() {
       <Header />
       <main className="flex-1 bg-[#FAF6F1]">
         {/* ========================================================
-            UKŁAD SKLEPU: 2 KOLUMNY OBOK SIEBIE (CSS GRID)
-            – Lewa kolumna: kategorie (100–110px mobile, 220px desktop)
-            – Prawa kolumna: baner, sekcje i produkty
+            UKŁAD SKLEPU: 
+            – Mobile: pełna szerokość z kategoriami w nagłówku, produkty po 2 w rzędzie
+            – Desktop: lewa kolumna (kategorie 220px) + prawa kolumna (treść)
            ======================================================== */}
-        <div className="max-w-[1600px] mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4 lg:py-6 grid grid-cols-[105px_minmax(0,1fr)] min-[400px]:grid-cols-[110px_minmax(0,1fr)] lg:grid-cols-[220px_minmax(0,1fr)] gap-2.5 sm:gap-4 lg:gap-6 items-start">
-          {/* Lewa kolumna: Panel kategorii stale widoczny pod nagłówkiem */}
+        <div className="max-w-[1600px] mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4 lg:py-6 grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4 lg:gap-6 items-start">
+          {/* Lewa kolumna: Panel kategorii widoczny na desktopie pod nagłówkiem */}
           <CategorySidebar />
 
-          {/* Prawa kolumna: Baner, Nowości, Bestsellery i O butiku */}
+          {/* Prawa kolumna (na mobile cała szerokość): Baner, Nowości, Bestsellery i O butiku */}
           <div className="min-w-0 space-y-5 sm:space-y-8">
             {/* 1. GŁÓWNY BANER BUTIKU */}
             <section className="relative w-full aspect-[1024/394] rounded-md overflow-hidden shadow-xs border border-[#EADFD5]">
@@ -52,7 +52,7 @@ export default async function HomePage() {
               />
             </section>
 
-            {/* 2. NOWOŚCI (Maksymalnie 8 produktów) */}
+            {/* 2. NOWOŚCI (Maksymalnie 8 produktów, 2 w rzędzie na telefonie) */}
             {newProducts.length > 0 && (
               <section className="space-y-3 sm:space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-1 sm:gap-4 border-b border-[#EADFD5] pb-2 sm:pb-3">
@@ -73,8 +73,8 @@ export default async function HomePage() {
                   </Link>
                 </div>
 
-                {/* Na telefonie produkty w 1 kolumnie obok kategorii 100-110px */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
+                {/* Na telefonie 2 produkty w rzędzie bez poziomego scrolla */}
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4 lg:gap-5">
                   {newProducts.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
@@ -103,8 +103,8 @@ export default async function HomePage() {
                   </Link>
                 </div>
 
-                {/* Na telefonie produkty w 1 kolumnie obok kategorii 100-110px */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
+                {/* Na telefonie 2 produkty w rzędzie bez poziomego scrolla */}
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4 lg:gap-5">
                   {bestsellers.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}

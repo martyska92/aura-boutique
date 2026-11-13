@@ -31,6 +31,16 @@ export function ProductCard({ product }: ProductCardProps) {
     product.promotionalPrice &&
     product.promotionalPrice < product.basePrice;
 
+  // Dyrektywa Omnibus:
+  // Procent rabatu obliczany wyłącznie względem najniższej ceny z 30 dni przed obniżką
+  const refPrice = product.lowestPrice30Days;
+  const isLowerThanRef =
+    Boolean(hasPromotion && refPrice && product.promotionalPrice! < refPrice);
+  const discountPercent =
+    isLowerThanRef && refPrice
+      ? Math.round(((refPrice - product.promotionalPrice!) / refPrice) * 100)
+      : null;
+
   // Unikalne rozmiary i kolory
   const availableSizes = Array.from(
     new Set(
@@ -80,8 +90,9 @@ export function ProductCard({ product }: ProductCardProps) {
             </span>
           )}
           {hasPromotion && (
-            <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 text-[9px] sm:text-[10px] uppercase tracking-widest font-semibold bg-[#FCEAE7] text-[#A84B4B] border border-[#EAC4BE] rounded-sm">
-              Promocja
+            <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 text-[9px] sm:text-[10px] uppercase tracking-widest font-semibold bg-[#FCEAE7] text-[#A84B4B] border border-[#EAC4BE] rounded-sm flex items-center gap-1">
+              <span>Promocja</span>
+              {discountPercent !== null && <span>-{discountPercent}%</span>}
             </span>
           )}
           {product.isDemo && (
@@ -159,13 +170,23 @@ export function ProductCard({ product }: ProductCardProps) {
           <div className="flex items-baseline justify-between flex-wrap gap-1">
             <span className="hidden sm:inline text-[11px] uppercase tracking-wider text-[#857670]">Cena:</span>
             {hasPromotion ? (
-              <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className="text-[10px] sm:text-[11px] text-[#857670] line-through">
-                  {product.basePrice.toFixed(2).replace(".", ",")} zł
-                </span>
-                <span className="text-xs sm:text-base font-bold text-[#A84B4B]">
-                  {product.promotionalPrice!.toFixed(2).replace(".", ",")} zł
-                </span>
+              <div className="flex flex-col items-end sm:items-start text-right sm:text-left">
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-[10px] sm:text-[11px] text-[#857670] line-through">
+                    {product.basePrice.toFixed(2).replace(".", ",")} zł
+                  </span>
+                  <span className="text-xs sm:text-base font-bold text-[#A84B4B]">
+                    {product.promotionalPrice!.toFixed(2).replace(".", ",")} zł
+                  </span>
+                </div>
+                {refPrice && (
+                  <p className="text-[8.5px] sm:text-[9.5px] text-[#857670] leading-tight mt-0.5">
+                    Najniższa cena z 30 dni:{" "}
+                    <span className="font-semibold text-[#241D1B]">
+                      {refPrice.toFixed(2).replace(".", ",")} zł
+                    </span>
+                  </p>
+                )}
               </div>
             ) : (
               <span className="text-xs sm:text-base font-bold text-[#241D1B]">

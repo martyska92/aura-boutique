@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Search,
   ShoppingBag,
@@ -18,10 +18,23 @@ import { AnnouncementBar } from "./AnnouncementBar";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCart } from "@/context/CartContext";
 
+const DEFAULT_HEADER_CATEGORIES = [
+  { slug: "sukienki", name: "Sukienki" },
+  { slug: "swetry", name: "Swetry" },
+  { slug: "bluzy", name: "Bluzy" },
+  { slug: "koszule", name: "Koszule" },
+  { slug: "topy", name: "Topy" },
+  { slug: "t-shirty", name: "T-shirty" },
+  { slug: "marynarki", name: "Marynarki" },
+];
+
 function HeaderInner() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { itemCount, setIsCartOpen } = useCart();
 
+  const [categories, setCategories] = useState(DEFAULT_HEADER_CATEGORIES);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,6 +45,23 @@ function HeaderInner() {
   });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Pobieranie aktywnych kategorii sklepu
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
+          setCategories(
+            data.categories.map((c: any) => ({
+              slug: c.slug,
+              name: c.name,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Zamykanie menu mobilnego klawiszem Escape oraz blokowanie scrolla tła
   useEffect(() => {
@@ -253,11 +283,59 @@ function HeaderInner() {
           )}
         </div>
 
+        {/* ─── POZIOMY PASEK KATEGORII POD GŁÓWNYM PASKIEM Z LOGO ─── */}
+        <nav
+          aria-label="Kategorie"
+          className="w-full bg-[#B29F8E]/95 backdrop-blur-xs border-b border-[#968372] overflow-x-auto no-scrollbar shadow-inner"
+        >
+          <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 h-9 sm:h-10 flex items-center gap-1 sm:gap-2 whitespace-nowrap min-w-max text-xs">
+            <Link
+              href="/katalog"
+              className={`px-2.5 py-1 rounded text-[11px] sm:text-xs transition-colors ${
+                pathname === "/katalog" && !searchParams.get("kategoria") && !searchParams.get("filter")
+                  ? "bg-[#241D1B] text-[#F3E7D3] font-semibold shadow-xs"
+                  : "text-[#241D1B] hover:text-[#542823] hover:bg-[#A89686]/40 font-medium"
+              }`}
+            >
+              Wszystkie
+            </Link>
+
+            {categories.map((cat) => {
+              const active = pathname === "/katalog" && searchParams.get("kategoria") === cat.slug;
+              return (
+                <Link
+                  key={cat.slug}
+                  href={`/katalog?kategoria=${cat.slug}`}
+                  className={`px-2.5 py-1 rounded text-[11px] sm:text-xs transition-colors ${
+                    active
+                      ? "bg-[#241D1B] text-[#F3E7D3] font-semibold shadow-xs"
+                      : "text-[#241D1B] hover:text-[#542823] hover:bg-[#A89686]/40 font-medium"
+                  }`}
+                >
+                  {cat.name}
+                </Link>
+              );
+            })}
+
+            <Link
+              href="/katalog?filter=promocje"
+              className={`px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                pathname === "/katalog" && searchParams.get("filter") === "promocje"
+                  ? "bg-[#8C2D2D] text-white shadow-xs"
+                  : "text-[#731D1D] hover:text-[#8C2D2D] hover:bg-rose-100/40"
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#8C2D2D] inline-block animate-pulse" />
+              Promocje
+            </Link>
+          </div>
+        </nav>
+
         {/* 🌟 MENU MOBILNE OTWIERANE POD NAGŁÓWKIEM 🌟
             Nigdy nie zasłania nagłówka z logo i przyciskiem zamknięcia (X) */}
         {mobileMenuOpen && (
           <div
-            className="lg:hidden fixed inset-x-0 bottom-0 top-[80px] sm:top-[92px] z-50 flex flex-col overflow-y-auto border-t border-[#968372] pb-12 shadow-2xl animate-in fade-in duration-200"
+            className="lg:hidden fixed inset-x-0 bottom-0 top-[116px] sm:top-[128px] z-50 flex flex-col overflow-y-auto border-t border-[#968372] pb-12 shadow-2xl animate-in fade-in duration-200"
             style={{
               backgroundColor: "#FAF6F1",
             }}
@@ -352,7 +430,7 @@ function HeaderInner() {
           Gwarantuje, że produkty, banery i formularze nigdy nie są zasłaniane */}
       <div
         aria-hidden="true"
-        className="w-full shrink-0 pointer-events-none h-[80px] sm:h-[92px] lg:h-[108px]"
+        className="w-full shrink-0 pointer-events-none h-[116px] sm:h-[128px] lg:h-[144px]"
       />
 
       {/* Koszyk boczny */}
@@ -366,7 +444,7 @@ export function Header() {
     <Suspense
       fallback={
         <header
-          className="fixed top-0 left-0 w-full z-50 text-[#241D1B] h-14"
+          className="fixed top-0 left-0 w-full z-50 text-[#241D1B] h-[116px] sm:h-[128px] lg:h-[144px]"
           style={{ backgroundColor: "#BCAB9B" }}
         />
       }

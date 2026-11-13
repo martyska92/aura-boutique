@@ -269,7 +269,7 @@ export function CatalogClient({
           1. KOMPAKTOWY PASEK MOBILNY POD NAGŁÓWKIEM (lg:hidden)
           Przyklejony, z przyciskiem "Kategorie" i "Filtry"
          ======================================================== */}
-      <div className="lg:hidden sticky top-[80px] sm:top-[92px] z-30 bg-[#FAF6F1]/95 backdrop-blur-md border-b border-[#EADFD5] py-2.5 px-3 sm:px-4 shadow-xs">
+      <div className="lg:hidden sticky top-[116px] sm:top-[128px] z-30 bg-[#FAF6F1]/95 backdrop-blur-md border-b border-[#EADFD5] py-2.5 px-3 sm:px-4 shadow-xs">
         <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
           {/* Przycisk Kategorie z etykietą wybranej */}
           <button
@@ -306,7 +306,7 @@ export function CatalogClient({
         {/* ─── JEDEN LEWY PANEL NA KOMPUTERZE (220 px) ─── */}
         <aside
           aria-label="Kategorie i filtry"
-          className="hidden lg:block w-full sticky top-[114px] self-start z-30 max-h-[calc(100dvh-7.75rem)] overflow-y-auto no-scrollbar space-y-4"
+          className="hidden lg:block w-full sticky top-[154px] self-start z-30 max-h-[calc(100dvh-10.5rem)] overflow-y-auto no-scrollbar space-y-4"
         >
           <div className="bg-white border border-[#EADFD5] rounded-lg p-4 shadow-xs space-y-5">
             {/* 1. SEKCJA: KATEGORIE ODZIEŻY (Z bazy danych) */}

@@ -92,7 +92,7 @@ export function ProductViewFallback({ slug }: ProductViewFallbackProps) {
       <>
         <Header />
         <main className="flex-1 bg-[#FAF6F1]">
-          <div className="max-w-[1600px] mx-auto px-2 sm:px-4 lg:px-6 py-6 sm:py-8 lg:py-12 grid grid-cols-[105px_minmax(0,1fr)] min-[400px]:grid-cols-[110px_minmax(0,1fr)] lg:grid-cols-[220px_minmax(0,1fr)] gap-2.5 sm:gap-4 lg:gap-6 items-start">
+          <div className="max-w-[1600px] mx-auto px-2 sm:px-4 lg:px-6 py-6 sm:py-8 lg:py-12 grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4 lg:gap-6 items-start">
             <CategorySidebar />
 
             <div className="min-w-0 bg-white border border-[#EADFD5] rounded p-8 sm:p-12 text-center shadow-sm">

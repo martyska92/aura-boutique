@@ -4,6 +4,9 @@ import os from "os";
 import {
   Category,
   Product,
+  ProductImage,
+  ProductVariant,
+  PriceHistoryRecord,
   StoreSettings,
   Order,
   OrderItem,
@@ -50,6 +53,7 @@ export interface StoreFileState {
   adminAccount: AdminAccount;
   customers?: CustomerAccount[];
   passwordResetTokens?: { email: string; code: string; expiresAt: number }[];
+  priceHistory?: PriceHistoryRecord[];
 }
 
 export const initialAdminAccount: AdminAccount = {
@@ -116,6 +120,7 @@ export function loadLocalStore(): StoreFileState {
         adminAccount: parsed.adminAccount || initialAdminAccount,
         customers: parsed.customers || [],
         passwordResetTokens: parsed.passwordResetTokens || [],
+        priceHistory: parsed.priceHistory || [],
       };
       globalThis.__aura_store = state;
       return state;
@@ -143,6 +148,7 @@ export function loadLocalStore(): StoreFileState {
     adminAccount: initialAdminAccount,
     customers: [],
     passwordResetTokens: [],
+    priceHistory: [],
   };
 
   try {
@@ -364,9 +370,64 @@ export async function deleteCategory(id: string): Promise<boolean> {
 }
 
 // ==========================================
+// DYREKTYWA OMNIBUS: KALKULACJA NAJNIŻSZEJ CENY Z 30 DNI
+// ==========================================
+export function calculateLowestPrice30Days(
+  history: PriceHistoryRecord[],
+  promotionStartedAt: Date | string,
+  productCreatedAt?: Date | string,
+  variantId?: string
+): number | null {
+  const promoDate = new Date(promotionStartedAt);
+  const thirtyDaysAgo = new Date(promoDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  // Filtrujemy wpisy cen regularnych sprzed daty rozpoczęcia tej promocji
+  const relevantHistory = (history || []).filter((h) => {
+    if (variantId && h.variantId && h.variantId !== variantId) return false;
+    const changeDate = new Date(h.changedAt);
+    return changeDate < promoDate && !h.isPromotion;
+  });
+
+  if (relevantHistory.length === 0) {
+    return null; // Brak wiarygodnej historii sprzed promocji
+  }
+
+  // Wpisy w 30-dniowym oknie bezpośrednio przed obniżką
+  const windowHistory = relevantHistory.filter((h) => new Date(h.changedAt) >= thirtyDaysAgo);
+
+  if (windowHistory.length > 0) {
+    const minPrice = Math.min(...windowHistory.map((h) => Number(h.price)));
+    return Number(minPrice.toFixed(2));
+  }
+
+  // Jeżeli produkt jest oferowany krócej niż 30 dni:
+  // najniższa cena od rozpoczęcia jego sprzedaży
+  const minPriceAll = Math.min(...relevantHistory.map((h) => Number(h.price)));
+  return Number(minPriceAll.toFixed(2));
+}
+
+// ==========================================
 // PRODUKTY
 // ==========================================
 function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
+  const promoStarted = dbProd.promotionStartedAt
+    ? dbProd.promotionStartedAt instanceof Date
+      ? dbProd.promotionStartedAt.toISOString()
+      : String(dbProd.promotionStartedAt)
+    : undefined;
+
+  const priceHistory: PriceHistoryRecord[] =
+    dbProd.priceHistory && dbProd.priceHistory.length > 0
+      ? dbProd.priceHistory.map((ph: any) => ({
+          id: ph.id,
+          productId: ph.productId,
+          variantId: ph.variantId || undefined,
+          price: Number(ph.price),
+          isPromotion: Boolean(ph.isPromotion),
+          changedAt: ph.changedAt instanceof Date ? ph.changedAt.toISOString() : String(ph.changedAt),
+        }))
+      : store.products.find((p) => p.id === dbProd.id)?.priceHistory || [];
+
   return {
     id: dbProd.id,
     name: dbProd.name,
@@ -377,6 +438,8 @@ function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
     sizeGuide: dbProd.sizeGuide || "",
     basePrice: Number(dbProd.basePrice),
     promotionalPrice: dbProd.promotionalPrice ? Number(dbProd.promotionalPrice) : undefined,
+    promotionStartedAt: promoStarted,
+    lowestPrice30Days: dbProd.lowestPrice30Days ? Number(dbProd.lowestPrice30Days) : undefined,
     isPromoted: Boolean(dbProd.isPromoted),
     isNew: Boolean(dbProd.isNew),
     isBestseller: Boolean(dbProd.isBestseller),
@@ -417,8 +480,12 @@ function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
             sku: v.sku,
             stockQuantity: v.stockQuantity,
             reservedQuantity: v.reservedQuantity || 0,
+            price: v.price ? Number(v.price) : undefined,
+            promotionalPrice: v.promotionalPrice ? Number(v.promotionalPrice) : undefined,
+            lowestPrice30Days: v.lowestPrice30Days ? Number(v.lowestPrice30Days) : undefined,
           }))
         : [],
+    priceHistory,
     createdAt: dbProd.createdAt instanceof Date ? dbProd.createdAt.toISOString() : String(dbProd.createdAt),
     updatedAt: dbProd.updatedAt instanceof Date ? dbProd.updatedAt.toISOString() : String(dbProd.updatedAt),
   };
@@ -480,6 +547,7 @@ export async function getProducts(options?: {
           images: { orderBy: { orderIndex: "asc" } },
           variants: true,
           category: true,
+          priceHistory: { orderBy: { changedAt: "desc" } },
         },
         orderBy:
           options?.sortBy === "price_asc"
@@ -611,7 +679,12 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     try {
       const dbProd = await prisma.product.findFirst({
         where: { slug },
-        include: { images: { orderBy: { orderIndex: "asc" } }, variants: true, category: true },
+        include: {
+          images: { orderBy: { orderIndex: "asc" } },
+          variants: true,
+          category: true,
+          priceHistory: { orderBy: { changedAt: "desc" } },
+        },
       });
       if (dbProd) {
         return mapPrismaProduct(dbProd, store);
@@ -636,7 +709,12 @@ export async function getProductById(id: string): Promise<Product | null> {
     try {
       const dbProd = await prisma.product.findFirst({
         where: { OR: [{ id }, { slug: id }] },
-        include: { images: { orderBy: { orderIndex: "asc" } }, variants: true, category: true },
+        include: {
+          images: { orderBy: { orderIndex: "asc" } },
+          variants: true,
+          category: true,
+          priceHistory: { orderBy: { changedAt: "desc" } },
+        },
       });
       if (dbProd) {
         return mapPrismaProduct(dbProd, store);
@@ -695,6 +773,11 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
         sizeGuide: prod.sizeGuide || null,
         basePrice: prod.basePrice,
         promotionalPrice: prod.promotionalPrice || null,
+        promotionStartedAt: prod.promotionStartedAt ? new Date(prod.promotionStartedAt) : null,
+        lowestPrice30Days:
+          prod.lowestPrice30Days !== undefined && prod.lowestPrice30Days !== null
+            ? prod.lowestPrice30Days
+            : null,
         isPromoted: Boolean(prod.isPromoted),
         isNew: Boolean(prod.isNew),
         isBestseller: Boolean(prod.isBestseller),
@@ -713,6 +796,11 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
         sizeGuide: prod.sizeGuide || null,
         basePrice: prod.basePrice,
         promotionalPrice: prod.promotionalPrice || null,
+        promotionStartedAt: prod.promotionStartedAt ? new Date(prod.promotionStartedAt) : null,
+        lowestPrice30Days:
+          prod.lowestPrice30Days !== undefined && prod.lowestPrice30Days !== null
+            ? prod.lowestPrice30Days
+            : null,
         isPromoted: Boolean(prod.isPromoted),
         isNew: Boolean(prod.isNew),
         isBestseller: Boolean(prod.isBestseller),
@@ -734,6 +822,11 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
             sku: v.sku,
             stockQuantity: v.stockQuantity,
             reservedQuantity: v.reservedQuantity || 0,
+            price: v.price !== undefined && v.price !== null ? v.price : null,
+            promotionalPrice:
+              v.promotionalPrice !== undefined && v.promotionalPrice !== null ? v.promotionalPrice : null,
+            lowestPrice30Days:
+              v.lowestPrice30Days !== undefined && v.lowestPrice30Days !== null ? v.lowestPrice30Days : null,
           },
           create: {
             id: v.id,
@@ -744,6 +837,11 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
             sku: v.sku,
             stockQuantity: v.stockQuantity,
             reservedQuantity: v.reservedQuantity || 0,
+            price: v.price !== undefined && v.price !== null ? v.price : null,
+            promotionalPrice:
+              v.promotionalPrice !== undefined && v.promotionalPrice !== null ? v.promotionalPrice : null,
+            lowestPrice30Days:
+              v.lowestPrice30Days !== undefined && v.lowestPrice30Days !== null ? v.lowestPrice30Days : null,
           },
         });
       }
@@ -770,6 +868,27 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
         });
       }
     }
+
+    if (prod.priceHistory && prod.priceHistory.length > 0) {
+      for (const ph of prod.priceHistory) {
+        await prisma.priceHistory.upsert({
+          where: { id: ph.id },
+          update: {
+            price: ph.price,
+            isPromotion: ph.isPromotion,
+            changedAt: new Date(ph.changedAt),
+          },
+          create: {
+            id: ph.id,
+            productId: prod.id,
+            variantId: ph.variantId || null,
+            price: ph.price,
+            isPromotion: ph.isPromotion,
+            changedAt: new Date(ph.changedAt),
+          },
+        });
+      }
+    }
   } catch (err) {
     console.warn("Ostrzeżenie: synchronizacja produktu z Prisma:", err);
   }
@@ -787,7 +906,12 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
       try {
         const dbProd = await prisma.product.findUnique({
           where: { id: productData.id },
-          include: { images: true, variants: true, category: true },
+          include: {
+            images: true,
+            variants: true,
+            category: true,
+            priceHistory: { orderBy: { changedAt: "desc" } },
+          },
         });
         if (dbProd) {
           existingProduct = mapPrismaProduct(dbProd, store);
@@ -811,10 +935,74 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
           }))
         : existingImages;
 
+    // Obsługa historii cen i dyrektywy Omnibus
+    let updatedHistory: PriceHistoryRecord[] = existingProduct.priceHistory
+      ? [...existingProduct.priceHistory]
+      : [];
+
+    const newBasePrice =
+      productData.basePrice !== undefined ? Number(productData.basePrice) : existingProduct.basePrice;
+    const basePriceChanged = Number(existingProduct.basePrice) !== newBasePrice;
+
+    if (basePriceChanged && newBasePrice > 0) {
+      const historyEntry: PriceHistoryRecord = {
+        id: `ph-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        productId: existingProduct.id,
+        price: newBasePrice,
+        isPromotion: false,
+        changedAt: now,
+      };
+      updatedHistory.unshift(historyEntry);
+    }
+
+    const isPromoted =
+      productData.isPromoted !== undefined ? Boolean(productData.isPromoted) : existingProduct.isPromoted;
+
+    let promotionalPrice =
+      productData.promotionalPrice !== undefined
+        ? productData.promotionalPrice
+          ? Number(productData.promotionalPrice)
+          : undefined
+        : existingProduct.promotionalPrice;
+
+    let promotionStartedAt = existingProduct.promotionStartedAt;
+    let lowestPrice30Days = existingProduct.lowestPrice30Days;
+
+    if (isPromoted && promotionalPrice) {
+      // Czy to nowo uruchomiona promocja?
+      if (!existingProduct.isPromoted || !promotionStartedAt) {
+        promotionStartedAt = now;
+        const calculated = calculateLowestPrice30Days(
+          updatedHistory,
+          promotionStartedAt,
+          existingProduct.createdAt
+        );
+        lowestPrice30Days =
+          productData.lowestPrice30Days !== undefined && productData.lowestPrice30Days !== null
+            ? Number(productData.lowestPrice30Days)
+            : (calculated ?? undefined);
+      } else {
+        // Trwająca promocja: zachowaj datę rozpoczęcia i cenę referencyjną
+        if (productData.lowestPrice30Days !== undefined && productData.lowestPrice30Days !== null) {
+          lowestPrice30Days = Number(productData.lowestPrice30Days);
+        }
+      }
+    } else if (!isPromoted) {
+      promotionalPrice = undefined;
+      promotionStartedAt = undefined;
+      lowestPrice30Days = undefined;
+    }
+
     const updated: Product = {
       ...existingProduct,
       ...productData,
+      basePrice: newBasePrice,
+      promotionalPrice,
+      isPromoted,
+      promotionStartedAt,
+      lowestPrice30Days,
       images: finalImages,
+      priceHistory: updatedHistory,
       updatedAt: now,
     } as Product;
 
@@ -848,6 +1036,35 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
       .replace(/(^-|-$)+/g, "") ||
     `produkt-${Date.now()}`;
 
+  const basePrice = Number(productData.basePrice || 0);
+  const initialHistory: PriceHistoryRecord[] =
+    basePrice > 0
+      ? [
+          {
+            id: `ph-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            productId: newId,
+            price: basePrice,
+            isPromotion: false,
+            changedAt: now,
+          },
+        ]
+      : [];
+
+  const isPromoted = Boolean(productData.isPromoted);
+  let promotionalPrice = productData.promotionalPrice ? Number(productData.promotionalPrice) : undefined;
+  let promotionStartedAt: string | undefined = undefined;
+  let lowestPrice30Days: number | undefined = undefined;
+
+  if (isPromoted && promotionalPrice) {
+    promotionStartedAt = now;
+    lowestPrice30Days =
+      productData.lowestPrice30Days !== undefined && productData.lowestPrice30Days !== null
+        ? Number(productData.lowestPrice30Days)
+        : (calculateLowestPrice30Days(initialHistory, promotionStartedAt, now) ?? undefined);
+  } else {
+    promotionalPrice = undefined;
+  }
+
   const newProduct: Product = {
     id: newId,
     name: productData.name || "Nowy produkt",
@@ -856,9 +1073,11 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
     composition: productData.composition || "",
     careGuide: productData.careGuide || "",
     sizeGuide: productData.sizeGuide || "",
-    basePrice: Number(productData.basePrice || 0),
-    promotionalPrice: productData.promotionalPrice ? Number(productData.promotionalPrice) : undefined,
-    isPromoted: Boolean(productData.isPromoted),
+    basePrice,
+    promotionalPrice,
+    promotionStartedAt,
+    lowestPrice30Days,
+    isPromoted,
     isNew: Boolean(productData.isNew),
     isBestseller: Boolean(productData.isBestseller),
     isPublished: productData.isPublished !== undefined ? productData.isPublished : true,
@@ -874,6 +1093,7 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
       isPrimary: img.isPrimary !== undefined ? img.isPrimary : i === 0,
     })),
     variants: productData.variants || [],
+    priceHistory: initialHistory,
     createdAt: productData.createdAt || now,
     updatedAt: now,
   };

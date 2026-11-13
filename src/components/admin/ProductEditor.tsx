@@ -509,6 +509,12 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
     initialProduct?.promotionalPrice?.toString() || ""
   );
   const [isPromoted, setIsPromoted] = useState(initialProduct?.isPromoted || false);
+  const [lowestPrice30Days, setLowestPrice30Days] = useState(
+    initialProduct?.lowestPrice30Days?.toString() || ""
+  );
+  const [promotionStartedAt, setPromotionStartedAt] = useState<string | null>(
+    initialProduct?.promotionStartedAt || null
+  );
 
   // Wyróżnienia
   const [isNew, setIsNew] = useState(initialProduct?.isNew || false);
@@ -784,6 +790,11 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
             ? Number(promotionalPrice)
             : undefined,
         isPromoted,
+        promotionStartedAt: isPromoted ? (promotionStartedAt || new Date().toISOString()) : undefined,
+        lowestPrice30Days:
+          isPromoted && lowestPrice30Days && !isNaN(Number(lowestPrice30Days))
+            ? Number(lowestPrice30Days)
+            : undefined,
         isNew,
         isBestseller,
         isPublished,
@@ -1342,14 +1353,25 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
               />
             </div>
 
-            {/* DEDYKOWANA OSOBNA RUBRYKA NA WYBRANE PRODUKTY W PROMOCJI */}
+            {/* DEDYKOWANA OSOBNA RUBRYKA NA WYBRANE PRODUKTY W PROMOCJI Z DYREKTYWĄ OMNIBUS */}
             <div className="p-4 bg-rose-50/60 border border-rose-200 rounded space-y-3">
               <div className="flex items-start gap-2.5">
                 <input
                   type="checkbox"
                   id="isPromotedCheckbox"
                   checked={isPromoted}
-                  onChange={(e) => setIsPromoted(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsPromoted(checked);
+                    if (checked) {
+                      if (!promotionStartedAt) {
+                        setPromotionStartedAt(new Date().toISOString());
+                      }
+                      if (!lowestPrice30Days && basePrice) {
+                        setLowestPrice30Days(basePrice);
+                      }
+                    }
+                  }}
                   className="mt-0.5 w-4 h-4 accent-[#A84B4B] rounded"
                 />
                 <label htmlFor="isPromotedCheckbox" className="text-xs font-semibold text-[#A84B4B] cursor-pointer">
@@ -1361,18 +1383,108 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
               </p>
 
               {isPromoted && (
-                <div className="pt-2 border-t border-rose-200">
-                  <label className="text-[11px] font-semibold text-[#A84B4B] block mb-1">
-                    Cena promocyjna (PLN)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="299.00"
-                    value={promotionalPrice}
-                    onChange={(e) => setPromotionalPrice(e.target.value)}
-                    className="w-full bg-white border border-rose-300 p-2 text-xs font-bold text-[#A84B4B] focus:outline-none focus:border-[#A84B4B]"
-                  />
+                <div className="pt-3 border-t border-rose-200 space-y-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-[#A84B4B] block mb-1">
+                      Cena promocyjna (PLN) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="299.00"
+                      value={promotionalPrice}
+                      onChange={(e) => setPromotionalPrice(e.target.value)}
+                      className="w-full bg-white border border-rose-300 p-2 text-xs font-bold text-[#A84B4B] focus:outline-none focus:border-[#A84B4B] rounded"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-semibold text-[#241D1B]">
+                        Najniższa cena z 30 dni przed obniżką (Omnibus, PLN)
+                      </label>
+                      {promotionStartedAt && (
+                        <span className="text-[10px] text-[#857670]">
+                          Promocja od: {new Date(promotionStartedAt).toLocaleDateString("pl-PL")}
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder={basePrice || "349.00"}
+                      value={lowestPrice30Days}
+                      onChange={(e) => setLowestPrice30Days(e.target.value)}
+                      className="w-full bg-white border border-[#D8BE8E] p-2 text-xs font-semibold text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded"
+                    />
+                    <p className="text-[10px] text-[#857670] mt-1">
+                      Cena referencyjna ustalana w momencie rozpoczęcia promocji. Zgodnie z dyrektywą Omnibus nie zmienia się w trakcie trwania tej samej obniżki.
+                    </p>
+                  </div>
+
+                  {/* Weryfikacja rabatu Omnibus */}
+                  {promotionalPrice && lowestPrice30Days && (
+                    <div className="p-2.5 rounded text-[11px] font-medium border bg-white">
+                      {Number(promotionalPrice) < Number(lowestPrice30Days) ? (
+                        <p className="text-emerald-800 flex items-center gap-1.5">
+                          <span>✓</span>
+                          <span>
+                            Rabat Omnibus dla klientki:{" "}
+                            <strong>
+                              -{Math.round(((Number(lowestPrice30Days) - Number(promotionalPrice)) / Number(lowestPrice30Days)) * 100)}%
+                            </strong>{" "}
+                            (względem najniższej ceny {Number(lowestPrice30Days).toFixed(2).replace(".", ",")} zł)
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="text-amber-800">
+                          ⚠️ Cena promocyjna ({Number(promotionalPrice).toFixed(2)} zł) nie jest niższa od najniższej ceny z 30 dni ({Number(lowestPrice30Days).toFixed(2)} zł). Zgodnie z prawem procent rabatu nie będzie wyświetlany.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Komunikat o braku historii cen */}
+                  {(!initialProduct?.priceHistory || initialProduct.priceHistory.length === 0) && (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-[10.5px] text-amber-900 leading-relaxed">
+                      <strong>Informacja:</strong> Brak wcześniejszej zarejestrowanej historii cen dla tego produktu. Wpisz prawdziwą cenę referencyjną z ostatnich 30 dni. Każda kolejna zmiana ceny będzie automatycznie zapisywana w trwałej bazie danych.
+                    </div>
+                  )}
+
+                  {/* Tabela historii zmian cen */}
+                  {initialProduct?.priceHistory && initialProduct.priceHistory.length > 0 && (
+                    <div className="pt-2">
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-[#857670] mb-1.5">
+                        Historia cen w bazie ({initialProduct.priceHistory.length}):
+                      </p>
+                      <div className="max-h-32 overflow-y-auto border border-[#EADFD5] rounded bg-white text-[10px]">
+                        <table className="w-full text-left">
+                          <thead className="bg-[#FAF6F1] border-b border-[#EADFD5] text-[#857670]">
+                            <tr>
+                              <th className="p-1.5">Data i czas</th>
+                              <th className="p-1.5">Cena</th>
+                              <th className="p-1.5">Typ</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#EADFD5]">
+                            {initialProduct.priceHistory.map((h) => (
+                              <tr key={h.id} className="hover:bg-neutral-50">
+                                <td className="p-1.5 text-[#6E6259]">
+                                  {new Date(h.changedAt).toLocaleString("pl-PL")}
+                                </td>
+                                <td className="p-1.5 font-semibold text-[#241D1B]">
+                                  {Number(h.price).toFixed(2).replace(".", ",")} zł
+                                </td>
+                                <td className="p-1.5 text-[#857670]">
+                                  {h.isPromotion ? "Promocja" : "Regularna"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

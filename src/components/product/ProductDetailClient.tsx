@@ -111,11 +111,21 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   );
   const availableStock = activeVariant ? Math.max(0, activeVariant.stockQuantity - activeVariant.reservedQuantity) : 0;
 
+  const currentBasePrice = activeVariant?.price ?? product.basePrice;
+  const currentPromoPrice = activeVariant?.promotionalPrice ?? product.promotionalPrice;
   const hasPromotion =
     product.isPromoted &&
-    product.promotionalPrice &&
-    product.promotionalPrice < product.basePrice;
-  const currentPrice = hasPromotion ? product.promotionalPrice! : product.basePrice;
+    Boolean(currentPromoPrice && currentPromoPrice < currentBasePrice);
+  const currentPrice = hasPromotion ? currentPromoPrice! : currentBasePrice;
+
+  // Dyrektywa Omnibus: najniższa cena z 30 dni przed obniżką
+  const lowestPrice30Days = activeVariant?.lowestPrice30Days ?? product.lowestPrice30Days;
+  const isLowerThanRef =
+    Boolean(hasPromotion && lowestPrice30Days && currentPromoPrice! < lowestPrice30Days);
+  const discountPercent =
+    isLowerThanRef && lowestPrice30Days
+      ? Math.round(((lowestPrice30Days - currentPromoPrice!) / lowestPrice30Days) * 100)
+      : null;
 
   // Refs do śledzenia widoczności głównego przycisku zakupu dla dolnego paska
   const mainBuyButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -302,23 +312,35 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
             </div>
           </div>
 
-          {/* Cena po polsku */}
-          <div className="py-2.5 border-y border-[#EADFD5] flex items-baseline gap-3">
+          {/* Cena po polsku z dyrektywą Omnibus */}
+          <div className="py-3 border-y border-[#EADFD5]">
             {hasPromotion ? (
-              <div className="flex items-baseline gap-2.5 flex-wrap">
-                <span className="text-2xl sm:text-3xl font-bold text-[#A84B4B]">
-                  {product.promotionalPrice!.toFixed(2).replace(".", ",")} zł
-                </span>
-                <span className="text-xs sm:text-sm text-[#857670] line-through">
-                  {product.basePrice.toFixed(2).replace(".", ",")} zł
-                </span>
-                <span className="text-[10px] bg-[#FCEAE7] text-[#A84B4B] px-2 py-0.5 border border-[#EAC4BE] font-semibold rounded-xs">
-                  Oszczędzasz {(product.basePrice - product.promotionalPrice!).toFixed(2).replace(".", ",")} zł
-                </span>
+              <div className="space-y-1.5">
+                <div className="flex items-baseline gap-2.5 flex-wrap">
+                  <span className="text-2xl sm:text-3xl font-bold text-[#A84B4B]">
+                    {currentPromoPrice!.toFixed(2).replace(".", ",")} zł
+                  </span>
+                  <span className="text-xs sm:text-sm text-[#857670] line-through">
+                    {currentBasePrice.toFixed(2).replace(".", ",")} zł
+                  </span>
+                  {discountPercent !== null && (
+                    <span className="text-[11px] bg-[#FCEAE7] text-[#A84B4B] px-2 py-0.5 border border-[#EAC4BE] font-semibold rounded-xs">
+                      -{discountPercent}%
+                    </span>
+                  )}
+                </div>
+                {lowestPrice30Days && (
+                  <p className="text-xs text-[#6E6259] flex items-center gap-1.5 pt-0.5">
+                    <span>Najniższa cena z 30 dni przed obniżką:</span>
+                    <span className="font-semibold text-[#241D1B]">
+                      {lowestPrice30Days.toFixed(2).replace(".", ",")} zł
+                    </span>
+                  </p>
+                )}
               </div>
             ) : (
               <span className="text-2xl sm:text-3xl font-bold text-[#241D1B]">
-                {product.basePrice.toFixed(2).replace(".", ",")} zł
+                {currentBasePrice.toFixed(2).replace(".", ",")} zł
               </span>
             )}
           </div>

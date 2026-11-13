@@ -49,7 +49,7 @@ function CategorySidebarInner() {
   return (
     <aside
       aria-label="Kategorie sklepu"
-      className="sticky top-[86px] sm:top-[98px] lg:top-[114px] self-start w-full max-h-[calc(100dvh-5.75rem)] sm:max-h-[calc(100dvh-6.75rem)] lg:max-h-[calc(100dvh-7.75rem)] overflow-y-auto no-scrollbar z-20"
+      className="hidden lg:block sticky lg:top-[154px] self-start w-full max-h-[calc(100dvh-10.5rem)] overflow-y-auto no-scrollbar z-20"
     >
       <div className="bg-white border border-[#EADFD5] rounded-md p-1.5 sm:p-2.5 lg:p-3.5 shadow-xs space-y-2.5 sm:space-y-4">
         {/* 1. SEKCJA: KATEGORIE Z BAZY DANYCH */}
@@ -144,7 +144,7 @@ export function CategorySidebar() {
   return (
     <Suspense
       fallback={
-        <aside className="sticky top-[86px] sm:top-[98px] lg:top-[114px] self-start w-full p-2" />
+        <aside className="hidden lg:block sticky lg:top-[154px] self-start w-full p-2" />
       }
     >
       <CategorySidebarInner />
