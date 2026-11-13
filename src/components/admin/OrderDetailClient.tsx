@@ -40,11 +40,18 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+
     setIsSaving(true);
     setSaveSuccess(false);
+    setErrorMessage(null);
+
+    const prevFulfillment = order.fulfillmentStatus;
+    const prevPayment = order.paymentStatus;
 
     try {
       const res = await fetch("/api/admin/orders", {
@@ -61,16 +68,23 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && data.success && data.order) {
         setOrder(data.order);
+        setFulfillmentStatus(data.order.fulfillmentStatus);
+        setPaymentStatus(data.order.paymentStatus);
         setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
+        setTimeout(() => setSaveSuccess(false), 4000);
         router.refresh();
       } else {
-        alert(data.error || "Błąd podczas zapisywania zmian.");
+        // Przywróć poprzedni status
+        setFulfillmentStatus(prevFulfillment);
+        setPaymentStatus(prevPayment);
+        setErrorMessage(data.error || "Wystąpił błąd podczas trwałego zapisu w bazie danych.");
       }
     } catch (e: any) {
-      alert("Błąd połączenia: " + e.message);
+      setFulfillmentStatus(prevFulfillment);
+      setPaymentStatus(prevPayment);
+      setErrorMessage("Błąd połączenia z serwerem: " + e.message);
     } finally {
       setIsSaving(false);
     }
@@ -123,8 +137,15 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
 
       {saveSuccess && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-          <span>Status zamówienia oraz numer listu przewozowego zostały pomyślnie zaktualizowane!</span>
+          <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+          <span>Status zamówienia oraz dane realizacji zostały pomyślnie i trwale zapisane w bazie danych!</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-800 text-xs rounded flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-700 shrink-0" />
+          <span>{errorMessage}</span>
         </div>
       )}
 
@@ -328,8 +349,9 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
               <div className="flex flex-wrap gap-1.5 mb-2">
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => setFulfillmentStatus("PROCESSING")}
-                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors ${
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors disabled:opacity-50 ${
                     fulfillmentStatus === "PROCESSING"
                       ? "bg-blue-600 text-white border-blue-600 shadow-xs"
                       : "bg-[#FAF6F1] text-blue-900 border-blue-200 hover:bg-blue-50"
@@ -339,8 +361,9 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
                 </button>
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => setFulfillmentStatus("SHIPPED")}
-                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors ${
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors disabled:opacity-50 ${
                     fulfillmentStatus === "SHIPPED"
                       ? "bg-purple-600 text-white border-purple-600 shadow-xs"
                       : "bg-[#FAF6F1] text-purple-900 border-purple-200 hover:bg-purple-50"
@@ -350,8 +373,9 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
                 </button>
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => setFulfillmentStatus("DELIVERED")}
-                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors ${
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors disabled:opacity-50 ${
                     fulfillmentStatus === "DELIVERED"
                       ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
                       : "bg-[#FAF6F1] text-emerald-900 border-emerald-200 hover:bg-emerald-50"
@@ -363,8 +387,9 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
 
               <select
                 value={fulfillmentStatus}
+                disabled={isSaving}
                 onChange={(e) => setFulfillmentStatus(e.target.value as any)}
-                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs font-semibold text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs font-semibold text-[#241D1B] focus:outline-none focus:border-[#C5A069] disabled:opacity-50"
               >
                 <option value="NEW">NOWE (Oczekuje na spakowanie)</option>
                 <option value="PROCESSING">W TRAKCIE KOMPLETOWANIA</option>
@@ -381,8 +406,9 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
               </label>
               <select
                 value={paymentStatus}
+                disabled={isSaving}
                 onChange={(e) => setPaymentStatus(e.target.value as any)}
-                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs font-semibold text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs font-semibold text-[#241D1B] focus:outline-none focus:border-[#C5A069] disabled:opacity-50"
               >
                 <option value="PENDING">OCZEKUJE NA WPŁATĘ (PENDING)</option>
                 <option value="PAID">OPŁACONE (WPŁYW POTWIERDZONY)</option>
@@ -399,22 +425,24 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
                 </label>
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => {
                     const generated = `624${Math.floor(100000000000000000000 + Math.random() * 900000000000000000000)}`;
                     setTrackingNumber(generated);
                     setFulfillmentStatus("SHIPPED");
                   }}
-                  className="text-[10px] uppercase font-bold text-[#9E8359] hover:underline"
+                  className="text-[10px] uppercase font-bold text-[#9E8359] hover:underline disabled:opacity-50"
                 >
                   + Generuj list InPost
                 </button>
               </div>
               <input
                 type="text"
+                disabled={isSaving}
                 placeholder="Np. 624000000000000000000000"
                 value={trackingNumber}
                 onChange={(e) => setTrackingNumber(e.target.value)}
-                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs font-mono text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs font-mono text-[#241D1B] focus:outline-none focus:border-[#C5A069] disabled:opacity-50"
               />
               {trackingNumber && (
                 <div className="flex items-center justify-between text-[11px] pt-1">
@@ -444,10 +472,11 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
               </label>
               <textarea
                 rows={3}
+                disabled={isSaving}
                 placeholder="Np. Klientka dzwoniła z prośbą o wysyłkę po 15:00..."
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
-                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069] disabled:opacity-50"
               />
             </div>
 
@@ -457,7 +486,7 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
               className="w-full py-3.5 bg-[#C5A069] text-white text-xs uppercase tracking-widest font-semibold rounded hover:bg-[#AF884F] transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
             >
               <Save className="w-4 h-4 text-white" />
-              <span>{isSaving ? "Zapisywanie..." : "Zapisz Zmiany w Zamówieniu"}</span>
+              <span>{isSaving ? "Zapisywanie w bazie danych..." : "Zapisz Zmiany w Zamówieniu"}</span>
             </button>
           </form>
         </div>

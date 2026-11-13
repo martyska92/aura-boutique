@@ -3,6 +3,9 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { getAllOrders } from "@/lib/store-data";
 import { OrderListClient } from "@/components/admin/OrderListClient";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminOrdersPage() {
   await requireAdmin();
   const orders = await getAllOrders();

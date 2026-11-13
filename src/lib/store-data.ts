@@ -13,6 +13,8 @@ import {
   ReturnRequest,
   FulfillmentStatus,
   PaymentStatus,
+  ShippingMethod,
+  PaymentMethod,
   Promotion,
   IndividualCustomerDiscount,
   ReferralParticipant,
@@ -812,38 +814,53 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
     });
 
     if (prod.variants && prod.variants.length > 0) {
-      for (const v of prod.variants) {
-        await prisma.productVariant.upsert({
-          where: { id: v.id },
-          update: {
-            size: v.size,
-            color: v.color,
-            colorHex: v.colorHex || null,
-            sku: v.sku,
-            stockQuantity: v.stockQuantity,
-            reservedQuantity: v.reservedQuantity || 0,
-            price: v.price !== undefined && v.price !== null ? v.price : null,
-            promotionalPrice:
-              v.promotionalPrice !== undefined && v.promotionalPrice !== null ? v.promotionalPrice : null,
-            lowestPrice30Days:
-              v.lowestPrice30Days !== undefined && v.lowestPrice30Days !== null ? v.lowestPrice30Days : null,
-          },
-          create: {
-            id: v.id,
-            productId: prod.id,
-            size: v.size,
-            color: v.color,
-            colorHex: v.colorHex || null,
-            sku: v.sku,
-            stockQuantity: v.stockQuantity,
-            reservedQuantity: v.reservedQuantity || 0,
-            price: v.price !== undefined && v.price !== null ? v.price : null,
-            promotionalPrice:
-              v.promotionalPrice !== undefined && v.promotionalPrice !== null ? v.promotionalPrice : null,
-            lowestPrice30Days:
-              v.lowestPrice30Days !== undefined && v.lowestPrice30Days !== null ? v.lowestPrice30Days : null,
-          },
-        });
+      for (let i = 0; i < prod.variants.length; i++) {
+        const v = prod.variants[i];
+        const safeSku = v.sku?.trim()
+          ? v.sku.trim()
+          : `AURA-${prod.slug.toUpperCase().slice(0, 8)}-${v.size}-${i + 1}`;
+
+        const variantData = {
+          size: v.size,
+          color: v.color,
+          colorHex: v.colorHex || null,
+          sku: safeSku,
+          stockQuantity: v.stockQuantity,
+          reservedQuantity: v.reservedQuantity || 0,
+          price: v.price !== undefined && v.price !== null ? v.price : null,
+          promotionalPrice:
+            v.promotionalPrice !== undefined && v.promotionalPrice !== null ? v.promotionalPrice : null,
+          lowestPrice30Days:
+            v.lowestPrice30Days !== undefined && v.lowestPrice30Days !== null ? v.lowestPrice30Days : null,
+        };
+
+        try {
+          await prisma.productVariant.upsert({
+            where: { id: v.id },
+            update: variantData,
+            create: {
+              id: v.id,
+              productId: prod.id,
+              ...variantData,
+            },
+          });
+        } catch (varErr: any) {
+          if (varErr?.code === "P2002") {
+            const fallbackSku = `${safeSku}-${Date.now().toString().slice(-4)}`;
+            await prisma.productVariant.upsert({
+              where: { id: v.id },
+              update: { ...variantData, sku: fallbackSku },
+              create: {
+                id: v.id,
+                productId: prod.id,
+                ...variantData,
+                sku: fallbackSku,
+              },
+            });
+          } else {
+            throw varErr;
+          }
+        }
       }
     }
 
@@ -889,8 +906,11 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
         });
       }
     }
-  } catch (err) {
-    console.warn("Ostrzeżenie: synchronizacja produktu z Prisma:", err);
+  } catch (err: any) {
+    console.error("Błąd synchronizacji produktu z bazą Neon Prisma:", err);
+    if (await isDatabaseConnected()) {
+      throw new Error(`Błąd trwałego zapisu produktu w bazie danych: ${err.message || err}`);
+    }
   }
 }
 
@@ -1175,10 +1195,230 @@ export async function resetDemoData(): Promise<void> {
 }
 
 // ==========================================
-// ZAMÓWIENIA
+// ZAMÓWIENIA (PRISMA + LOCAL FALLBACK)
 // ==========================================
+function mapPrismaOrder(dbOrder: any): Order {
+  return {
+    id: dbOrder.id,
+    orderNumber: dbOrder.orderNumber,
+    customerFirstName: dbOrder.customerFirstName,
+    customerLastName: dbOrder.customerLastName,
+    customerEmail: dbOrder.customerEmail,
+    customerPhone: dbOrder.customerPhone,
+    shippingMethod: dbOrder.shippingMethod as ShippingMethod,
+    parcelLockerCode: dbOrder.parcelLockerCode || undefined,
+    shippingStreet: dbOrder.shippingStreet || undefined,
+    shippingCity: dbOrder.shippingCity || undefined,
+    shippingPostalCode: dbOrder.shippingPostalCode || undefined,
+    paymentMethod: dbOrder.paymentMethod as PaymentMethod,
+    paymentStatus: dbOrder.paymentStatus as PaymentStatus,
+    fulfillmentStatus: dbOrder.fulfillmentStatus as FulfillmentStatus,
+    trackingNumber: dbOrder.trackingNumber || undefined,
+    subtotalAmount: Number(dbOrder.subtotalAmount),
+    shippingCost: Number(dbOrder.shippingCost),
+    totalAmount: Number(dbOrder.totalAmount),
+    customerNotes: dbOrder.customerNotes || undefined,
+    adminNotes: dbOrder.adminNotes || undefined,
+    reservedUntil: dbOrder.reservedUntil
+      ? dbOrder.reservedUntil instanceof Date
+        ? dbOrder.reservedUntil.toISOString()
+        : String(dbOrder.reservedUntil)
+      : undefined,
+    items: (dbOrder.items || []).map((it: any) => ({
+      id: it.id,
+      orderId: it.orderId,
+      variantId: it.variantId || undefined,
+      productNameSnapshot: it.productNameSnapshot,
+      variantSnapshot: it.variantSnapshot,
+      unitPriceSnapshot: Number(it.unitPriceSnapshot),
+      quantity: it.quantity,
+      totalSnapshot: Number(it.totalSnapshot),
+      productImageUrl: it.productImageUrl || undefined,
+    })),
+    createdAt:
+      dbOrder.createdAt instanceof Date
+        ? dbOrder.createdAt.toISOString()
+        : String(dbOrder.createdAt),
+    updatedAt:
+      dbOrder.updatedAt instanceof Date
+        ? dbOrder.updatedAt.toISOString()
+        : String(dbOrder.updatedAt),
+  };
+}
+
+export async function syncOrderToPrisma(order: Order): Promise<void> {
+  if (!isNeonConfigured()) return;
+  try {
+    const safeShipping = ["INPOST_LOCKER", "COURIER", "LOCAL_PICKUP"].includes(order.shippingMethod)
+      ? (order.shippingMethod as any)
+      : "INPOST_LOCKER";
+    const safePaymentMethod = ["PRZELEWY24", "BLIK", "TRADITIONAL_TRANSFER"].includes(order.paymentMethod)
+      ? (order.paymentMethod as any)
+      : "BLIK";
+    const safePaymentStatus = ["PENDING", "PAID", "FAILED", "REFUNDED"].includes(order.paymentStatus)
+      ? (order.paymentStatus as any)
+      : "PENDING";
+    const safeFulfillmentStatus = ["NEW", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"].includes(
+      order.fulfillmentStatus
+    )
+      ? (order.fulfillmentStatus as any)
+      : "NEW";
+
+    // 1. Sprawdź które warianty istnieją w bazie, by nie naruszyć klucza obcego P2003
+    const safeItems = [];
+    for (const it of order.items || []) {
+      let validVariantId: string | null = null;
+      if (it.variantId) {
+        try {
+          const v = await prisma.productVariant.findUnique({
+            where: { id: it.variantId },
+            select: { id: true },
+          });
+          if (v) validVariantId = it.variantId;
+        } catch (_) {}
+      }
+
+      safeItems.push({
+        id: it.id || `item-${order.id}-${Math.random().toString(36).slice(2, 7)}`,
+        variantId: validVariantId,
+        productNameSnapshot: it.productNameSnapshot || "Produkt",
+        variantSnapshot: it.variantSnapshot || "Standard",
+        unitPriceSnapshot: Number(it.unitPriceSnapshot || 0),
+        quantity: Number(it.quantity || 1),
+        totalSnapshot: Number(it.totalSnapshot || 0),
+        productImageUrl: it.productImageUrl || null,
+      });
+    }
+
+    // 2. Upsert zamówienia
+    await prisma.order.upsert({
+      where: { id: order.id },
+      update: {
+        orderNumber: order.orderNumber,
+        customerFirstName: order.customerFirstName,
+        customerLastName: order.customerLastName,
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+        shippingMethod: safeShipping,
+        parcelLockerCode: order.parcelLockerCode || null,
+        shippingStreet: order.shippingStreet || null,
+        shippingCity: order.shippingCity || null,
+        shippingPostalCode: order.shippingPostalCode || null,
+        paymentMethod: safePaymentMethod,
+        paymentStatus: safePaymentStatus,
+        fulfillmentStatus: safeFulfillmentStatus,
+        trackingNumber: order.trackingNumber || null,
+        subtotalAmount: Number(order.subtotalAmount || 0),
+        shippingCost: Number(order.shippingCost || 0),
+        totalAmount: Number(order.totalAmount || 0),
+        customerNotes: order.customerNotes || null,
+        adminNotes: order.adminNotes || null,
+        reservedUntil: order.reservedUntil ? new Date(order.reservedUntil) : null,
+        updatedAt: new Date(order.updatedAt || Date.now()),
+      },
+      create: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerFirstName: order.customerFirstName,
+        customerLastName: order.customerLastName,
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+        shippingMethod: safeShipping,
+        parcelLockerCode: order.parcelLockerCode || null,
+        shippingStreet: order.shippingStreet || null,
+        shippingCity: order.shippingCity || null,
+        shippingPostalCode: order.shippingPostalCode || null,
+        paymentMethod: safePaymentMethod,
+        paymentStatus: safePaymentStatus,
+        fulfillmentStatus: safeFulfillmentStatus,
+        trackingNumber: order.trackingNumber || null,
+        subtotalAmount: Number(order.subtotalAmount || 0),
+        shippingCost: Number(order.shippingCost || 0),
+        totalAmount: Number(order.totalAmount || 0),
+        customerNotes: order.customerNotes || null,
+        adminNotes: order.adminNotes || null,
+        reservedUntil: order.reservedUntil ? new Date(order.reservedUntil) : null,
+        createdAt: new Date(order.createdAt || Date.now()),
+        updatedAt: new Date(order.updatedAt || Date.now()),
+        items: {
+          create: safeItems.map((si) => ({
+            id: si.id,
+            variantId: si.variantId,
+            productNameSnapshot: si.productNameSnapshot,
+            variantSnapshot: si.variantSnapshot,
+            unitPriceSnapshot: si.unitPriceSnapshot,
+            quantity: si.quantity,
+            totalSnapshot: si.totalSnapshot,
+            productImageUrl: si.productImageUrl,
+          })),
+        },
+      },
+    });
+
+    // 3. Upewnij się, że pozycje istnieją w bazie
+    for (const si of safeItems) {
+      await prisma.orderItem.upsert({
+        where: { id: si.id },
+        update: {
+          productNameSnapshot: si.productNameSnapshot,
+          variantSnapshot: si.variantSnapshot,
+          unitPriceSnapshot: si.unitPriceSnapshot,
+          quantity: si.quantity,
+          totalSnapshot: si.totalSnapshot,
+          productImageUrl: si.productImageUrl,
+        },
+        create: {
+          id: si.id,
+          orderId: order.id,
+          variantId: si.variantId,
+          productNameSnapshot: si.productNameSnapshot,
+          variantSnapshot: si.variantSnapshot,
+          unitPriceSnapshot: si.unitPriceSnapshot,
+          quantity: si.quantity,
+          totalSnapshot: si.totalSnapshot,
+          productImageUrl: si.productImageUrl,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn("Ostrzeżenie: synchronizacja zamówienia z Prisma:", err);
+  }
+}
+
 export async function getAllOrders(): Promise<Order[]> {
   const store = loadLocalStore();
+
+  if (await isDatabaseConnected()) {
+    try {
+      const dbOrders = await prisma.order.findMany({
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (dbOrders && dbOrders.length > 0) {
+        const mapped = dbOrders.map(mapPrismaOrder);
+        store.orders = mapped;
+        return mapped;
+      } else if (store.orders.length > 0) {
+        // Baza połączona, ale jeszcze bez zamówień (np. świeża baza) -> zsynchronizuj zamówienia demonstracyjne
+        for (const o of store.orders) {
+          await syncOrderToPrisma(o);
+        }
+        const seeded = await prisma.order.findMany({
+          include: { items: true },
+          orderBy: { createdAt: "desc" },
+        });
+        if (seeded && seeded.length > 0) {
+          const mapped = seeded.map(mapPrismaOrder);
+          store.orders = mapped;
+          return mapped;
+        }
+      }
+    } catch (err) {
+      console.warn("Ostrzeżenie: Błąd pobierania zamówień z bazy Prisma:", err);
+    }
+  }
+
   return store.orders.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -1186,12 +1426,26 @@ export async function getAllOrders(): Promise<Order[]> {
 
 export async function getOrderById(id: string): Promise<Order | null> {
   const store = loadLocalStore();
-  return store.orders.find((o) => o.id === id) || null;
+
+  if (await isDatabaseConnected()) {
+    try {
+      const dbOrder = await prisma.order.findFirst({
+        where: { OR: [{ id }, { orderNumber: id }] },
+        include: { items: true },
+      });
+      if (dbOrder) {
+        return mapPrismaOrder(dbOrder);
+      }
+    } catch (e) {
+      console.warn("Błąd wyszukiwania zamówienia w bazie Prisma:", e);
+    }
+  }
+
+  return store.orders.find((o) => o.id === id || o.orderNumber === id) || null;
 }
 
 export async function getOrderByNumber(orderNumber: string): Promise<Order | null> {
-  const store = loadLocalStore();
-  return store.orders.find((o) => o.orderNumber === orderNumber) || null;
+  return getOrderById(orderNumber);
 }
 
 export async function createOrder(
@@ -1202,12 +1456,13 @@ export async function createOrder(
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
   const orderNumber = `AURA-${dateStr}-${randomSuffix}`;
   const now = new Date().toISOString();
+  const newId = `ord-${Date.now()}`;
 
   // Weryfikacja i obniżenie stanu magazynowego na serwerze
   for (const item of orderInput.items) {
     if (item.variantId) {
       for (const prod of store.products) {
-        const variant = prod.variants.find((v) => v.id === item.variantId);
+        const variant = prod.variants?.find((v) => v.id === item.variantId);
         if (variant) {
           if (variant.stockQuantity < item.quantity) {
             throw new Error(
@@ -1217,12 +1472,20 @@ export async function createOrder(
           variant.stockQuantity -= item.quantity;
         }
       }
+      if (await isDatabaseConnected()) {
+        try {
+          await prisma.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQuantity: { decrement: item.quantity } },
+          });
+        } catch (_) {}
+      }
     }
   }
 
   const newOrder: Order = {
     ...orderInput,
-    id: `ord-${Date.now()}`,
+    id: newId,
     orderNumber,
     createdAt: now,
     updatedAt: now,
@@ -1230,6 +1493,10 @@ export async function createOrder(
 
   store.orders.unshift(newOrder);
   saveLocalStore(store);
+
+  // Trwały zapis w bazie Neon Postgres
+  await syncOrderToPrisma(newOrder);
+
   return newOrder;
 }
 
@@ -1243,34 +1510,168 @@ export async function updateOrderAdmin(
   }
 ): Promise<Order> {
   const store = loadLocalStore();
-  const order = store.orders.find((o) => o.id === orderId);
-  if (!order) throw new Error("Nie znaleziono zamówienia");
+  const now = new Date().toISOString();
 
-  const prevFulfillmentStatus = order.fulfillmentStatus;
-  if (updates.fulfillmentStatus) order.fulfillmentStatus = updates.fulfillmentStatus;
-  if (updates.paymentStatus) order.paymentStatus = updates.paymentStatus;
-  if (updates.trackingNumber !== undefined) order.trackingNumber = updates.trackingNumber;
-  if (updates.adminNotes !== undefined) order.adminNotes = updates.adminNotes;
-  order.updatedAt = new Date().toISOString();
-
-  saveLocalStore(store);
-
-  // Przyznanie jednorazowej nagrody 15% polecającej po pomyślnym doręczeniu (DELIVERED)
-  if (order.fulfillmentStatus === "DELIVERED" && prevFulfillmentStatus !== "DELIVERED") {
+  // 1. Pobierz aktualne zamówienie z bazy Neon lub lokalnego store
+  let existingOrder: Order | null = null;
+  if (await isDatabaseConnected()) {
     try {
-      await awardReferralRewardOnDelivered(order);
-    } catch (e) {
-      console.error("Błąd przyznawania nagrody polecającej:", e);
-    }
-  } else if (order.fulfillmentStatus === "CANCELLED" && prevFulfillmentStatus === "DELIVERED") {
-    try {
-      await revokeReferralRewardOnRefund(order.id);
-    } catch (e) {
-      console.error("Błąd cofania nagrody polecającej po anulowaniu:", e);
+      const dbOrder = await prisma.order.findFirst({
+        where: { OR: [{ id: orderId }, { orderNumber: orderId }] },
+        include: { items: true },
+      });
+      if (dbOrder) {
+        existingOrder = mapPrismaOrder(dbOrder);
+      }
+    } catch (err) {
+      console.warn("Błąd pobierania zamówienia z bazy przed aktualizacją:", err);
     }
   }
 
-  return order;
+  if (!existingOrder) {
+    existingOrder =
+      store.orders.find((o) => o.id === orderId || o.orderNumber === orderId) || null;
+  }
+
+  if (!existingOrder) {
+    throw new Error(`Zamówienie "${orderId}" nie zostało odnalezione w bazie danych.`);
+  }
+
+  const prevFulfillmentStatus = existingOrder.fulfillmentStatus;
+  const newFulfillmentStatus = updates.fulfillmentStatus || prevFulfillmentStatus;
+  const prevPaymentStatus = existingOrder.paymentStatus;
+  const newPaymentStatus = updates.paymentStatus || prevPaymentStatus;
+
+  // 2. Obsługa stanów magazynowych:
+  // Anulowanie zamówienia: przywróć stany magazynowe w bazie i w pamięci (tylko raz)
+  if (newFulfillmentStatus === "CANCELLED" && prevFulfillmentStatus !== "CANCELLED") {
+    for (const item of existingOrder.items) {
+      if (item.variantId) {
+        for (const prod of store.products) {
+          const variant = prod.variants?.find((v) => v.id === item.variantId);
+          if (variant) {
+            variant.stockQuantity += item.quantity;
+          }
+        }
+        if (await isDatabaseConnected()) {
+          try {
+            await prisma.productVariant.update({
+              where: { id: item.variantId },
+              data: { stockQuantity: { increment: item.quantity } },
+            });
+          } catch (e) {
+            console.warn("Błąd przywracania stanu magazynowego po anulowaniu:", e);
+          }
+        }
+      }
+    }
+  } else if (prevFulfillmentStatus === "CANCELLED" && newFulfillmentStatus !== "CANCELLED") {
+    // Przywrócenie z anulowanego: ponowne zarezerwowanie stanów
+    for (const item of existingOrder.items) {
+      if (item.variantId) {
+        for (const prod of store.products) {
+          const variant = prod.variants?.find((v) => v.id === item.variantId);
+          if (variant && variant.stockQuantity >= item.quantity) {
+            variant.stockQuantity -= item.quantity;
+          }
+        }
+        if (await isDatabaseConnected()) {
+          try {
+            await prisma.productVariant.update({
+              where: { id: item.variantId },
+              data: { stockQuantity: { decrement: item.quantity } },
+            });
+          } catch (e) {
+            console.warn("Błąd ponownego rezerwowania stanu:", e);
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Utwórz zaktualizowany obiekt zamówienia
+  const updatedOrder: Order = {
+    ...existingOrder,
+    fulfillmentStatus: newFulfillmentStatus,
+    paymentStatus: newPaymentStatus,
+    trackingNumber:
+      updates.trackingNumber !== undefined
+        ? updates.trackingNumber
+        : existingOrder.trackingNumber,
+    adminNotes:
+      updates.adminNotes !== undefined ? updates.adminNotes : existingOrder.adminNotes,
+    updatedAt: now,
+  };
+
+  // 4. Trwały zapis w bazie PostgreSQL / Neon
+  if (await isDatabaseConnected()) {
+    try {
+      const safePaymentStatus = ["PENDING", "PAID", "FAILED", "REFUNDED"].includes(newPaymentStatus)
+        ? (newPaymentStatus as any)
+        : undefined;
+      const safeFulfillmentStatus = ["NEW", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"].includes(
+        newFulfillmentStatus
+      )
+        ? (newFulfillmentStatus as any)
+        : undefined;
+
+      const updateData: any = {
+        updatedAt: new Date(now),
+      };
+      if (safeFulfillmentStatus) updateData.fulfillmentStatus = safeFulfillmentStatus;
+      if (safePaymentStatus) updateData.paymentStatus = safePaymentStatus;
+      if (updates.trackingNumber !== undefined) updateData.trackingNumber = updates.trackingNumber || null;
+      if (updates.adminNotes !== undefined) updateData.adminNotes = updates.adminNotes || null;
+
+      const existsInDb = await prisma.order.findUnique({
+        where: { id: existingOrder.id },
+        select: { id: true },
+      });
+
+      if (existsInDb) {
+        await prisma.order.update({
+          where: { id: existingOrder.id },
+          data: updateData,
+        });
+      } else {
+        await syncOrderToPrisma(updatedOrder);
+      }
+    } catch (err: any) {
+      console.error("Błąd trwałego zapisu zmiany statusu w Prisma:", err);
+      throw new Error(`Błąd trwałego zapisu w bazie danych: ${err.message}`);
+    }
+  }
+
+  // 5. Aktualizacja pamięci procesu
+  const storeIdx = store.orders.findIndex(
+    (o) => o.id === existingOrder!.id || o.orderNumber === existingOrder!.orderNumber
+  );
+  if (storeIdx !== -1) {
+    store.orders[storeIdx] = updatedOrder;
+  } else {
+    store.orders.unshift(updatedOrder);
+  }
+  saveLocalStore(store);
+
+  // 6. Nagrody polecające
+  if (updatedOrder.fulfillmentStatus === "DELIVERED" && prevFulfillmentStatus !== "DELIVERED") {
+    try {
+      await awardReferralRewardOnDelivered(updatedOrder);
+    } catch (e) {
+      console.error("Błąd przyznawania nagrody polecającej:", e);
+    }
+  } else if (
+    (updatedOrder.fulfillmentStatus === "CANCELLED" || updatedOrder.paymentStatus === "REFUNDED") &&
+    prevFulfillmentStatus === "DELIVERED"
+  ) {
+    try {
+      await revokeReferralRewardOnRefund(updatedOrder.id);
+    } catch (e) {
+      console.error("Błąd cofania nagrody polecającej:", e);
+    }
+  }
+
+  return updatedOrder;
 }
 
 export async function bulkUpdateOrders(
@@ -1280,31 +1681,15 @@ export async function bulkUpdateOrders(
     paymentStatus?: PaymentStatus;
   }
 ): Promise<Order[]> {
-  const store = loadLocalStore();
-  const now = new Date().toISOString();
   const updatedOrders: Order[] = [];
-
-  store.orders = store.orders.map((o) => {
-    if (orderIds.includes(o.id)) {
-      if (updates.fulfillmentStatus) o.fulfillmentStatus = updates.fulfillmentStatus;
-      if (updates.paymentStatus) o.paymentStatus = updates.paymentStatus;
-      o.updatedAt = now;
-      updatedOrders.push(o);
-    }
-    return o;
-  });
-
-  saveLocalStore(store);
-  for (const o of updatedOrders) {
-    if (o.fulfillmentStatus === "DELIVERED") {
-      try {
-        await awardReferralRewardOnDelivered(o);
-      } catch (e) {
-        console.error("Błąd przyznawania nagrody polecającej (bulk):", e);
-      }
+  for (const id of orderIds) {
+    try {
+      const updated = await updateOrderAdmin(id, updates);
+      updatedOrders.push(updated);
+    } catch (err) {
+      console.warn(`Błąd masowej aktualizacji zamówienia ${id}:`, err);
     }
   }
-
   return updatedOrders;
 }
 
@@ -1314,7 +1699,21 @@ export async function editOrderCustomer(
   newItems: OrderItem[]
 ): Promise<Order> {
   const store = loadLocalStore();
-  const order = store.orders.find((o) => o.id === orderId);
+  let order: Order | null = null;
+
+  if (await isDatabaseConnected()) {
+    try {
+      const dbOrder = await prisma.order.findFirst({
+        where: { OR: [{ id: orderId }, { orderNumber: orderId }] },
+        include: { items: true },
+      });
+      if (dbOrder) order = mapPrismaOrder(dbOrder);
+    } catch (_) {}
+  }
+
+  if (!order) {
+    order = store.orders.find((o) => o.id === orderId) || null;
+  }
   if (!order) throw new Error("Nie znaleziono zamówienia");
 
   // Edycja dozwolona tylko dopóki zamówienie ma status "NEW" (przed akceptacją przez właścicielkę)
@@ -1344,14 +1743,30 @@ export async function editOrderCustomer(
       : (store.settings.courierCost || 15);
   }
 
-  order.items = newItems;
-  order.subtotalAmount = subtotal;
-  order.shippingCost = shippingCost;
-  order.totalAmount = subtotal + shippingCost;
-  order.updatedAt = new Date().toISOString();
+  const updatedOrder: Order = {
+    ...order,
+    items: newItems,
+    subtotalAmount: subtotal,
+    shippingCost,
+    totalAmount: subtotal + shippingCost,
+    updatedAt: new Date().toISOString(),
+  };
 
+  const idx = store.orders.findIndex((o) => o.id === orderId);
+  if (idx !== -1) {
+    store.orders[idx] = updatedOrder;
+  }
   saveLocalStore(store);
-  return order;
+
+  if (await isDatabaseConnected()) {
+    try {
+      await syncOrderToPrisma(updatedOrder);
+    } catch (e) {
+      console.warn("Błąd synchronizacji edycji zamówienia z bazą:", e);
+    }
+  }
+
+  return updatedOrder;
 }
 
 // Zgłoszenie zwrotu produktów przez klientkę

@@ -4,6 +4,9 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { getOrderById } from "@/lib/store-data";
 import { OrderDetailClient } from "@/components/admin/OrderDetailClient";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface AdminOrderDetailPageProps {
   params: Promise<{
     id: string;

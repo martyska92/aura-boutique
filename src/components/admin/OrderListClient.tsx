@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ShoppingBag,
   Search,
@@ -12,6 +13,8 @@ import {
   Clock,
   MapPin,
   ExternalLink,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { Order, FulfillmentStatus, PaymentStatus } from "@/lib/types";
 
@@ -20,11 +23,14 @@ interface OrderListClientProps {
 }
 
 export function OrderListClient({ initialOrders }: OrderListClientProps) {
+  const router = useRouter();
   const [orders, setOrders] = useState(initialOrders);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusSuccess, setStatusSuccess] = useState<string | null>(null);
 
   // Masowe zaznaczanie zamówień
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
@@ -32,7 +38,14 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
   const [bulkFeedback, setBulkFeedback] = useState<string | null>(null);
 
   const handleStatusChange = async (orderId: string, newStatus: FulfillmentStatus) => {
+    if (updatingId) return; // Zablokuj kolejną zmianę podczas trwającego zapisu
     setUpdatingId(orderId);
+    setStatusError(null);
+    setStatusSuccess(null);
+
+    const prevOrder = orders.find((o) => o.id === orderId);
+    const prevStatus = prevOrder?.fulfillmentStatus;
+
     try {
       const res = await fetch("/api/admin/orders", {
         method: "PATCH",
@@ -42,13 +55,32 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
           fulfillmentStatus: newStatus,
         }),
       });
-      if (res.ok) {
+
+      const data = await res.json();
+
+      if (res.ok && data.success && data.order) {
         setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, fulfillmentStatus: newStatus } : o))
+          prev.map((o) => (o.id === orderId ? data.order : o))
+        );
+        const label = statusBadges[newStatus]?.label || newStatus;
+        setStatusSuccess(`Pomyślnie zmieniono i trwale zapisano status zamówienia ${data.order.orderNumber} na: ${label}.`);
+        setTimeout(() => setStatusSuccess(null), 4000);
+        router.refresh();
+      } else {
+        if (prevStatus) {
+          setOrders((prev) =>
+            prev.map((o) => (o.id === orderId ? { ...o, fulfillmentStatus: prevStatus } : o))
+          );
+        }
+        setStatusError(data.error || "Wystąpił błąd podczas trwałego zapisu zmiany statusu w bazie.");
+      }
+    } catch (err: any) {
+      if (prevStatus) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, fulfillmentStatus: prevStatus } : o))
         );
       }
-    } catch (err) {
-      console.error("Błąd aktualizacji statusu:", err);
+      setStatusError("Błąd sieci lub połączenia z bazą: " + err.message);
     } finally {
       setUpdatingId(null);
     }
@@ -200,6 +232,21 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
 
   return (
     <div className="space-y-6">
+      {/* Komunikaty statusu zapisu do bazy */}
+      {statusSuccess && (
+        <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded text-xs flex items-center gap-2 animate-fadeIn">
+          <span className="font-bold">✓ Sukces:</span>
+          <span>{statusSuccess}</span>
+        </div>
+      )}
+      {statusError && (
+        <div className="p-3 bg-red-50 border border-red-300 text-red-800 rounded text-xs flex items-center gap-2 animate-fadeIn">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+          <span className="font-bold">Błąd zapisu w bazie danych:</span>
+          <span>{statusError}</span>
+        </div>
+      )}
+
       {/* Filtry i wyszukiwarka */}
       <div className="bg-white p-4 sm:p-6 border border-[#E8E2D8] rounded shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div className="flex flex-col sm:flex-row gap-3 flex-1">
@@ -417,18 +464,23 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
                     <div className="pt-2 border-t border-[#FAF6F1] flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] font-medium text-[#6E6259]">Zmień status:</span>
-                        <select
-                          value={o.fulfillmentStatus}
-                          disabled={updatingId === o.id}
-                          onChange={(e) => handleStatusChange(o.id, e.target.value as FulfillmentStatus)}
-                          className={`text-xs py-1 px-2 rounded font-bold border focus:outline-none ${statusBadges[o.fulfillmentStatus]?.class}`}
-                        >
-                          <option value="NEW">NOWE</option>
-                          <option value="PROCESSING">W REALIZACJI</option>
-                          <option value="SHIPPED">WYSŁANE</option>
-                          <option value="DELIVERED">ZREALIZOWANE</option>
-                          <option value="CANCELLED">ANULOWANE</option>
-                        </select>
+                        <div className="flex items-center gap-1.5">
+                          {updatingId === o.id && (
+                            <Loader2 className="w-3.5 h-3.5 text-[#C5A069] animate-spin shrink-0" />
+                          )}
+                          <select
+                            value={o.fulfillmentStatus}
+                            disabled={updatingId === o.id}
+                            onChange={(e) => handleStatusChange(o.id, e.target.value as FulfillmentStatus)}
+                            className={`text-xs py-1 px-2 rounded font-bold border focus:outline-none disabled:opacity-50 ${statusBadges[o.fulfillmentStatus]?.class}`}
+                          >
+                            <option value="NEW">NOWE</option>
+                            <option value="PROCESSING">W REALIZACJI</option>
+                            <option value="SHIPPED">WYSŁANE</option>
+                            <option value="DELIVERED">ZREALIZOWANE</option>
+                            <option value="CANCELLED">ANULOWANE</option>
+                          </select>
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-between pt-1">
@@ -539,18 +591,23 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
                       </td>
 
                       <td className="py-3 px-4">
-                        <select
-                          value={o.fulfillmentStatus}
-                          disabled={updatingId === o.id}
-                          onChange={(e) => handleStatusChange(o.id, e.target.value as FulfillmentStatus)}
-                          className={`text-xs py-1 px-2 rounded font-bold border cursor-pointer focus:outline-none ${statusBadges[o.fulfillmentStatus]?.class}`}
-                        >
-                          <option value="NEW">NOWE</option>
-                          <option value="PROCESSING">W REALIZACJI</option>
-                          <option value="SHIPPED">WYSŁANE</option>
-                          <option value="DELIVERED">ZREALIZOWANE</option>
-                          <option value="CANCELLED">ANULOWANE</option>
-                        </select>
+                        <div className="flex items-center gap-1.5">
+                          {updatingId === o.id && (
+                            <Loader2 className="w-3.5 h-3.5 text-[#C5A069] animate-spin shrink-0" />
+                          )}
+                          <select
+                            value={o.fulfillmentStatus}
+                            disabled={updatingId === o.id}
+                            onChange={(e) => handleStatusChange(o.id, e.target.value as FulfillmentStatus)}
+                            className={`text-xs py-1 px-2 rounded font-bold border cursor-pointer focus:outline-none disabled:opacity-50 ${statusBadges[o.fulfillmentStatus]?.class}`}
+                          >
+                            <option value="NEW">NOWE</option>
+                            <option value="PROCESSING">W REALIZACJI</option>
+                            <option value="SHIPPED">WYSŁANE</option>
+                            <option value="DELIVERED">ZREALIZOWANE</option>
+                            <option value="CANCELLED">ANULOWANE</option>
+                          </select>
+                        </div>
                       </td>
 
                       <td className="py-3 px-4 font-semibold text-[#241D1B]">
