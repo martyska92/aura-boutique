@@ -72,6 +72,48 @@ function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
 }
 
 /**
+ * Formatowanie błędów serwera SMTP do czytelnej, pomocnej instrukcji
+ * Bezpieczeństwo: nigdy nie ujawnia ani nie zapisuje haseł w treści błędu ani w logach.
+ */
+export function formatSmtpError(err: any, config: { smtpHost: string; smtpUser: string }): string {
+  const msg = String(err?.message || err || "");
+  const response = String(err?.response || "");
+  const code = String(err?.code || "");
+  const responseCode = err?.responseCode;
+
+  const is535 =
+    msg.includes("535") ||
+    response.includes("535") ||
+    responseCode === 535 ||
+    code === "EAUTH" ||
+    msg.toLowerCase().includes("invalid login") ||
+    msg.toLowerCase().includes("smtp access disabled") ||
+    msg.toLowerCase().includes("authentication failed");
+
+  if (is535 && config.smtpHost.toLowerCase().includes("wp.pl")) {
+    return (
+      `Błąd serwera poczty WP.pl (kod 535: Invalid login / SMTP access disabled).\n\n` +
+      `Serwer pocztowy WP odrzucił połączenie. Aby aktywować wysyłkę e-mail ze skrzynki WP:\n` +
+      `1. Zaloguj się przez przeglądarkę na https://poczta.wp.pl\n` +
+      `2. Kliknij ikonę koła zębatego (Ustawienia) w prawym górnym rogu → wybierz „Wszystkie opcje”.\n` +
+      `3. Przejdź do zakładki: „Dostęp przez POP3/IMAP/SMTP” (Programy pocztowe).\n` +
+      `4. WŁĄCZ opcję: „Zezwalaj na dostęp do poczty za pomocą protokołów POP3/IMAP/SMTP”. W WP jest ona domyślnie wyłączona ze względów bezpieczeństwa.\n` +
+      `5. Sprawdź, czy wpisane hasło do skrzynki jest prawidłowe (jeśli w profilu WP masz włączoną weryfikację dwuetapową 2FA / kodem SMS, musisz w panelu WP wygenerować „Hasło do aplikacji”).\n` +
+      `6. Loginem musi być pełny adres e-mail: ${config.smtpUser}.`
+    );
+  }
+
+  if (is535) {
+    return (
+      `Błąd autoryzacji serwera SMTP (kod 535: Dane logowania niepoprawne lub dostęp SMTP zablokowany).\n` +
+      `Sprawdź, czy login (${config.smtpUser}) oraz hasło są poprawne i czy w opcjach skrzynki włączono dostęp SMTP.`
+    );
+  }
+
+  return `Błąd serwera SMTP (${config.smtpHost}): ${msg}`;
+}
+
+/**
  * Pobiera aktualną konfigurację wysyłki poczty (z ustawień sklepu w panelu lub zmiennych środowiskowych)
  */
 export function getEmailConfig(customSettings?: Partial<StoreSettings>) {
@@ -97,13 +139,31 @@ export function getEmailConfig(customSettings?: Partial<StoreSettings>) {
 
   const resendApiKey = (settings.resendApiKey || process.env.RESEND_API_KEY || "").trim();
   const smtpHost = (settings.smtpHost || process.env.SMTP_HOST || "smtp.wp.pl").trim();
-  const smtpUser = (settings.smtpUser || process.env.SMTP_USER || "aurazmigrod@wp.pl").trim();
-  const smtpPassword = (settings.smtpPassword || process.env.SMTP_PASS || process.env.SMTP_PASSWORD || "").trim();
+
+  // 1. Pełny adres skrzynki jako login (np. aurazmigrod@wp.pl dla serwera WP.pl)
+  let smtpUser = (settings.smtpUser || process.env.SMTP_USER || "aurazmigrod@wp.pl").trim();
+  if (smtpHost.toLowerCase().includes("wp.pl") && smtpUser && !smtpUser.includes("@")) {
+    smtpUser = `${smtpUser}@wp.pl`;
+  }
+
+  // 2. Wczytywanie hasła ze zmiennych środowiskowych oraz konfiguracji panelu
+  const smtpPassword = (
+    settings.smtpPassword ||
+    process.env.SMTP_PASSWORD ||
+    process.env.SMTP_PASS ||
+    process.env.WP_MAIL_PASSWORD ||
+    process.env.EMAIL_PASSWORD ||
+    ""
+  ).trim();
+
   const smtpPort = Number(settings.smtpPort || process.env.SMTP_PORT || (settings.smtpSecure ? 465 : 587));
   const smtpSecure = settings.smtpSecure !== undefined ? Boolean(settings.smtpSecure) : (smtpPort === 465);
 
+  // 3. Zgodność nadawcy z kontem pocztowym (dla WP.pl adres nadawcy musi odpowiadać zalogowanemu użytkownikowi)
   const senderName = settings.emailSenderName || "AURA Boutique K.B.";
-  const senderAddress = settings.emailSenderAddress || smtpUser || process.env.EMAIL_FROM || "aurazmigrod@wp.pl";
+  const senderAddress = (smtpHost.toLowerCase().includes("wp.pl") || !settings.emailSenderAddress)
+    ? smtpUser
+    : (settings.emailSenderAddress || smtpUser).trim();
   const from = `"${senderName}" <${senderAddress}>`;
 
   const isConfigured = emailProvider === "smtp"
@@ -214,7 +274,10 @@ export async function dispatchEmail(
 
       return { success: true };
     } catch (err: any) {
-      console.error("Błąd wysyłki e-mail przez SMTP:", err);
+      // Bezpieczeństwo: logujemy jedynie treść błędu serwera, bez haseł
+      const formattedError = formatSmtpError(err, config);
+      console.error("Błąd wysyłki e-mail przez SMTP:", err?.message || err);
+
       const failedEmail: OutboxEmail = {
         id: outboxId,
         to: options.to,
@@ -222,14 +285,14 @@ export async function dispatchEmail(
         html: options.html,
         type: options.type,
         status: "FAILED",
-        errorMessage: err.message,
+        errorMessage: formattedError,
         createdAt: new Date().toISOString(),
       };
       if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
       (store as any).emailOutbox.unshift(failedEmail);
       saveLocalStore(store);
 
-      return { success: false, error: `Błąd serwera SMTP (${config.smtpHost}): ${err.message}` };
+      return { success: false, error: formattedError };
     }
   }
 
@@ -271,7 +334,7 @@ export async function dispatchEmail(
 
       return { success: true };
     } catch (err: any) {
-      console.error("Błąd wysyłki e-mail przez Resend:", err);
+      console.error("Błąd wysyłki e-mail przez Resend:", err?.message || err);
       const failedEmail: OutboxEmail = {
         id: outboxId,
         to: options.to,
@@ -510,21 +573,25 @@ export async function sendWelcomeCustomerEmail(
   params: {
     customerEmail: string;
     firstName?: string;
+    force?: boolean;
   },
   customSettings?: Partial<StoreSettings>
 ): Promise<{ success: boolean; notConfigured?: boolean; error?: string; alreadySent?: boolean }> {
   const store = loadLocalStore();
   const normalizedEmail = params.customerEmail.trim().toLowerCase();
 
-  // Zabezpieczenie przed duplikatem: sprawdź czy mail powitalny nie został już wysłany na ten adres
-  const alreadySent = ((store as any).emailOutbox || []).some(
-    (e: OutboxEmail) =>
-      e.to.toLowerCase() === normalizedEmail &&
-      e.type === "WELCOME_CUSTOMER" &&
-      e.status === "SENT"
-  );
-  if (alreadySent) {
-    return { success: true, alreadySent: true };
+  // Zabezpieczenie przed duplikatem: sprawdź czy mail powitalny nie został już wysłany na ten adres ze statusem SENT
+  // Jeśli wysyłka została odrzucona (FAILED) lub nie była skonfigurowana, NIE uznajemy jej za wysłaną i pozwalamy na ponowienie.
+  if (!params.force) {
+    const alreadySent = ((store as any).emailOutbox || []).some(
+      (e: OutboxEmail) =>
+        e.to.toLowerCase() === normalizedEmail &&
+        e.type === "WELCOME_CUSTOMER" &&
+        e.status === "SENT"
+    );
+    if (alreadySent) {
+      return { success: true, alreadySent: true };
+    }
   }
 
   const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";

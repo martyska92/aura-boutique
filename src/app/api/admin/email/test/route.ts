@@ -6,6 +6,31 @@ import { loadLocalStore, saveLocalStore } from "@/lib/store-data";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+export async function GET(req: NextRequest) {
+  const isAuth = await verifyAdminSession();
+  if (!isAuth) {
+    return NextResponse.json({ error: "Brak autoryzacji sesji." }, { status: 401 });
+  }
+
+  const store = loadLocalStore();
+  const customers = store.customers || [];
+  const pendingWelcome = customers.filter((c) => c.welcomeEmailStatus !== "SENT");
+  const failedWelcome = customers.filter((c) => c.welcomeEmailStatus === "FAILED");
+
+  return NextResponse.json({
+    totalCustomers: customers.length,
+    pendingWelcomeCount: pendingWelcome.length,
+    failedWelcomeCount: failedWelcome.length,
+    pendingEmails: pendingWelcome.map((c) => ({
+      email: c.email,
+      name: `${c.firstName} ${c.lastName}`.trim(),
+      status: c.welcomeEmailStatus || "PENDING",
+      error: c.welcomeEmailError,
+      createdAt: c.createdAt,
+    })),
+  });
+}
+
 export async function POST(req: NextRequest) {
   const isAuth = await verifyAdminSession();
   if (!isAuth) {
@@ -41,12 +66,79 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 1. Ponowienie wysyłki powitalnych maili do klientek po naprawieniu konfiguracji
+    if (body.action === "RETRY_FAILED_WELCOME") {
+      const store = loadLocalStore();
+      const customers = store.customers || [];
+      const pendingOrFailed = customers.filter(
+        (c) => c.welcomeEmailStatus !== "SENT"
+      );
+
+      if (pendingOrFailed.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: "Wszystkie zarejestrowane klientki otrzymały już mail powitalny! Brak oczekujących wiadomości.",
+          count: 0,
+        });
+      }
+
+      let succeeded = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const customer of pendingOrFailed) {
+        const res = await sendWelcomeCustomerEmail(
+          {
+            customerEmail: customer.email,
+            firstName: customer.firstName,
+            force: true,
+          },
+          customSettings
+        );
+
+        if (res.success) {
+          succeeded++;
+          customer.welcomeEmailStatus = "SENT";
+          customer.welcomeEmailSentAt = new Date().toISOString();
+          customer.welcomeEmailError = undefined;
+        } else {
+          failed++;
+          customer.welcomeEmailStatus = "FAILED";
+          customer.welcomeEmailError = res.error;
+          if (res.error && !errors.includes(res.error)) {
+            errors.push(res.error);
+          }
+        }
+      }
+
+      saveLocalStore(store);
+
+      if (failed > 0 && succeeded === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Nie udało się wysłać wiadomości powitalnych (${failed} niepowodzeń):\n\n${errors.join("\n\n")}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Pomyślnie wysłano wiadomości powitalne do ${succeeded} klientek!${failed > 0 ? ` (${failed} nie powiodło się)` : ""}`,
+        succeeded,
+        failed,
+      });
+    }
+
+    // 2. Test wiadomości powitalnej lub standardowej
     let result;
     if (body.type === "WELCOME_CUSTOMER") {
       result = await sendWelcomeCustomerEmail(
         {
           customerEmail: targetEmail,
           firstName: body.firstName || "Martyna",
+          force: true,
         },
         customSettings
       );

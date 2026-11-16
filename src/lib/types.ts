@@ -394,6 +394,9 @@ export type CustomerAccount = {
   referralCode: string; // Stały, unikalny kod polecający np. AURA-7K9P2X8M (UNIQUE)
   createdAt: string;
   welcomeDiscountCode?: string;
+  welcomeEmailStatus?: "PENDING" | "SENT" | "FAILED" | "NOT_CONFIGURED";
+  welcomeEmailError?: string;
+  welcomeEmailSentAt?: string;
 };
 
 

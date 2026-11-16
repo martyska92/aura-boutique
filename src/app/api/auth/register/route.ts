@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createCustomerAccount, getCustomerByEmail } from "@/lib/store-data";
+import { createCustomerAccount, getCustomerByEmail, updateCustomerWelcomeEmailStatus } from "@/lib/store-data";
 import { createUserSessionPayload, ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 import { sendWelcomeCustomerEmail } from "@/lib/email-service";
 
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 1. Zapis konta klientki w bazie – ODDZIELONY OD WYSYŁKI MAILA
     const newCustomer = await createCustomerAccount({
       email: normalizedEmail,
       firstName: firstName.trim(),
@@ -54,15 +55,37 @@ export async function POST(req: NextRequest) {
       password: password.trim(),
     });
 
-    // 🌟 Automatyczny mail powitalny wysyłany po pomyślnym utworzeniu konta
-    // Błąd wysyłki maila NIE może usuwać konta ani blokować pomyślnej rejestracji klientki
+    // 2. Oddzielna próba wysyłki maila powitalnego
+    // Błąd wysyłki NIE może usuwać konta ani blokować pomyślnej rejestracji klientki
+    let emailStatus: "SENT" | "FAILED" | "NOT_CONFIGURED" = "NOT_CONFIGURED";
+    let emailError: string | undefined = undefined;
+
     try {
-      await sendWelcomeCustomerEmail({
+      const emailRes = await sendWelcomeCustomerEmail({
         customerEmail: normalizedEmail,
         firstName: newCustomer.firstName,
       });
-    } catch (mailErr) {
-      console.warn("Ostrzeżenie: wysyłka automatycznego maila powitalnego nie powiodła się:", mailErr);
+
+      if (emailRes.success) {
+        emailStatus = "SENT";
+      } else if (emailRes.notConfigured) {
+        emailStatus = "NOT_CONFIGURED";
+        emailError = emailRes.error;
+      } else {
+        emailStatus = "FAILED";
+        emailError = emailRes.error;
+      }
+    } catch (mailErr: any) {
+      emailStatus = "FAILED";
+      emailError = mailErr?.message || "Błąd wysyłki e-mail";
+      console.warn("Ostrzeżenie: wysyłka automatycznego maila powitalnego nie powiodła się:", emailError);
+    }
+
+    // 3. Aktualizacja rzeczywistego statusu powitalnego e-maila w rekordzie klientki
+    try {
+      await updateCustomerWelcomeEmailStatus(newCustomer.id, emailStatus, emailError);
+    } catch (e) {
+      // Ignorujemy błędy aktualizacji statusu
     }
 
     const fullName = `${newCustomer.firstName} ${newCustomer.lastName}`;
@@ -72,6 +95,11 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "Konto zostało pomyślnie utworzone! Witamy w AURA Boutique.",
       welcomeCoupon: newCustomer.welcomeDiscountCode,
+      welcomeEmail: {
+        sent: emailStatus === "SENT",
+        status: emailStatus,
+        error: emailError,
+      },
       redirect: "/konto",
     });
 

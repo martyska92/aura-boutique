@@ -38,7 +38,7 @@ export function StoreSettingsClient({
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  const handleSendTestEmail = async () => {
+  const handleSendTestEmail = async (type: "TEST_EMAIL" | "WELCOME_CUSTOMER" = "TEST_EMAIL") => {
     setIsSendingTest(true);
     setTestResult(null);
     try {
@@ -48,6 +48,7 @@ export function StoreSettingsClient({
         body: JSON.stringify({
           targetEmail: testEmailAddress,
           settings,
+          type,
         }),
       });
       const data = await res.json();
@@ -55,6 +56,31 @@ export function StoreSettingsClient({
         setTestResult({ success: true, message: data.message || "Wiadomość testowa została wysłana!" });
       } else {
         setTestResult({ success: false, message: data.error || "Błąd wysyłki e-mail." });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: "Błąd połączenia: " + err.message });
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
+  const handleRetryWelcomeEmails = async () => {
+    setIsSendingTest(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin/email/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RETRY_FAILED_WELCOME",
+          settings,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestResult({ success: true, message: data.message || "Ponowiono wysyłkę powitalnych e-maili!" });
+      } else {
+        setTestResult({ success: false, message: data.error || "Nie udało się ponowić wysyłki." });
       }
     } catch (err: any) {
       setTestResult({ success: false, message: "Błąd połączenia: " + err.message });
@@ -590,6 +616,25 @@ export function StoreSettingsClient({
                     Bezpieczne połączenie SSL/TLS (zalecane dla portu 465)
                   </label>
                 </div>
+
+                {/* Instrukcja dla poczty WP.pl w przypadku błędu 535 */}
+                <div className="p-3 bg-[#FAF3E8] border border-[#E8D4BA] rounded text-[11px] text-[#6E4F18] space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-semibold text-[#5A3F0E]">
+                    <Info className="w-4 h-4 shrink-0 text-[#C5A069]" />
+                    <span>Ważne dla poczty WP.pl (rozwiązanie błędu 535: Invalid login / SMTP access disabled):</span>
+                  </div>
+                  <ul className="list-disc pl-5 space-y-1 text-[#5A4526] leading-relaxed">
+                    <li>
+                      <strong>Aktywacja dostępu SMTP:</strong> W poczcie WP dostęp przez programy zewnętrzne jest domyślnie zablokowany. Zaloguj się na <a href="https://poczta.wp.pl" target="_blank" rel="noreferrer" className="underline font-bold text-[#8F6B38] hover:text-black">poczta.wp.pl ↗</a>, wejdź w <strong>Ustawienia (koło zębate) → Wszystkie opcje → Dostęp przez POP3/IMAP/SMTP</strong> i włącz suwak dostępu.
+                    </li>
+                    <li>
+                      <strong>Login do skrzynki:</strong> Musi zawierać pełny adres z domeną, np. <code>aurazmigrod@wp.pl</code>.
+                    </li>
+                    <li>
+                      <strong>Weryfikacja dwuetapowa (2FA):</strong> Jeśli włączono zabezpieczenie konta WP kodami SMS/2FA, zwykłe hasło do poczty zostanie odrzucone. Należy wówczas wygenerować w WP <em>Hasło do aplikacji</em> i wkleić je powyżej.
+                    </li>
+                  </ul>
+                </div>
               </div>
             )}
 
@@ -612,33 +657,61 @@ export function StoreSettingsClient({
               </div>
             )}
 
-            {/* Test wysyłki wiadomości e-mail */}
-            <div className="pt-2 border-t border-[#EADFD5] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-1 max-w-md">
+            {/* Test wysyłki wiadomości e-mail oraz ponawianie */}
+            <div className="pt-3 border-t border-[#EADFD5] space-y-3">
+              <label className="text-xs font-semibold text-[#241D1B] block">
+                Test połączenia oraz ponawianie wysyłki powitań
+              </label>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <input
                   type="email"
                   placeholder="Adres do testu (np. aurazmigrod@wp.pl)"
                   value={testEmailAddress}
                   onChange={(e) => setTestEmailAddress(e.target.value)}
-                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] px-3 py-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                  className="w-full sm:w-72 bg-[#FAF6F1] border border-[#EADFD5] px-3 py-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
                 />
-                <button
-                  type="button"
-                  onClick={handleSendTestEmail}
-                  disabled={isSendingTest}
-                  className="px-4 py-2 bg-[#241D1B] text-white text-xs uppercase tracking-wider rounded hover:bg-[#3E3835] transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5 text-white" />
-                  <span>{isSendingTest ? "Wysyłanie..." : "Wyślij Test"}</span>
-                </button>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSendTestEmail("TEST_EMAIL")}
+                    disabled={isSendingTest}
+                    className="px-3.5 py-2 bg-[#241D1B] text-white text-xs uppercase tracking-wider rounded hover:bg-[#3E3835] transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                    title="Wyślij prostą wiadomość sprawdzającą połączenie SMTP"
+                  >
+                    <Send className="w-3.5 h-3.5 text-white" />
+                    <span>{isSendingTest ? "Wysyłanie..." : "Test SMTP"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendTestEmail("WELCOME_CUSTOMER")}
+                    disabled={isSendingTest}
+                    className="px-3.5 py-2 bg-[#FAF6F1] border border-[#C5A069] text-[#7A5B20] text-xs uppercase tracking-wider rounded hover:bg-[#F3EADF] transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                    title="Wyślij podgląd maila powitalnego nowej klientki"
+                  >
+                    <span>Test Powitania</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRetryWelcomeEmails}
+                    disabled={isSendingTest}
+                    className="px-3.5 py-2 bg-[#8F6B38] text-white text-xs uppercase tracking-wider rounded hover:bg-[#78572A] transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                    title="Ponów wysyłkę e-maili powitalnych do zarejestrowanych klientek, których serwer nie obsłużył"
+                  >
+                    <span>Ponów nieudane powitania</span>
+                  </button>
+                </div>
               </div>
 
               {testResult && (
                 <div
-                  className={`text-xs p-2.5 rounded border ${
+                  className={`text-xs p-3.5 rounded border whitespace-pre-line leading-relaxed shadow-xs ${
                     testResult.success
                       ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      : "bg-red-50 text-red-800 border-red-200"
+                      : "bg-red-50 text-red-900 border-red-200 font-mono text-[11px]"
                   }`}
                 >
                   {testResult.message}

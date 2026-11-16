@@ -2740,6 +2740,7 @@ export async function createCustomerAccount(data: {
     referralCode: permanentReferralCode,
     createdAt: new Date().toISOString(),
     welcomeDiscountCode: welcomeCode,
+    welcomeEmailStatus: "PENDING",
   };
 
   store.customers.push(newCustomer);
@@ -2874,6 +2875,29 @@ export function migrateAllReferralCodes(): void {
   }
 
   if (modified) {
+    saveLocalStore(store);
+  }
+}
+
+/**
+ * Aktualizuje status wysyłki wiadomości powitalnej dla zarejestrowanej klientki
+ */
+export async function updateCustomerWelcomeEmailStatus(
+  customerIdOrEmail: string,
+  status: "SENT" | "FAILED" | "NOT_CONFIGURED" | "PENDING",
+  error?: string
+): Promise<void> {
+  const store = loadLocalStore();
+  if (!store.customers) return;
+  const lower = customerIdOrEmail.toLowerCase();
+  const customer = store.customers.find((c) => c.id === customerIdOrEmail || c.email.toLowerCase() === lower);
+  if (customer) {
+    customer.welcomeEmailStatus = status;
+    customer.welcomeEmailError = error;
+    if (status === "SENT") {
+      customer.welcomeEmailSentAt = new Date().toISOString();
+      customer.welcomeEmailError = undefined;
+    }
     saveLocalStore(store);
   }
 }
