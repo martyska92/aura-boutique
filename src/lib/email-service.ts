@@ -1,18 +1,30 @@
 import nodemailer from "nodemailer";
 import { formatDateTimeWarsaw } from "./date-utils";
 import { loadLocalStore, saveLocalStore } from "./store-data";
-import { StoreSettings } from "./types";
+import { StoreSettings, Order } from "./types";
 
 export interface OutboxEmail {
   id: string;
   to: string;
   subject: string;
   html: string;
-  type: "REFERRAL_JOINED" | "REFERRAL_REWARD" | "REVIEW_REWARD" | "INDIVIDUAL_DISCOUNT" | "ORDER_CONFIRMATION" | "PASSWORD_RESET" | "TEST_EMAIL" | "WELCOME_CUSTOMER";
+  type:
+    | "REFERRAL_JOINED"
+    | "REFERRAL_REWARD"
+    | "REVIEW_REWARD"
+    | "INDIVIDUAL_DISCOUNT"
+    | "ORDER_CONFIRMATION"
+    | "ORDER_PLACED"
+    | "ORDER_PAID"
+    | "PASSWORD_RESET"
+    | "TEST_EMAIL"
+    | "WELCOME_CUSTOMER";
   status: "SENT" | "FAILED" | "NOT_CONFIGURED";
   errorMessage?: string;
   createdAt: string;
   sentAt?: string;
+  smtpResponse?: string;
+  messageId?: string;
 }
 
 /**
@@ -124,17 +136,13 @@ export function getEmailConfig(customSettings?: Partial<StoreSettings>) {
   };
 
   // Określ providera poczty:
-  // Jeśli użytkowniczka wybrała "smtp" lub "resend" w ustawieniach, szanujemy ten wybór.
-  // Jeśli nie wybrano jawnie, preferujemy SMTP jeśli podano host/hasło SMTP, a dopiero w ostateczności Resend.
+  // Domyślnie zawsze SMTP (poczta WP.pl lub własny serwer).
+  // Resend jest używany TYLKO wtedy, gdy użytkowniczka jawnie wybierze providera "resend".
   let emailProvider: "smtp" | "resend" = "smtp";
   if (settings.emailProvider === "resend") {
     emailProvider = "resend";
-  } else if (settings.emailProvider === "smtp") {
+  } else {
     emailProvider = "smtp";
-  } else if (settings.smtpPassword || settings.smtpHost) {
-    emailProvider = "smtp";
-  } else if (settings.resendApiKey || process.env.RESEND_API_KEY) {
-    emailProvider = "resend";
   }
 
   const resendApiKey = (settings.resendApiKey || process.env.RESEND_API_KEY || "").trim();
@@ -203,7 +211,15 @@ export async function dispatchEmail(
     type: OutboxEmail["type"];
   },
   customSettings?: Partial<StoreSettings>
-): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  notConfigured?: boolean;
+  error?: string;
+  smtpResponse?: string;
+  messageId?: string;
+  accepted?: any[];
+  alreadySent?: boolean;
+}> {
   const store = loadLocalStore();
   const outboxId = `eml-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   const config = getEmailConfig(customSettings);
@@ -251,7 +267,7 @@ export async function dispatchEmail(
         },
       });
 
-      await transporter.sendMail({
+      const sendInfo = await transporter.sendMail({
         from: config.from,
         to: options.to,
         subject: options.subject,
@@ -267,12 +283,18 @@ export async function dispatchEmail(
         status: "SENT",
         createdAt: new Date().toISOString(),
         sentAt: new Date().toISOString(),
+        smtpResponse: sendInfo.response,
+        messageId: sendInfo.messageId,
       };
       if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
       (store as any).emailOutbox.unshift(successEmail);
       saveLocalStore(store);
 
-      return { success: true };
+      return {
+        success: true,
+        smtpResponse: sendInfo.response,
+        messageId: sendInfo.messageId,
+      };
     } catch (err: any) {
       // Bezpieczeństwo: logujemy jedynie treść błędu serwera, bez haseł
       const formattedError = formatSmtpError(err, config);
@@ -315,7 +337,13 @@ export async function dispatchEmail(
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || `Błąd Resend API (${res.status})`);
+        let rawMsg = errJson.message || `Błąd Resend API (${res.status})`;
+        if (rawMsg.toLowerCase().includes("domain is not verified") || rawMsg.toLowerCase().includes("wp.pl")) {
+          rawMsg = `Resend odrzucił adres nadawcy (${config.from}): ${rawMsg}\n\n` +
+            `Wyjaśnienie: Usługa Resend wymaga zweryfikowania własnej domeny firmowej w DNS (np. kontakt@twojadomena.pl). Nie pozwala na wysyłkę z publicznych skrzynek takich jak @wp.pl czy @gmail.com.\n` +
+            `Rozwiązanie: W panelu w zakładce Ustawienia zmień sposób wysyłki na «Poczta WP.pl / Własny serwer SMTP», wpisz hasło do skrzynki aurazmigrod@wp.pl i kliknij Zapisz.`;
+        }
+        throw new Error(rawMsg);
       }
 
       const successEmail: OutboxEmail = {
@@ -601,7 +629,7 @@ export async function sendWelcomeCustomerEmail(
 
   const content = `
     <div style="font-size: 15px; color: #241D1B; line-height: 1.7;">
-      <p style="font-size: 17px; font-weight: 600; color: #241D1B; margin: 0 0 16px 0;">
+      <p style="font-size: 18px; font-weight: 600; color: #241D1B; margin: 0 0 16px 0;">
         ${greeting}
       </p>
 
@@ -610,17 +638,17 @@ export async function sendWelcomeCustomerEmail(
       </p>
 
       <p style="margin: 0 0 16px 0;">
-        Twoje konto jest już gotowe. Możesz wygodnie robić zakupy, sprawdzać swoje zamówienia i odkrywać nasze nowości.
+        Twoje konto jest już aktywne. Możesz wygodnie składać zamówienia, śledzić status swoich przesyłek na żywo i odkrywać nasze najnowsze kolekcje.
       </p>
 
       <p style="margin: 0 0 24px 0;">
         Życzymy Ci udanych zakupów i stylizacji, w których poczujesz się wyjątkowo!
       </p>
 
-      <!-- Przycisk „Odwiedź butik” -->
-      <div style="text-align: center; margin: 32px 0 32px 0;">
-        <a href="${storeUrl}" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 13px 32px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(197, 160, 105, 0.25);">
-          Odwiedź butik
+      <!-- Przycisk „Przejdź do sklepu” -->
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${storeUrl}/katalog" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(197, 160, 105, 0.25);">
+          Przejdź do sklepu
         </a>
       </div>
 
@@ -631,12 +659,12 @@ export async function sendWelcomeCustomerEmail(
     </div>
   `;
 
-  const html = wrapBoutiqueEmailTemplate("Witaj w AURA Boutique!", content);
+  const html = wrapBoutiqueEmailTemplate("Witaj w AURA BOUTIQUE! 💛", content);
 
   const res = await dispatchEmail(
     {
       to: normalizedEmail,
-      subject: "Witaj w AURA Boutique! ✨ Dziękujemy, że jesteś z nami",
+      subject: "Witaj w AURA BOUTIQUE! 💛",
       html,
       type: "WELCOME_CUSTOMER",
     },
@@ -645,4 +673,277 @@ export async function sendWelcomeCustomerEmail(
 
   return res;
 }
+
+/**
+ * Szablon tabeli rozbicia finansowego zamówienia dla wiadomości e-mail
+ */
+export function renderOrderFinancialBreakdownHtml(order: Order): string {
+  const originalSubtotal =
+    order.originalSubtotal !== undefined
+      ? order.originalSubtotal
+      : order.items.reduce(
+          (sum, it) => sum + (it.originalTotalSnapshot || it.totalSnapshot),
+          0
+        );
+
+  const discountAmount =
+    order.discountAmount !== undefined
+      ? order.discountAmount
+      : Math.max(0, Math.round((originalSubtotal - order.subtotalAmount) * 100) / 100);
+
+  const subtotalAfterDiscount = order.subtotalAmount;
+  const shippingCost = order.shippingCost;
+  const totalAmount = order.totalAmount;
+
+  let promoRows = "";
+  if (discountAmount > 0) {
+    if (order.appliedPromotions && order.appliedPromotions.length > 0) {
+      promoRows = order.appliedPromotions
+        .map(
+          (p) => `
+        <tr>
+          <td style="padding: 6px 0; color: #166534; font-size: 13px;">Rabat (${p.name}${p.code ? ` - kod: ${p.code}` : ""}):</td>
+          <td style="padding: 6px 0; color: #166534; font-weight: 600; text-align: right; font-size: 13px;">-${p.discountAmount.toFixed(2)} PLN</td>
+        </tr>
+      `
+        )
+        .join("");
+    } else {
+      promoRows = `
+        <tr>
+          <td style="padding: 6px 0; color: #166534; font-size: 13px;">Zastosowany rabat:</td>
+          <td style="padding: 6px 0; color: #166534; font-weight: 600; text-align: right; font-size: 13px;">-${discountAmount.toFixed(2)} PLN</td>
+        </tr>
+      `;
+    }
+  }
+
+  const itemsRows = order.items
+    .map((it) => {
+      const hasDiscount =
+        (it.originalUnitPrice &&
+          it.discountedUnitPrice &&
+          it.discountedUnitPrice < it.originalUnitPrice) ||
+        (it.discountAmount && it.discountAmount > 0);
+
+      const unitPriceDisplay = hasDiscount
+        ? `<span style="text-decoration: line-through; color: #857670; margin-right: 6px;">${(
+            it.originalUnitPrice || it.unitPriceSnapshot
+          ).toFixed(2)} PLN</span><strong style="color: #AF884F;">${(
+            it.discountedUnitPrice || it.unitPriceSnapshot
+          ).toFixed(2)} PLN</strong>`
+        : `<span>${it.unitPriceSnapshot.toFixed(2)} PLN</span>`;
+
+      return `
+      <tr style="border-bottom: 1px solid #FAF6F1;">
+        <td style="padding: 10px 0; vertical-align: top;">
+          <strong style="color: #241D1B; font-size: 13px;">${it.productNameSnapshot}</strong>
+          <div style="font-size: 12px; color: #857670;">${it.variantSnapshot}</div>
+          ${
+            it.appliedPromoName
+              ? `<div style="font-size: 11px; color: #166534; margin-top: 2px;">Promocja: ${it.appliedPromoName}</div>`
+              : ""
+          }
+          <div style="font-size: 12px; color: #6E6259; margin-top: 2px;">${it.quantity} szt. × ${unitPriceDisplay}</div>
+        </td>
+        <td style="padding: 10px 0; text-align: right; vertical-align: top; font-weight: 600; color: #241D1B; font-size: 13px;">
+          ${it.totalSnapshot.toFixed(2)} PLN
+        </td>
+      </tr>
+    `;
+    })
+    .join("");
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border-collapse: collapse;">
+      <thead>
+        <tr style="border-bottom: 1px solid #EADFD5;">
+          <th align="left" style="padding-bottom: 8px; font-size: 11px; text-transform: uppercase; color: #857670; letter-spacing: 0.1em;">Zamówiony artykuł</th>
+          <th align="right" style="padding-bottom: 8px; font-size: 11px; text-transform: uppercase; color: #857670; letter-spacing: 0.1em;">Wartość</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows}
+      </tbody>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 16px; border-top: 1px solid #EADFD5; padding-top: 12px;">
+      <tr>
+        <td style="padding: 6px 0; color: #6E6259; font-size: 13px;">Wartość produktów przed rabatem:</td>
+        <td style="padding: 6px 0; color: #241D1B; text-align: right; font-size: 13px;">${originalSubtotal.toFixed(2)} PLN</td>
+      </tr>
+      ${promoRows}
+      <tr>
+        <td style="padding: 6px 0; color: #6E6259; font-size: 13px;">Wartość produktów po rabacie:</td>
+        <td style="padding: 6px 0; color: #241D1B; font-weight: 500; text-align: right; font-size: 13px;">${subtotalAfterDiscount.toFixed(2)} PLN</td>
+      </tr>
+      <tr>
+        <td style="padding: 6px 0; color: #6E6259; font-size: 13px;">Koszt dostawy:</td>
+        <td style="padding: 6px 0; color: #241D1B; text-align: right; font-size: 13px;">${shippingCost === 0 ? "0,00 PLN (Darmowa)" : shippingCost.toFixed(2) + " PLN"}</td>
+      </tr>
+      <tr style="border-top: 2px solid #EADFD5;">
+        <td style="padding: 12px 0 6px; font-size: 15px; font-weight: bold; color: #241D1B;">Łączna kwota do zapłaty:</td>
+        <td style="padding: 12px 0 6px; font-size: 17px; font-weight: bold; color: #AF884F; text-align: right;">${totalAmount.toFixed(2)} PLN</td>
+      </tr>
+    </table>
+  `;
+}
+
+/**
+ * 7. E-mail o przyjęciu zamówienia (po złożeniu przez klientkę - oczekuje na płatność)
+ * Zgodnie z wytycznymi: nie sugeruje otrzymania zapłaty, podaje instrukcję i rzeczywisty status
+ */
+export async function sendOrderPlacedCustomerEmail(
+  order: Order,
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
+  const orderUrl = `${storeUrl}/zamowienie/${order.id}/potwierdzenie${order.accessKey ? `?key=${order.accessKey}` : ""}`;
+  const breakdownHtml = renderOrderFinancialBreakdownHtml(order);
+
+  let paymentInstructions = "";
+  if (order.paymentMethod === "TRADITIONAL_TRANSFER") {
+    const details = order.bankTransferDetails || {
+      recipient: "AURA BOUTIQUE KLAUDIA BIAŁEK",
+      accountNumber: "52 1090 2398 0000 0001 5482 9102",
+      bankName: "Santander Bank Polska S.A.",
+      amount: order.totalAmount,
+      title: `Zamówienie ${order.orderNumber}`,
+      deadlineHours: 72,
+    };
+    paymentInstructions = `
+      <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 18px; margin: 24px 0;">
+        <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; color: #241D1B; margin: 0 0 12px 0;">
+          Dane do wykonania przelewu tradycyjnego (Rezerwacja na ${details.deadlineHours}h):
+        </h3>
+        <table style="width: 100%; font-size: 13px; color: #3E3835; line-height: 1.6;">
+          <tr><td style="width: 140px; color: #857670;">Odbiorca:</td><td><strong>${details.recipient}</strong></td></tr>
+          <tr><td style="color: #857670;">Nr rachunku:</td><td><strong style="font-family: monospace; font-size: 14px; letter-spacing: 1px;">${details.accountNumber}</strong></td></tr>
+          <tr><td style="color: #857670;">Bank:</td><td>${details.bankName || "Santander Bank Polska S.A."}</td></tr>
+          <tr><td style="color: #857670;">Tytuł przelewu:</td><td><strong style="color: #AF884F;">${details.title}</strong></td></tr>
+          <tr><td style="color: #857670;">Kwota do zapłaty:</td><td><strong style="font-size: 15px; color: #241D1B;">${details.amount.toFixed(2)} PLN</strong></td></tr>
+        </table>
+        <p style="margin: 12px 0 0 0; font-size: 11px; color: #857670;">
+          * Po zaksięgowaniu wpłaty zamówienie natychmiast trafi do kompletowania i przygotowania do wysyłki.
+        </p>
+      </div>
+    `;
+  } else if (order.paymentMethod === "COD") {
+    paymentInstructions = `
+      <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 16px; margin: 24px 0;">
+        <p style="margin: 0; font-size: 13px; color: #3E3835;">
+          <strong>Płatność za pobraniem:</strong> Kwotę <strong>${order.totalAmount.toFixed(2)} PLN</strong> uregulujesz u kuriera gotówką lub kartą przy odbiorze przesyłki.
+        </p>
+      </div>
+    `;
+  } else {
+    // Płatność online BLIK / P24
+    paymentInstructions = `
+      <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 18px; margin: 24px 0; text-align: center;">
+        <p style="margin: 0 0 12px 0; font-size: 14px; color: #3E3835;">
+          Status płatności: <strong style="color: #D97706;">Oczekuje na opłacenie online</strong>
+        </p>
+        <p style="margin: 0 0 16px 0; font-size: 12px; color: #6E6259;">
+          Jeśli płatność w oknie operatora nie została jeszcze ukończona, możesz w każdej chwili bezpiecznie sfinalizować transakcję poniższym przyciskiem:
+        </p>
+        <a href="${orderUrl}" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600;">
+          Opłać zamówienie online
+        </a>
+      </div>
+    `;
+  }
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}! ✨
+      </p>
+      <p style="margin: 0 0 16px 0;">
+        Dziękujemy za złożenie zamówienia w butiku AURA. Zostało ono pomyślnie zarejestrowane pod numerem <strong>${order.orderNumber}</strong>.
+      </p>
+
+      ${paymentInstructions}
+
+      <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; color: #241D1B; margin: 24px 0 8px 0; border-bottom: 1px solid #EADFD5; padding-bottom: 6px;">
+        Podsumowanie Twojego zamówienia:
+      </h3>
+      ${breakdownHtml}
+
+      <div style="text-align: center; margin: 30px 0 10px;">
+        <a href="${orderUrl}" style="display: inline-block; border: 1px solid #C5A069; color: #8F6B38; text-decoration: none; padding: 10px 24px; border-radius: 3px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600;">
+          Zobacz szczegóły zamówienia w sklepie
+        </a>
+      </div>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Przyjęto zamówienie ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Przyjęto zamówienie ${order.orderNumber} | AURA Boutique`,
+      html,
+      type: "ORDER_PLACED",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 8. Potwierdzenie otrzymania i zweryfikowania płatności
+ * Wysyłane DOPIERO PO rzeczywistym zweryfikowaniu wpłaty przez P24 lub zaksięgowaniu przez butik
+ */
+export async function sendOrderPaymentConfirmedCustomerEmail(
+  order: Order,
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
+  const orderUrl = `${storeUrl}/zamowienie/${order.id}/potwierdzenie${order.accessKey ? `?key=${order.accessKey}` : ""}`;
+  const breakdownHtml = renderOrderFinancialBreakdownHtml(order);
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}! ✨
+      </p>
+      <div style="background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 4px; padding: 16px; margin: 16px 0;">
+        <p style="margin: 0; font-size: 14px; color: #065F46; font-weight: 600;">
+          ✓ Płatność za zamówienie ${order.orderNumber} została potwierdzona!
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 12px; color: #047857;">
+          Otrzymaliśmy wpłatę w kwocie <strong>${order.totalAmount.toFixed(2)} PLN</strong>. Twoje zamówienie trafiło do kompletowania i przygotowywania do wysyłki.
+        </p>
+      </div>
+
+      <p style="margin: 16px 0;">
+        Gdy paczka zostanie nadana, otrzymasz od nas wiadomość e-mail oraz SMS z numerem przesyłki i linkiem do śledzenia w InPost.
+      </p>
+
+      <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; color: #241D1B; margin: 24px 0 8px 0; border-bottom: 1px solid #EADFD5; padding-bottom: 6px;">
+        Podsumowanie opłaconego zamówienia:
+      </h3>
+      ${breakdownHtml}
+
+      <div style="text-align: center; margin: 30px 0 10px;">
+        <a href="${orderUrl}" style="display: inline-block; background-color: #241D1B; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600;">
+          Śledź status przesyłki
+        </a>
+      </div>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Płatność potwierdzona: ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Potwierdzenie płatności za zamówienie ${order.orderNumber} ✨ | AURA Boutique`,
+      html,
+      type: "ORDER_PAID",
+    },
+    customSettings
+  );
+}
+
 

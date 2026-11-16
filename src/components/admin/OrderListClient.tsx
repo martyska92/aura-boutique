@@ -218,8 +218,10 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
   const statusBadges: Record<FulfillmentStatus, { label: string; class: string }> = {
     NEW: { label: "Nowe", class: "bg-amber-100 text-amber-800 border-amber-300" },
     PROCESSING: { label: "W realizacji", class: "bg-blue-100 text-blue-800 border-blue-300" },
+    READY_FOR_SHIPMENT: { label: "Przygotowane do wysyłki", class: "bg-indigo-100 text-indigo-800 border-indigo-300" },
     SHIPPED: { label: "Wysłane", class: "bg-purple-100 text-purple-800 border-purple-300" },
-    DELIVERED: { label: "Zrealizowane", class: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+    DELIVERED: { label: "Dostarczone", class: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+    COMPLETED: { label: "Zakończone", class: "bg-emerald-100 text-emerald-800 border-emerald-300" },
     CANCELLED: { label: "Anulowane", class: "bg-gray-100 text-gray-700 border-gray-300" },
   };
 
@@ -227,7 +229,9 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
     PENDING: { label: "Oczekuje", class: "text-amber-700 bg-amber-50" },
     PAID: { label: "Opłacone ✓", class: "text-emerald-800 bg-emerald-50 font-bold" },
     FAILED: { label: "Nieudane", class: "text-red-700 bg-red-50" },
+    EXPIRED: { label: "Wygasła", class: "text-zinc-600 bg-zinc-100" },
     REFUNDED: { label: "Zwrócone", class: "text-gray-700 bg-gray-50" },
+    PARTIALLY_REFUNDED: { label: "Częściowy zwrot", class: "text-orange-700 bg-orange-50" },
   };
 
   return (

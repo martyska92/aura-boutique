@@ -23,6 +23,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  CreditCard,
+  ShieldCheck,
 } from "lucide-react";
 import { Order, OrderItem, Product, StoreSettings, ReturnRequest } from "@/lib/types";
 import { BrandLogo } from "@/components/ui/BrandLogo";
@@ -58,6 +60,53 @@ export function CustomerOrderClient({
   const [customerReturnNote, setCustomerReturnNote] = useState("");
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [returnSuccessData, setReturnSuccessData] = useState<ReturnRequest | null>(null);
+
+  // Stan ponawiania płatności online oraz kopiowania danych przelewu
+  const [isInitiatingPayment, setIsInitiatingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [copiedAccount, setCopiedAccount] = useState(false);
+  const [copiedTitle, setCopiedTitle] = useState(false);
+
+  const handleInitiatePayment = async () => {
+    setIsInitiatingPayment(true);
+    setPaymentError(null);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Wystąpił błąd podczas uruchamiania płatności.");
+      }
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+      }
+    } catch (err: any) {
+      setPaymentError(err.message || "Błąd płatności.");
+    } finally {
+      setIsInitiatingPayment(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, setter: (val: boolean) => void) => {
+    navigator.clipboard.writeText(text);
+    setter(true);
+    setTimeout(() => setter(false), 2000);
+  };
+
+  const originalSubtotal =
+    order.originalSubtotal !== undefined
+      ? order.originalSubtotal
+      : order.items.reduce(
+          (sum, it) => sum + (it.originalTotalSnapshot || it.unitPriceSnapshot * it.quantity),
+          0
+        );
+
+  const discountAmount =
+    order.discountAmount !== undefined
+      ? order.discountAmount
+      : Math.max(0, Math.round((originalSubtotal - order.subtotalAmount) * 100) / 100);
 
   const canEdit = order.fulfillmentStatus === "NEW";
 
@@ -332,6 +381,144 @@ export function CustomerOrderClient({
         </div>
 
         {/* ========================================================
+            SEKCJA PŁATNOŚCI: RZECZYWISTY STATUS I DOKOŃCZENIE PŁATNOŚCI
+           ======================================================== */}
+        <div className="space-y-4">
+          {order.paymentStatus === "PAID" ? (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-3 text-emerald-900">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm">
+                  ✓ Płatność została potwierdzona ({order.totalAmount.toFixed(2)} PLN)
+                </p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  Środki zostały zaksięgowane. Twoje zamówienie trafiło do kompletowania ubrań w butiku.
+                </p>
+              </div>
+            </div>
+          ) : order.paymentStatus === "PENDING" && (order.paymentMethod === "BLIK" || order.paymentMethod === "PRZELEWY24") ? (
+            <div className="p-5 bg-gradient-to-r from-[#FFFBEB] to-[#FEF3C7] border-2 border-[#F59E0B]/50 rounded-lg space-y-3.5 shadow-xs">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 shrink-0 border border-amber-200">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-sm font-semibold uppercase tracking-wider text-amber-950">
+                      Oczekuje na płatność online
+                    </h3>
+                    <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                      Zamówienie zostało zarejestrowane. Abyśmy mogły przystąpić do jego kompletowania i wysyłki, opłać kwotę <strong>{order.totalAmount.toFixed(2)} PLN</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-1 rounded border border-amber-300 shrink-0">
+                  DO ZAPŁATY: {order.totalAmount.toFixed(2)} PLN
+                </span>
+              </div>
+
+              {paymentError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded">
+                  {paymentError}
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleInitiatePayment}
+                  disabled={isInitiatingPayment}
+                  className="px-6 py-3 bg-[#241D1B] hover:bg-[#3E3835] text-white text-xs uppercase tracking-widest font-semibold rounded transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <ShieldCheck className="w-4 h-4 text-[#C5A069]" />
+                  <span>{isInitiatingPayment ? "Łączenie z operatorem..." : "Opłać zamówienie (BLIK / Przelewy24)"}</span>
+                </button>
+                <span className="text-[11px] text-amber-800/80">
+                  Bezpieczna płatność przez szyfrowane połączenie operatora
+                </span>
+              </div>
+            </div>
+          ) : order.paymentMethod === "TRADITIONAL_TRANSFER" && order.paymentStatus === "PENDING" ? (
+            <div className="p-5 bg-[#FAF6F1] border-2 border-[#C5A069]/60 rounded-lg space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-[#EADFD5]">
+                <Clock className="w-4 h-4 text-[#C5A069]" />
+                <h3 className="font-serif text-sm font-semibold uppercase tracking-wider text-[#241D1B]">
+                  Instrukcja wpłaty: Tradycyjny przelew bankowy
+                </h3>
+              </div>
+              <p className="text-xs text-[#6E6259]">
+                Twoje produkty pozostają <strong>zarezerwowane przez 72 godziny</strong>. Prosimy o wykonanie przelewu na poniższe dane:
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white p-4 border border-[#EADFD5] rounded">
+                <div>
+                  <span className="text-[#857670] text-[10px] uppercase block">Odbiorca:</span>
+                  <strong className="text-[#241D1B]">
+                    {order.bankTransferDetails?.recipient || settings.companyName || "AURA BOUTIQUE KLAUDIA BIAŁEK"}
+                  </strong>
+                </div>
+
+                <div>
+                  <span className="text-[#857670] text-[10px] uppercase block">Bank:</span>
+                  <span className="text-[#241D1B]">{order.bankTransferDetails?.bankName || "Santander Bank Polska S.A."}</span>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#857670] text-[10px] uppercase block">Numer rachunku bankowego:</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyToClipboard(
+                          order.bankTransferDetails?.accountNumber || "52 1090 2398 0000 0001 5482 9102",
+                          setCopiedAccount
+                        )
+                      }
+                      className="text-[11px] text-[#C5A069] hover:underline flex items-center gap-1 font-medium"
+                    >
+                      {copiedAccount ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedAccount ? "Skopiowano!" : "Kopiuj numer konta"}</span>
+                    </button>
+                  </div>
+                  <strong className="font-mono text-sm sm:text-base text-[#241D1B] tracking-wider block mt-0.5">
+                    {order.bankTransferDetails?.accountNumber || "52 1090 2398 0000 0001 5482 9102"}
+                  </strong>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#857670] text-[10px] uppercase block">Tytuł przelewu:</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(order.orderNumber, setCopiedTitle)}
+                      className="text-[11px] text-[#C5A069] hover:underline flex items-center gap-1 font-medium"
+                    >
+                      {copiedTitle ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedTitle ? "Skopiowano!" : "Kopiuj tytuł"}</span>
+                    </button>
+                  </div>
+                  <strong className="font-mono text-sm text-[#AF884F] block mt-0.5">
+                    Zamówienie {order.orderNumber}
+                  </strong>
+                </div>
+
+                <div>
+                  <span className="text-[#857670] text-[10px] uppercase block">Dokładna kwota:</span>
+                  <strong className="text-base text-[#241D1B] block mt-0.5">
+                    {order.totalAmount.toFixed(2)} PLN
+                  </strong>
+                </div>
+              </div>
+            </div>
+          ) : order.paymentMethod === "COD" ? (
+            <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded-lg text-xs text-[#6E6259]">
+              <strong>Płatność za pobraniem:</strong> Należność w kwocie <strong>{order.totalAmount.toFixed(2)} PLN</strong> uregulujesz u kuriera przy doręczeniu paczki.
+            </div>
+          ) : null}
+        </div>
+
+        {/* ========================================================
             NOWA SEKCJA: MONITOROWANIE PRZESYŁKI NA ŻYWO (INPOST / KURIER)
            ======================================================== */}
         <div className="p-5 sm:p-6 bg-gradient-to-b from-[#FAF6F1] to-[#F5ECE3] border-2 border-[#C5A069]/40 rounded-lg space-y-5">
@@ -495,6 +682,13 @@ export function CustomerOrderClient({
                   </span>
                 </div>
               )}
+            </div>
+          ) : order.paymentStatus === "PENDING" && order.paymentMethod !== "COD" ? (
+            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded text-xs text-amber-900 flex items-center gap-2.5">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                Zamówienie oczekuje na opłacenie. Po zaksięgowaniu wpłaty butik natychmiast rozpocznie kompletowanie i przygotowywanie Twojej paczki.
+              </span>
             </div>
           ) : (
             <div className="p-3 bg-white border border-[#EADFD5] rounded text-xs text-[#6E6259] flex items-center gap-2.5">
@@ -677,53 +871,112 @@ export function CustomerOrderClient({
           </h3>
 
           <div className="space-y-3">
-            {order.items.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between gap-4 py-2 border-b border-[#FAF6F1]"
-              >
-                <div className="flex items-center gap-3">
-                  {item.productImageUrl && (
-                    <div className="relative w-12 h-14 bg-[#F7EFE8] rounded overflow-hidden shrink-0">
-                      <Image
-                        src={item.productImageUrl}
-                        alt={item.productNameSnapshot}
-                        fill
-                        className="object-cover"
-                        unoptimized={Boolean(item.productImageUrl.startsWith("data:"))}
-                      />
+            {order.items.map((item) => {
+              const hasDiscount =
+                (item.originalUnitPrice &&
+                  item.discountedUnitPrice &&
+                  item.discountedUnitPrice < item.originalUnitPrice) ||
+                (item.discountAmount && item.discountAmount > 0);
+
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-4 py-2 border-b border-[#FAF6F1]"
+                >
+                  <div className="flex items-center gap-3">
+                    {item.productImageUrl && (
+                      <div className="relative w-12 h-14 bg-[#F7EFE8] rounded overflow-hidden shrink-0">
+                        <Image
+                          src={item.productImageUrl}
+                          alt={item.productNameSnapshot}
+                          fill
+                          className="object-cover"
+                          unoptimized={Boolean(item.productImageUrl.startsWith("data:"))}
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <h4 className="font-serif font-medium text-xs sm:text-sm text-[#241D1B]">
+                        {item.productNameSnapshot}
+                      </h4>
+                      <p className="text-[11px] text-[#857670] mt-0.5">{item.variantSnapshot}</p>
+                      {item.appliedPromoName && (
+                        <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                          Promocja: {item.appliedPromoName}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-[#6E6259]">
+                        {item.quantity} szt. x{" "}
+                        {hasDiscount ? (
+                          <>
+                            <span className="line-through text-[#857670] mr-1.5">
+                              {(item.originalUnitPrice || item.unitPriceSnapshot).toFixed(2)} zł
+                            </span>
+                            <span className="font-semibold text-[#AF884F]">
+                              {(item.discountedUnitPrice || item.unitPriceSnapshot).toFixed(2)} zł
+                            </span>
+                          </>
+                        ) : (
+                          <span>{item.unitPriceSnapshot.toFixed(2)} zł</span>
+                        )}
+                      </p>
                     </div>
-                  )}
-                  <div>
-                    <h4 className="font-serif font-medium text-xs sm:text-sm text-[#241D1B]">
-                      {item.productNameSnapshot}
-                    </h4>
-                    <p className="text-[11px] text-[#857670] mt-0.5">{item.variantSnapshot}</p>
-                    <p className="text-[11px] text-[#6E6259]">
-                      {item.quantity} szt. x {item.unitPriceSnapshot.toFixed(2)} zł
-                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    {hasDiscount && item.originalTotalSnapshot && (
+                      <span className="block text-[11px] line-through text-[#857670]">
+                        {item.originalTotalSnapshot.toFixed(2)} PLN
+                      </span>
+                    )}
+                    <span className="font-semibold text-xs sm:text-sm text-[#241D1B]">
+                      {item.totalSnapshot.toFixed(2)} PLN
+                    </span>
                   </div>
                 </div>
-                <span className="font-semibold text-xs sm:text-sm text-[#241D1B]">
-                  {item.totalSnapshot.toFixed(2)} PLN
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <div className="pt-4 space-y-1.5 text-xs text-[#6E6259]">
+          {/* Podsumowanie kwotowe ze szczegółowym rozbiciem cenowym */}
+          <div className="pt-4 space-y-2 text-xs text-[#6E6259]">
             <div className="flex justify-between">
-              <span>Wartość produktów:</span>
+              <span>Wartość produktów przed rabatem:</span>
+              <span className="font-medium text-[#241D1B]">{originalSubtotal.toFixed(2)} PLN</span>
+            </div>
+
+            {discountAmount > 0 && (
+              <>
+                {order.appliedPromotions && order.appliedPromotions.length > 0 ? (
+                  order.appliedPromotions.map((p, idx) => (
+                    <div key={idx} className="flex justify-between text-emerald-700 font-medium">
+                      <span>Rabat ({p.name}{p.code ? ` • kod: ${p.code}` : ""}):</span>
+                      <span>-{p.discountAmount.toFixed(2)} PLN</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Naliczony rabat:</span>
+                    <span>-{discountAmount.toFixed(2)} PLN</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex justify-between">
+              <span>Wartość produktów po rabacie:</span>
               <span className="font-medium text-[#241D1B]">{order.subtotalAmount.toFixed(2)} PLN</span>
             </div>
+
             <div className="flex justify-between">
               <span>Koszt dostawy:</span>
               <span className="font-medium text-[#241D1B]">
                 {order.shippingCost === 0 ? "Darmowa dostawa" : `${order.shippingCost.toFixed(2)} PLN`}
               </span>
             </div>
+
             <div className="flex justify-between pt-2 border-t border-[#EADFD5] text-sm font-semibold text-[#241D1B]">
-              <span>Łączna kwota zamówienia:</span>
+              <span>Łączna kwota do zapłaty:</span>
               <span className="text-base text-[#AF884F]">{order.totalAmount.toFixed(2)} PLN</span>
             </div>
           </div>

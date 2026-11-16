@@ -93,8 +93,41 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
   const getInPostTrackingUrl = (code: string) =>
     `https://inpost.pl/sledzenie-przesylek?number=${encodeURIComponent(code)}`;
 
+  const originalSubtotal =
+    order.originalSubtotal !== undefined
+      ? order.originalSubtotal
+      : order.items.reduce(
+          (sum, it) => sum + (it.originalTotalSnapshot || it.unitPriceSnapshot * it.quantity),
+          0
+        );
+
+  const discountAmount =
+    order.discountAmount !== undefined
+      ? order.discountAmount
+      : Math.max(0, Math.round((originalSubtotal - order.subtotalAmount) * 100) / 100);
+
+  const hasStatusDiscrepancy =
+    paymentStatus === "PENDING" &&
+    (fulfillmentStatus === "READY_FOR_SHIPMENT" || fulfillmentStatus === "SHIPPED");
+
   return (
     <div className="space-y-8 pb-16">
+      {/* Ostrzeżenie o rozbieżności statusów */}
+      {hasStatusDiscrepancy && (
+        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-lg text-amber-900 text-xs flex items-start gap-3 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <strong className="text-sm font-semibold text-amber-950">
+              Uwaga na status realizacji: Zamówienie oczekuje na wpłatę!
+            </strong>
+            <p className="leading-relaxed">
+              To zamówienie ma status realizacji <strong>"{fulfillmentStatus}"</strong>, podczas gdy płatność jest oznaczona jako <strong>"OCZEKUJE NA WPŁATĘ"</strong>.
+              Upewnij się, że środki zostały rzeczywiście zaksięgowane na rachunku bankowym lub potwierdzone przez operatora Przelewy24 przed nadaniem paczki klientce.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Pasek górny */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EADFD5]">
         <div className="flex items-center gap-3">
@@ -159,51 +192,110 @@ export function OrderDetailClient({ order: initialOrder }: OrderDetailClientProp
             </h2>
 
             <div className="divide-y divide-[#EADFD5]">
-              {order.items.map((item) => (
-                <div key={item.id} className="py-4 flex items-center justify-between gap-4 first:pt-0">
-                  <div className="flex items-center gap-3">
-                    {item.productImageUrl && (
-                      <div className="relative w-14 h-20 bg-[#FAF6F1] border border-[#EADFD5] overflow-hidden shrink-0 rounded-xs">
-                        <Image
-                          src={item.productImageUrl}
-                          alt={item.productNameSnapshot}
-                          fill
-                          className="object-cover"
-                          sizes="56px"
-                          unoptimized={item.productImageUrl.startsWith("data:")}
-                        />
+              {order.items.map((item) => {
+                const hasDiscount =
+                  (item.originalUnitPrice &&
+                    item.discountedUnitPrice &&
+                    item.discountedUnitPrice < item.originalUnitPrice) ||
+                  (item.discountAmount && item.discountAmount > 0);
+
+                return (
+                  <div key={item.id} className="py-4 flex items-center justify-between gap-4 first:pt-0">
+                    <div className="flex items-center gap-3">
+                      {item.productImageUrl && (
+                        <div className="relative w-14 h-20 bg-[#FAF6F1] border border-[#EADFD5] overflow-hidden shrink-0 rounded-xs">
+                          <Image
+                            src={item.productImageUrl}
+                            alt={item.productNameSnapshot}
+                            fill
+                            className="object-cover"
+                            sizes="56px"
+                            unoptimized={item.productImageUrl.startsWith("data:")}
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-serif font-medium text-sm text-[#241D1B]">
+                          {item.productNameSnapshot}
+                        </h3>
+                        <p className="text-xs text-[#6E6259] mt-0.5 font-mono">
+                          {item.variantSnapshot}
+                        </p>
+                        {item.appliedPromoName && (
+                          <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                            Promocja: {item.appliedPromoName}
+                          </p>
+                        )}
+                        <p className="text-xs text-[#6E6259] mt-0.5">
+                          {item.quantity} szt. x{" "}
+                          {hasDiscount ? (
+                            <>
+                              <span className="line-through text-[#857670] mr-1.5">
+                                {(item.originalUnitPrice || item.unitPriceSnapshot).toFixed(2)} zł
+                              </span>
+                              <span className="font-semibold text-[#AF884F]">
+                                {(item.discountedUnitPrice || item.unitPriceSnapshot).toFixed(2)} zł
+                              </span>
+                            </>
+                          ) : (
+                            <span>{item.unitPriceSnapshot.toFixed(2)} zł</span>
+                          )}
+                        </p>
                       </div>
-                    )}
-                    <div>
-                      <h3 className="font-serif font-medium text-sm text-[#241D1B]">
-                        {item.productNameSnapshot}
-                      </h3>
-                      <p className="text-xs text-[#6E6259] mt-0.5 font-mono">
-                        {item.variantSnapshot}
-                      </p>
-                      <p className="text-xs text-[#6E6259] mt-0.5">
-                        {item.quantity} szt. x {item.unitPriceSnapshot.toFixed(2)} zł
-                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      {hasDiscount && item.originalTotalSnapshot && (
+                        <span className="block text-xs line-through text-[#857670]">
+                          {item.originalTotalSnapshot.toFixed(2)} zł
+                        </span>
+                      )}
+                      <span className="font-semibold text-sm text-[#241D1B]">
+                        {item.totalSnapshot.toFixed(2)} zł
+                      </span>
                     </div>
                   </div>
-
-                  <span className="font-semibold text-sm text-[#241D1B]">
-                    {item.totalSnapshot.toFixed(2)} zł
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {/* Podsumowanie finansowe */}
+            {/* Podsumowanie finansowe (pełne rozbicie cenowe i źródło rabatu) */}
             <div className="pt-4 border-t border-[#EADFD5] space-y-2 text-xs text-[#6E6259]">
               <div className="flex justify-between">
-                <span>Wartość produktów:</span>
+                <span>Wartość produktów przed rabatem:</span>
+                <span className="font-medium text-[#241D1B]">{originalSubtotal.toFixed(2)} zł</span>
+              </div>
+
+              {discountAmount > 0 && (
+                <>
+                  {order.appliedPromotions && order.appliedPromotions.length > 0 ? (
+                    order.appliedPromotions.map((p, idx) => (
+                      <div key={idx} className="flex justify-between text-emerald-700 font-medium">
+                        <span>Rabat ({p.name}{p.code ? ` • kod: ${p.code}` : ""}):</span>
+                        <span>-{p.discountAmount.toFixed(2)} zł</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>Naliczony rabat:</span>
+                      <span>-{discountAmount.toFixed(2)} zł</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="flex justify-between">
+                <span>Wartość produktów po rabacie:</span>
                 <span className="font-medium text-[#241D1B]">{order.subtotalAmount.toFixed(2)} zł</span>
               </div>
+
               <div className="flex justify-between">
                 <span>Koszt wysyłki:</span>
-                <span className="font-medium text-[#241D1B]">{order.shippingCost.toFixed(2)} zł</span>
+                <span className="font-medium text-[#241D1B]">
+                  {order.shippingCost === 0 ? "0,00 zł (Darmowa)" : `${order.shippingCost.toFixed(2)} zł`}
+                </span>
               </div>
+
               <div className="flex justify-between pt-2 border-t border-[#EADFD5] text-sm font-semibold text-[#241D1B]">
                 <span>Łącznie do zapłaty:</span>
                 <span className="text-base text-[#AF884F]">{order.totalAmount.toFixed(2)} zł</span>

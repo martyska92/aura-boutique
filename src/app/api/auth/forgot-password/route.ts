@@ -37,25 +37,26 @@ export async function POST(req: NextRequest) {
     // Zapisujemy kod ważny przez 15 minut
     await savePasswordResetCode(normalizedEmail, resetCode, 15 * 60 * 1000);
 
-    // Jeśli skonfigurowany jest serwis wysyłki e-maili (Resend)
-    if (process.env.RESEND_API_KEY) {
-      try {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          },
-          body: JSON.stringify({
-            from: "AURA Boutique <kontakt@auraboutique.pl>",
-            to: [normalizedEmail],
-            subject: "Kod do zresetowania hasła w AURA Boutique",
-            text: `Dzień dobry,\n\nTwój jednorazowy kod do zmiany hasła w butiku AURA to:\n\n${resetCode}\n\nKod jest ważny przez 15 minut.\nJeśli to nie Ty prosiłaś o reset hasła, zignoruj tę wiadomość.`,
-          }),
-        });
-      } catch (mailErr) {
-        console.error("Błąd wysyłki e-mail resetu:", mailErr);
-      }
+    // Wysłanie kodu resetującego przez skonfigurowaną usługę e-mail (SMTP / Resend)
+    try {
+      const { dispatchEmail } = await import("@/lib/email-service");
+      await dispatchEmail({
+        to: normalizedEmail,
+        subject: "Kod do zresetowania hasła w AURA Boutique",
+        html: `
+          <div style="font-family: Georgia, serif; max-width: 500px; margin: 0 auto; padding: 24px; color: #241D1B; line-height: 1.6;">
+            <h2 style="font-size: 20px; font-weight: normal; margin-top: 0; color: #241D1B;">Zresetuj hasło do konta AURA</h2>
+            <p style="font-size: 14px; color: #554D47;">Otrzymaliśmy prośbę o zmianę hasła do Twojego konta w butiku AURA. Twój jednorazowy kod weryfikacyjny to:</p>
+            <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 16px; text-align: center; margin: 24px 0;">
+              <span style="font-size: 28px; font-family: monospace; letter-spacing: 6px; font-weight: bold; color: #8F6B38;">${resetCode}</span>
+            </div>
+            <p style="font-size: 12px; color: #7A6458;">Kod jest ważny przez 15 minut. Jeśli to nie Ty prosiłaś o zmianę hasła, zignoruj tę wiadomość – Twoje dotychczasowe hasło pozostaje bezpieczne.</p>
+          </div>
+        `,
+        type: "PASSWORD_RESET" as any,
+      });
+    } catch (mailErr) {
+      console.error("Błąd wysyłki e-mail resetu:", mailErr);
     }
 
     const recipientName = isOwner

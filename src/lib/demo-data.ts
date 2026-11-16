@@ -358,6 +358,18 @@ export const initialStoreSettings: StoreSettings = {
   courierCost: 15.0,
   inpostLockerCost: 13.0,
   localPickupCost: 0.0,
+  emailProvider: "smtp",
+  smtpHost: "smtp.wp.pl",
+  smtpPort: 465,
+  smtpUser: "aurazmigrod@wp.pl",
+  smtpSecure: true,
+  emailSenderName: "AURA Boutique K.B.",
+  emailSenderAddress: "aurazmigrod@wp.pl",
+  bankAccountNumber: "52 1090 2398 0000 0001 5482 9102",
+  bankName: "Santander Bank Polska S.A.",
+  bankAccountRecipient: "AURA BOUTIQUE KLAUDIA BIAŁEK",
+  traditionalTransferEnabled: true,
+  codEnabled: false,
   termsAndConditions: `§ 1. Postanowienia ogólne i dane Sprzedawcy
 1. Niniejszy Regulamin określa zasady korzystania ze sklepu internetowego AURA Boutique K.B. oraz warunki składania zamówień i zawierania umów sprzedaży na odległość.
 2. Właścicielem sklepu internetowego AURA Boutique K.B. jest:

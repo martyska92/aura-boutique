@@ -56,26 +56,26 @@ export async function POST(req: NextRequest) {
     store.contactMessages.unshift(newMessage);
     saveLocalStore(store);
 
-    // 2. Jeśli jest skonfigurowana usługa wysyłki maili (np. RESEND_API_KEY lub SMTP)
-    if (process.env.RESEND_API_KEY) {
-      try {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          },
-          body: JSON.stringify({
-            from: "AURA Boutique <kontakt@auraboutique.pl>",
-            to: [OWNER_EMAIL],
-            reply_to: newMessage.email,
-            subject: `Nowa wiadomość od klientki: ${newMessage.name}`,
-            text: `Imię: ${newMessage.name}\nEmail: ${newMessage.email}\nData: ${newMessage.createdAt}\n\nWiadomość:\n${newMessage.message}`,
-          }),
-        });
-      } catch (mailErr) {
-        console.error("Błąd wysyłki e-mail przez Resend:", mailErr);
-      }
+    // 2. Wysłanie powiadomienia do właścicielki przez skonfigurowany kanał e-mail (SMTP / Resend)
+    try {
+      const { dispatchEmail } = await import("@/lib/email-service");
+      await dispatchEmail({
+        to: OWNER_EMAIL,
+        subject: `Nowa wiadomość od klientki: ${newMessage.name}`,
+        html: `
+          <div style="font-family: Georgia, serif; max-width: 500px; margin: 0 auto; padding: 20px; color: #241D1B; line-height: 1.6;">
+            <h2 style="font-size: 18px; margin-top: 0;">Wiadomość z formularza kontaktowego</h2>
+            <p><strong>Klientka:</strong> ${newMessage.name}</p>
+            <p><strong>E-mail:</strong> <a href="mailto:${newMessage.email}">${newMessage.email}</a></p>
+            <p><strong>Data:</strong> ${newMessage.createdAt}</p>
+            <hr style="border: 0; border-top: 1px solid #EADFD5; margin: 20px 0;" />
+            <p style="white-space: pre-line;">${newMessage.message}</p>
+          </div>
+        `,
+        type: "CONTACT_MESSAGE" as any,
+      });
+    } catch (mailErr) {
+      console.error("Błąd wysyłki e-mail kontaktu:", mailErr);
     }
 
     return NextResponse.json({

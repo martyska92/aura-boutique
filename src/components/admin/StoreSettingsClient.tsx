@@ -28,7 +28,14 @@ export function StoreSettingsClient({
   isNeonConnected,
 }: StoreSettingsClientProps) {
   const router = useRouter();
-  const [settings, setSettings] = useState<StoreSettings>(initialSettings);
+  const [settings, setSettings] = useState<StoreSettings>({
+    emailProvider: "smtp",
+    smtpHost: "smtp.wp.pl",
+    smtpPort: 465,
+    smtpUser: "aurazmigrod@wp.pl",
+    smtpSecure: true,
+    ...initialSettings,
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -654,6 +661,10 @@ export function StoreSettingsClient({
                 <p className="text-[11px] text-[#7A6458]">
                   Klucz API możesz wygenerować bezpłatnie na <a href="https://resend.com" target="_blank" className="text-[#C5A069] underline">resend.com</a>.
                 </p>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900">
+                  <strong>Ważna uwaga:</strong> Usługa Resend API nie pozwala na wysyłkę z darmowych domen publicznych takich jak <code>@wp.pl</code> czy <code>@gmail.com</code> (wymaga dodania i weryfikacji wpisów DNS własnej domeny firmowej).
+                  Jeśli korzystasz ze skrzynki w WP (np. <code>aurazmigrod@wp.pl</code>), zmień powyżej sposób wysyłki na <strong>„Poczta WP.pl / Własny serwer SMTP”</strong>.
+                </div>
               </div>
             )}
 

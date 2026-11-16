@@ -1832,7 +1832,19 @@ export async function updateStoreSettings(
   settings: Partial<StoreSettings>
 ): Promise<StoreSettings> {
   const store = loadLocalStore();
-  store.settings = { ...store.settings, ...settings };
+  const existingPassword = store.settings?.smtpPassword;
+  const existingResendKey = store.settings?.resendApiKey;
+
+  const cleanSettings = { ...settings };
+  // Nie nadpisuj hasła pustym ciągiem, jeśli nie zostało podane nowe
+  if (!cleanSettings.smtpPassword && existingPassword) {
+    cleanSettings.smtpPassword = existingPassword;
+  }
+  if (!cleanSettings.resendApiKey && existingResendKey) {
+    cleanSettings.resendApiKey = existingResendKey;
+  }
+
+  store.settings = { ...store.settings, ...cleanSettings };
   saveLocalStore(store);
   return store.settings;
 }

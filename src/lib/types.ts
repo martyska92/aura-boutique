@@ -68,9 +68,22 @@ export type Product = {
 };
 
 export type ShippingMethod = 'INPOST_LOCKER' | 'COURIER' | 'LOCAL_PICKUP';
-export type PaymentMethod = 'PRZELEWY24' | 'BLIK' | 'TRADITIONAL_TRANSFER';
-export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
-export type FulfillmentStatus = 'NEW' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+export type PaymentMethod = 'PRZELEWY24' | 'BLIK' | 'TRADITIONAL_TRANSFER' | 'COD';
+export type PaymentStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'FAILED'
+  | 'EXPIRED'
+  | 'REFUNDED'
+  | 'PARTIALLY_REFUNDED';
+export type FulfillmentStatus =
+  | 'NEW'
+  | 'PROCESSING'
+  | 'READY_FOR_SHIPMENT'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'COMPLETED'
+  | 'CANCELLED';
 
 export type ReturnItem = {
   orderItemId: string;
@@ -100,9 +113,14 @@ export type OrderItem = {
   variantId?: string;
   productNameSnapshot: string;
   variantSnapshot: string;
-  unitPriceSnapshot: number;
+  unitPriceSnapshot: number; // cena katalogowa bazowa
+  originalUnitPrice?: number; // cena jednostkowa przed rabatem
+  discountedUnitPrice?: number; // cena jednostkowa po uwzględnieniu rabatu
   quantity: number;
-  totalSnapshot: number;
+  totalSnapshot: number; // suma końcowa za pozycję po rabacie
+  originalTotalSnapshot?: number; // suma za pozycję przed rabatem
+  discountAmount?: number; // wartość rabatu na tej pozycji
+  appliedPromoName?: string; // nazwa zastosowanej promocji lub kodu
   productImageUrl?: string;
 };
 
@@ -117,6 +135,7 @@ export type AppliedPromotionSummary = {
 export type Order = {
   id: string;
   orderNumber: string;
+  accessKey?: string; // bezpieczny unikalny token dostępu dla klientki (np. gościa)
   customerFirstName: string;
   customerLastName: string;
   customerEmail: string;
@@ -129,11 +148,15 @@ export type Order = {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   fulfillmentStatus: FulfillmentStatus;
+  paidAt?: string; // data zaksięgowania / weryfikacji wpłaty
+  paymentOperator?: string; // np. "PRZELEWY24" | "TRADITIONAL_TRANSFER" | "COD"
+  p24SessionId?: string;
+  p24OrderId?: number;
   trackingNumber?: string;
   inpostShipmentId?: string;
-  subtotalAmount: number;
-  discountAmount?: number;
-  originalSubtotal?: number;
+  subtotalAmount: number; // wartość produktów po rabacie
+  discountAmount?: number; // łączna kwota rabatu
+  originalSubtotal?: number; // wartość produktów przed rabatem
   shippingCost: number;
   totalAmount: number;
   customerNotes?: string;
@@ -149,6 +172,14 @@ export type Order = {
   };
   referralCodeUsed?: string;
   referrerEmail?: string;
+  bankTransferDetails?: {
+    recipient: string;
+    accountNumber: string;
+    bankName?: string;
+    amount: number;
+    title: string;
+    deadlineHours: number;
+  };
   createdAt: string;
   updatedAt: string;
 };
@@ -198,6 +229,13 @@ export type StoreSettings = {
   p24CrcKey?: string;
   p24ApiKey?: string;
   p24Sandbox: boolean;
+  p24Enabled?: boolean;
+  // Płatności tradycyjne i za pobraniem
+  bankAccountNumber?: string;
+  bankName?: string;
+  bankAccountRecipient?: string;
+  traditionalTransferEnabled?: boolean;
+  codEnabled?: boolean;
 };
 
 export type CartItem = {
