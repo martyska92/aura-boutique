@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import React from "react";
 
 interface BrandLogoProps {
@@ -14,27 +13,68 @@ export function BrandLogo({
   className = "",
   size = "md",
   isLink = true,
-  withAura = false,
   variant = "default",
 }: BrandLogoProps) {
   const heightClasses = {
-    sm: "h-8 sm:h-10",
-    md: "h-11 sm:h-18 lg:h-20",
-    lg: "h-18 sm:h-24",
-    xl: "h-22 sm:h-32 lg:h-40",
+    sm: "h-7 sm:h-9",
+    md: "h-10 sm:h-14 lg:h-16",
+    lg: "h-14 sm:h-20",
+    xl: "h-20 sm:h-28",
   };
 
   const content = (
-    <div className={`relative ${heightClasses[size]} max-w-full aspect-[983/374] shrink-0 flex items-center justify-center`}>
-      {/* Czysty, elegancki logotyp AURA BOUTIQUE bez złotej poświaty */}
-      <Image
-        src="/images/brand/aura-logo.png"
-        alt="AURA Boutique"
-        fill
-        priority
-        sizes="(max-width: 640px) 240px, (max-width: 1024px) 340px, 420px"
-        className="relative z-10 object-contain object-center transition-all duration-300"
-      />
+    <div
+      className={`relative ${heightClasses[size]} max-w-full aspect-[460/150] shrink-0 flex items-center justify-center text-[#241D1B]`}
+      aria-label="AURA Boutique K.B."
+    >
+      {/* 100% płaski, ostry logotyp wektorowy 2D – bez 3D, bez gradientów, bez złotej poświaty */}
+      <svg
+        viewBox="0 0 460 150"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-full h-full object-contain select-none"
+      >
+        <text
+          x="50%"
+          y="74"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="currentColor"
+          className="font-serif font-bold tracking-[0.22em] text-[70px]"
+          style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+        >
+          AURA
+        </text>
+        <line
+          x1="55"
+          y1="124"
+          x2="135"
+          y2="124"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeOpacity="0.45"
+        />
+        <text
+          x="50%"
+          y="124"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="currentColor"
+          className="font-sans font-semibold tracking-[0.46em] text-[14px] uppercase"
+          style={{ fillOpacity: 0.85 }}
+        >
+          BOUTIQUE
+        </text>
+        <line
+          x1="325"
+          y1="124"
+          x2="405"
+          y2="124"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeOpacity="0.45"
+        />
+      </svg>
     </div>
   );
 

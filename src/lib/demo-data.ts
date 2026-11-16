@@ -344,7 +344,7 @@ export const initialStoreSettings: StoreSettings = {
   id: "default",
   boutiqueName: "AURA Boutique K.B.",
   companyName: "AURA Boutique K.B. Karolina Borkowska",
-  nip: "9151234567",
+  nip: "6131569301",
   regon: "021987654",
   address: "Żmigród | ul. Poprzeczna 3/1A",
   phone: "+48 789 123 456",
@@ -363,7 +363,7 @@ export const initialStoreSettings: StoreSettings = {
 2. Właścicielem sklepu internetowego AURA Boutique K.B. jest:
 AURA Boutique K.B. Karolina Borkowska
 Adres butiku stacjonarnego: ul. Poprzeczna 3/1A, 55-140 Żmigród, woj. dolnośląskie
-NIP: 9151234567, REGON: 021987654
+NIP: 6131569301, REGON: 021987654
 Adres poczty elektronicznej: kontakt@auraboutique.pl, Telefon: +48 789 123 456
 
 § 2. Zasady składania zamówień i zakupy bez rejestracji
@@ -386,7 +386,7 @@ Adres poczty elektronicznej: kontakt@auraboutique.pl, Telefon: +48 789 123 456
 AURA Boutique K.B.
 
 1. Administrator Danych Osobowych
-Administratorem danych osobowych klientek sklepu internetowego oraz butiku stacjonarnego jest AURA Boutique K.B. Karolina Borkowska, ul. Poprzeczna 3/1A, 55-140 Żmigród, NIP: 9151234567, e-mail: kontakt@auraboutique.pl, telefon: +48 789 123 456.
+Administratorem danych osobowych klientek sklepu internetowego oraz butiku stacjonarnego jest AURA Boutique K.B. Karolina Borkowska, ul. Poprzeczna 3/1A, 55-140 Żmigród, NIP: 6131569301, e-mail: kontakt@auraboutique.pl, telefon: +48 789 123 456.
 
 2. Cele i podstawy przetwarzania danych
 Dane osobowe przetwarzane są w celu:

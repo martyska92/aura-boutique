@@ -740,8 +740,17 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
     field: keyof ProductVariant,
     value: any
   ) => {
-    setVariants(
-      variants.map((v) => (v.id === id ? { ...v, [field]: value } : v))
+    setVariants((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, [field]: value } : v))
+    );
+  };
+
+  const handleUpdateVariantFields = (
+    id: string,
+    updates: Partial<ProductVariant>
+  ) => {
+    setVariants((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, ...updates } : v))
     );
   };
 
@@ -867,10 +876,12 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
         return (
           <ColorPickerModal
             currentHex={v.colorHex || "#D8C7B5"}
-            currentName={v.color}
+            currentName={v.color || "Piaskowy Beż"}
             onSelect={(hex, colorName) => {
-              handleUpdateVariant(colorPickerVariantId, "colorHex", hex);
-              handleUpdateVariant(colorPickerVariantId, "color", colorName);
+              handleUpdateVariantFields(colorPickerVariantId, {
+                colorHex: hex,
+                color: colorName,
+              });
             }}
             onClose={() => setColorPickerVariantId(null)}
           />

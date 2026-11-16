@@ -197,7 +197,7 @@ export function StoreSettingsClient({
                 </label>
                 <input
                   type="text"
-                  placeholder="np. 9151234567"
+                  placeholder="np. 6131569301"
                   value={settings.nip || ""}
                   onChange={(e) => handleChange("nip", e.target.value)}
                   className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
