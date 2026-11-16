@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadLocalStore } from "@/lib/store-data";
+import { getOrderById, getStoreSettings } from "@/lib/store-data";
 import {
   isP24Configured,
   registerP24Transaction,
@@ -14,13 +14,29 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const store = loadLocalStore();
-    const order = store.orders.find((o) => o.id === id || o.orderNumber === id);
+    const body = await req.json().catch(() => ({}));
+    const keyFromUrl = req.nextUrl.searchParams.get("key");
+    const providedAccessKey = keyFromUrl || body.accessKey;
+
+    // Pobieramy zamówienie z bazy Neon PostgreSQL / Prisma (z fallbackiem do pamięci lokalnej)
+    const order = await getOrderById(id);
+    const settings = await getStoreSettings();
 
     if (!order) {
+      console.warn(`[Płatność API] Nie odnaleziono zamówienia: "${id}"`);
       return NextResponse.json(
-        { error: "Nie odnaleziono zamówienia." },
+        {
+          error: `Nie odnaleziono zamówienia "${id}". Upewnij się, że używasz prawidłowego linku z potwierdzenia zamówienia.`,
+        },
         { status: 404 }
+      );
+    }
+
+    // Bezpieczeństwo zakupów bez konta: weryfikacja accessKey jeśli zamówienie go posiada
+    if (order.accessKey && providedAccessKey && order.accessKey !== providedAccessKey) {
+      return NextResponse.json(
+        { error: "Brak uprawnień do opłacenia tego zamówienia (nieprawidłowy klucz dostępu)." },
+        { status: 403 }
       );
     }
 
@@ -44,7 +60,7 @@ export async function POST(
 
     // 2. Jeśli wybrano przelew tradycyjny
     if (order.paymentMethod === "TRADITIONAL_TRANSFER") {
-      const transferDetails = getTraditionalTransferDetails(order);
+      const transferDetails = getTraditionalTransferDetails(order, settings);
       return NextResponse.json({
         success: true,
         method: "TRADITIONAL_TRANSFER",
@@ -62,12 +78,17 @@ export async function POST(
     }
 
     // 4. Płatność online (BLIK / Przelewy24)
-    if (!isP24Configured()) {
+    if (!isP24Configured(settings)) {
+      const missing: string[] = [];
+      if (!settings.p24MerchantId && !process.env.P24_MERCHANT_ID) missing.push("ID Sprzedawcy (Merchant ID)");
+      if (!settings.p24CrcKey && !process.env.P24_CRC_KEY) missing.push("Klucz CRC");
+      if (!settings.p24ApiKey && !process.env.P24_API_KEY) missing.push("Klucz Raportów API");
+
       return NextResponse.json(
         {
-          error:
-            "Bramka płatności online nie jest obecnie skonfigurowana. W celu opłacenia zamówienia prosimy o wykonanie przelewu tradycyjnego lub kontakt z obsługą butiku.",
+          error: `Bramka płatności online nie jest obecnie skonfigurowana u operatora (brak: ${missing.join(", ")}). W celu opłacenia zamówienia prosimy o wykonanie przelewu tradycyjnego na konto butiku lub kontakt z obsługą.`,
           isConfigured: false,
+          missingConfig: missing,
         },
         { status: 400 }
       );

@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       const emailRes = await sendWelcomeCustomerEmail({
         customerEmail: normalizedEmail,
         firstName: newCustomer.firstName,
+        welcomeDiscountCode: newCustomer.welcomeDiscountCode,
       });
 
       if (emailRes.success) {

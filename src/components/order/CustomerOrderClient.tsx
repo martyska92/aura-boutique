@@ -71,9 +71,10 @@ export function CustomerOrderClient({
     setIsInitiatingPayment(true);
     setPaymentError(null);
     try {
-      const res = await fetch(`/api/orders/${order.id}/pay`, {
+      const res = await fetch(`/api/orders/${order.id}/pay?key=${order.accessKey || ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessKey: order.accessKey }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -132,16 +133,27 @@ export function CustomerOrderClient({
     TRADITIONAL_TRANSFER: "Tradycyjny przelew bankowy na konto butiku",
   };
 
+  // Status oczekiwania na przedpłatę (dla płatności online i przelewu tradycyjnego)
+  const isAwaitingPayment =
+    order.paymentStatus === "PENDING" && order.paymentMethod !== "COD";
+
   // Obliczanie etapu na osi czasu
   const getTimelineStep = () => {
+    if (order.fulfillmentStatus === "CANCELLED") return 0;
+    if (isAwaitingPayment) {
+      // Przy oczekiwaniu na płatność aktywny jest wyłącznie etap 1 (złożenie i oczekiwanie na płatność)
+      return 1;
+    }
     switch (order.fulfillmentStatus) {
       case "NEW":
         return 1;
       case "PROCESSING":
+      case "READY_FOR_SHIPMENT":
         return 2;
       case "SHIPPED":
         return 3;
       case "DELIVERED":
+      case "COMPLETED":
         return 4;
       default:
         return 1;
@@ -551,8 +563,8 @@ export function CustomerOrderClient({
                 <span className="font-serif text-[11px] sm:text-xs font-semibold text-[#241D1B] mt-2">
                   Złożone
                 </span>
-                <span className="text-[9px] text-[#857670] hidden sm:block">
-                  Przyjęte do butiku
+                <span className={`text-[9px] hidden sm:block ${isAwaitingPayment ? "text-amber-800 font-semibold" : "text-[#857670]"}`}>
+                  {isAwaitingPayment ? "Oczekuje na płatność" : "Przyjęte do butiku"}
                 </span>
               </div>
 
@@ -560,16 +572,16 @@ export function CustomerOrderClient({
               <div className="flex flex-col items-center">
                 <div
                   className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shadow-xs transition-all ${
-                    currentStep >= 2
+                    !isAwaitingPayment && currentStep >= 2
                       ? "bg-[#C5A069] text-white border-2 border-white ring-2 ring-[#C5A069]"
-                      : currentStep === 1
+                      : !isAwaitingPayment && currentStep === 1
                       ? "bg-[#FAF6F1] text-[#C5A069] border-2 border-[#C5A069] animate-pulse"
                       : "bg-white text-gray-400 border border-gray-300"
                   }`}
                 >
                   <Package className="w-4 h-4" />
                 </div>
-                <span className="font-serif text-[11px] sm:text-xs font-semibold text-[#241D1B] mt-2">
+                <span className={`font-serif text-[11px] sm:text-xs mt-2 ${!isAwaitingPayment && currentStep >= 2 ? "font-semibold text-[#241D1B]" : "text-gray-400 font-normal"}`}>
                   Pakowanie
                 </span>
                 <span className="text-[9px] text-[#857670] hidden sm:block">

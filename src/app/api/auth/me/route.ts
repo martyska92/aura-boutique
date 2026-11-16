@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUserSession } from "@/lib/admin-auth";
+import { getCustomerByEmail } from "@/lib/store-data";
 
 export async function GET() {
   try {
@@ -13,6 +14,11 @@ export async function GET() {
       });
     }
 
+    let customer = null;
+    if (session.email) {
+      customer = await getCustomerByEmail(session.email);
+    }
+
     return NextResponse.json({
       isLoggedIn: true,
       email: session.email,
@@ -20,6 +26,9 @@ export async function GET() {
       isAdmin: session.isAdmin,
       mustChangePassword: !!session.mustChangePassword,
       customerName: session.customerName,
+      welcomeDiscountCode: customer?.welcomeDiscountCode,
+      welcomeDiscountUsed: Boolean(customer?.welcomeDiscountUsedAt),
+      welcomeDiscountUsedAt: customer?.welcomeDiscountUsedAt,
     });
   } catch (err: any) {
     return NextResponse.json(

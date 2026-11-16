@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Save,
@@ -44,6 +44,44 @@ export function StoreSettingsClient({
   );
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [outboxList, setOutboxList] = useState<any[]>([]);
+  const [isRetryingOutboxId, setIsRetryingOutboxId] = useState<string | null>(null);
+
+  const fetchOutbox = async () => {
+    try {
+      const res = await fetch("/api/admin/email/test");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.emailOutbox) setOutboxList(data.emailOutbox);
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    fetchOutbox();
+  }, []);
+
+  const handleRetrySingleOutbox = async (outboxId: string) => {
+    setIsRetryingOutboxId(outboxId);
+    try {
+      const res = await fetch("/api/admin/email/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "RETRY_OUTBOX_EMAIL", outboxId, settings }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestResult({ success: true, message: data.message });
+        fetchOutbox();
+      } else {
+        setTestResult({ success: false, message: data.error || "Błąd ponowienia." });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: "Błąd połączenia: " + err.message });
+    } finally {
+      setIsRetryingOutboxId(null);
+    }
+  };
 
   const handleSendTestEmail = async (type: "TEST_EMAIL" | "WELCOME_CUSTOMER" = "TEST_EMAIL") => {
     setIsSendingTest(true);
@@ -728,6 +766,90 @@ export function StoreSettingsClient({
                   {testResult.message}
                 </div>
               )}
+
+              {/* Historia wysłanych wiadomości (Outbox) */}
+              <div className="pt-4 border-t border-[#EADFD5] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#241D1B]">
+                    Dziennik zdarzeń e-mail (Historia wysyłek Outbox):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={fetchOutbox}
+                    className="text-[11px] text-[#C5A069] hover:underline font-medium"
+                  >
+                    Odśwież historię
+                  </button>
+                </div>
+
+                {outboxList.length === 0 ? (
+                  <p className="text-[11px] text-[#7A6458] italic">
+                    Brak zarejestrowanych wysyłek w historii.
+                  </p>
+                ) : (
+                  <div className="border border-[#EADFD5] rounded overflow-x-auto max-h-72">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-[#FAF6F1] border-b border-[#EADFD5] text-[#7A6458]">
+                        <tr>
+                          <th className="p-2">Typ zdarzenia</th>
+                          <th className="p-2">Odbiorca</th>
+                          <th className="p-2">Status</th>
+                          <th className="p-2">Data / Odpowiedź serwera</th>
+                          <th className="p-2 text-right">Akcja</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#EADFD5]">
+                        {outboxList.map((item) => (
+                          <tr key={item.id} className="hover:bg-amber-50/30">
+                            <td className="p-2 font-mono font-semibold text-[#241D1B]">
+                              {item.type}
+                            </td>
+                            <td className="p-2 text-[#3E3835]">
+                              {item.to}
+                            </td>
+                            <td className="p-2">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  item.status === "SENT"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : item.status === "FAILED"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {item.status === "SENT" ? "PRZYJĘTA (250 OK)" : item.status}
+                              </span>
+                            </td>
+                            <td className="p-2 text-[10px] text-[#6E6259]">
+                              <div>{new Date(item.createdAt).toLocaleString("pl-PL")}</div>
+                              {item.smtpResponse && (
+                                <div className="text-emerald-700 font-mono text-[9px]">{item.smtpResponse}</div>
+                              )}
+                              {item.errorMessage && (
+                                <div className="text-red-700 text-[10px] line-clamp-1" title={item.errorMessage}>
+                                  {item.errorMessage}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-2 text-right">
+                              {item.status !== "SENT" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRetrySingleOutbox(item.id)}
+                                  disabled={isRetryingOutboxId === item.id}
+                                  className="px-2 py-1 bg-[#241D1B] hover:bg-[#3E3835] text-white text-[10px] rounded transition-all disabled:opacity-50"
+                                >
+                                  {isRetryingOutboxId === item.id ? "..." : "Ponów"}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

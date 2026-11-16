@@ -30,10 +30,14 @@ export default function AccountPage() {
     email: string | null;
     isAdmin: boolean;
     customerName?: string;
+    welcomeDiscountCode?: string;
+    welcomeDiscountUsed?: boolean;
+    welcomeDiscountUsedAt?: string;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedWelcomeCode, setCopiedWelcomeCode] = useState(false);
 
   // Referral / promo data
   const [referralCode, setReferralCode] = useState<string>("");
@@ -244,6 +248,59 @@ export default function AccountPage() {
                     <Lock className="w-3.5 h-3.5 text-[#E0C08B]" />
                     <span>Zmień hasło</span>
                   </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* KARTA POWITALNEGO KODU RABATOWEGO -15% NA PIERWSZE ZAMÓWIENIE */}
+          {session?.welcomeDiscountCode && (
+            <div className="bg-white/95 backdrop-blur-sm p-6 sm:p-7 border border-[#C5A069]/60 rounded-lg shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#EADFD5]">
+                <div className="flex items-center gap-2.5">
+                  <Tag className="w-5 h-5 text-[#C5A069]" />
+                  <h2 className="font-serif text-lg text-[#241D1B] font-semibold">
+                    Twój rabat powitalny: −15% na pierwsze zamówienie
+                  </h2>
+                </div>
+                <span
+                  className={`px-3 py-1 text-xs font-semibold rounded-full border self-start sm:self-auto ${
+                    session.welcomeDiscountUsed
+                      ? "bg-gray-100 text-gray-600 border-gray-300"
+                      : "bg-[#FBF6ED] text-[#7A5A2B] border-[#DFCA9B]"
+                  }`}
+                >
+                  {session.welcomeDiscountUsed ? "Wykorzystany" : "Aktywny w koszyku"}
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-[#5A483D] leading-relaxed">
+                    Dziękujemy za założenie konta w AURA Boutique! Twój unikalny kod daje <strong>15% rabatu</strong> na ubrania w pierwszym zamówieniu.
+                  </p>
+                  <p className="text-[11px] text-[#857670]">
+                    Wpisz kod w koszyku przed złożeniem zamówienia. Nie łączy się z innymi kodami.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="bg-[#FAF6F1] border-2 border-dashed border-[#C5A069] px-4 py-2 font-mono text-base font-bold text-[#241D1B] tracking-wider rounded">
+                    {session.welcomeDiscountCode}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(session.welcomeDiscountCode || "");
+                      setCopiedWelcomeCode(true);
+                      setTimeout(() => setCopiedWelcomeCode(false), 2000);
+                    }}
+                    className="px-4 py-2 bg-[#241D1B] hover:bg-[#3E3835] text-white text-xs uppercase tracking-wider rounded font-medium flex items-center gap-1.5 transition-colors shadow-xs"
+                    title="Skopiuj kod do koszyka"
+                  >
+                    {copiedWelcomeCode ? <Check className="w-3.5 h-3.5 text-[#C5A069]" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedWelcomeCode ? "Skopiowano" : "Kopiuj"}</span>
+                  </button>
                 </div>
               </div>
             </div>

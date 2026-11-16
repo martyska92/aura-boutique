@@ -1673,6 +1673,27 @@ export async function updateOrderAdmin(
     }
   }
 
+  // 7. Automatyczne powiadomienia e-mail dla klientki o wysyłce lub anulowaniu
+  if (updatedOrder.fulfillmentStatus === "SHIPPED" && prevFulfillmentStatus !== "SHIPPED") {
+    try {
+      const { sendOrderShippedCustomerEmail } = await import("./email-service");
+      await sendOrderShippedCustomerEmail(
+        updatedOrder,
+        updates.trackingNumber || updatedOrder.trackingNumber || "",
+        updatedOrder.shippingMethod === "COURIER" ? "Kurier InPost" : "Paczkomaty InPost"
+      );
+    } catch (err) {
+      console.error("Błąd wysyłki e-mail o nadaniu paczki:", err);
+    }
+  } else if (updatedOrder.fulfillmentStatus === "CANCELLED" && prevFulfillmentStatus !== "CANCELLED") {
+    try {
+      const { sendOrderCancelledCustomerEmail } = await import("./email-service");
+      await sendOrderCancelledCustomerEmail(updatedOrder, updates.adminNotes);
+    } catch (err) {
+      console.error("Błąd wysyłki e-mail o anulowaniu zamówienia:", err);
+    }
+  }
+
   return updatedOrder;
 }
 
@@ -1817,6 +1838,15 @@ export async function createReturnRequest(
   order.updatedAt = new Date().toISOString();
 
   saveLocalStore(store);
+
+  // Wysłanie e-maila z potwierdzeniem zgłoszenia zwrotu i instrukcją odesłania
+  try {
+    const { sendReturnRequestedCustomerEmail } = await import("./email-service");
+    await sendReturnRequestedCustomerEmail(returnRequest, order);
+  } catch (err) {
+    console.error("Błąd wysyłki e-mail o zgłoszeniu zwrotu:", err);
+  }
+
   return returnRequest;
 }
 

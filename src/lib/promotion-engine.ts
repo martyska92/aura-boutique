@@ -120,11 +120,12 @@ export async function calculateOrderPromotions(params: {
     });
   }
 
-  // 3. Sprawdzenie kodu rabatowego (Kupon, Program poleceń, Nagroda za polecenie, Kod za opinię)
+  // 3. Sprawdzenie kodu rabatowego (Kupon, Program poleceń, Nagroda za polecenie, Kod za opinię, Kod powitalny)
   let matchedPromo: Promotion | undefined = undefined;
   let referralParticipant: ReferralParticipant | undefined = undefined;
   let referralReward: ReferralRewardCode | undefined = undefined;
   let reviewRewardPromo: { discountPercent: number; code: string; reviewId?: string } | undefined = undefined;
+  let welcomeCustomerPromo: { discountPercent: number; code: string; customerEmail: string } | undefined = undefined;
   let couponErrorMessage: string | undefined = undefined;
 
   if (normalizedCoupon) {
@@ -174,6 +175,11 @@ export async function calculateOrderPromotions(params: {
         new Date().getTime() <= new Date(r.rewardCodeValidUntil).getTime()
     );
 
+    // E) Dedykowany powitalny kod rabatowy nowej klientki (–15% na pierwsze zamówienie)
+    const customerWithWelcomeCode = (store.customers || []).find(
+      (c) => c.welcomeDiscountCode && c.welcomeDiscountCode.trim().toUpperCase() === normalizedCoupon
+    );
+
     if (promo) {
       // Weryfikacja dat i limitów promocji
       const inDate = isDateWithinRange(new Date(), promo.startDate, promo.endDate, promo.noEndDate);
@@ -210,6 +216,43 @@ export async function calculateOrderPromotions(params: {
           code: reviewWithReward.rewardCodeIssued!,
           reviewId: reviewWithReward.id,
         };
+      }
+    } else if (customerWithWelcomeCode) {
+      // Sprawdzenie przypisania e-mail
+      if (normalizedEmail && normalizeEmail(customerWithWelcomeCode.email) !== normalizedEmail) {
+        couponErrorMessage = `Ten powitalny kod rabatowy jest przypisany do adresu: ${customerWithWelcomeCode.email}.`;
+      } else if (customerWithWelcomeCode.welcomeDiscountUsedAt) {
+        couponErrorMessage = "Ten powitalny kod rabatowy został już wykorzystany.";
+      } else {
+        // Blokada równoległego wykorzystania w aktywnym oczekującym zamówieniu
+        const isBeingUsedInPendingOrder = (store.orders || []).some(
+          (o) =>
+            o.paymentStatus === "PENDING" &&
+            o.fulfillmentStatus !== "CANCELLED" &&
+            new Date(o.reservedUntil || 0).getTime() > Date.now() &&
+            (o.couponCode?.trim().toUpperCase() === normalizedCoupon ||
+             o.referralCodeUsed?.trim().toUpperCase() === normalizedCoupon)
+        );
+
+        // Sprawdzenie czy klientka nie ma już innego opłaconego/zrealizowanego zamówienia
+        const hasExistingPaidOrder = (store.orders || []).some(
+          (o) =>
+            normalizeEmail(o.customerEmail) === normalizeEmail(customerWithWelcomeCode.email) &&
+            o.paymentStatus !== "FAILED" &&
+            o.fulfillmentStatus !== "CANCELLED"
+        );
+
+        if (isBeingUsedInPendingOrder) {
+          couponErrorMessage = "Ten kod oczekuje na opłacenie w innym zamówieniu. Opłać je lub poczekaj na wygaśnięcie rezerwacji.";
+        } else if (hasExistingPaidOrder) {
+          couponErrorMessage = "Rabat powitalny na pierwsze zakupy przysługuje wyłącznie przy Twoim pierwszym zamówieniu.";
+        } else {
+          welcomeCustomerPromo = {
+            discountPercent: 15,
+            code: customerWithWelcomeCode.welcomeDiscountCode!,
+            customerEmail: customerWithWelcomeCode.email,
+          };
+        }
       }
     } else {
       couponErrorMessage = "Podany kod rabatowy nie istnieje, został już wykorzystany lub wygasł.";
@@ -273,7 +316,8 @@ export async function calculateOrderPromotions(params: {
           });
         }
       } else if (promo.type === "FIRST_ORDER") {
-        if (isNewCustomer) {
+        // Jeśli klientka wpisała dedykowany kod powitalny lub kod z polecenia, nie dodajemy automatycznego kandydata, aby nie dublować rabatu
+        if (isNewCustomer && !welcomeCustomerPromo && !referralParticipant) {
           const discountAmt = Math.round(item.price * (promo.discountValue / 100) * 100) / 100;
           candidates.push({
             sourceName: promo.publicTitle || "Rabat na pierwsze zakupy –15%",
@@ -377,6 +421,17 @@ export async function calculateOrderPromotions(params: {
         isFromCoupon: true,
         code: reviewRewardPromo.code,
       });
+    } else if (welcomeCustomerPromo) {
+      // Dedykowany kod powitalny nowej klientki: 15% na produkty w pierwszym zamówieniu (nie obejmuje dostawy)
+      const discountAmt = Math.round(item.price * 0.15 * 100) / 100;
+      candidates.push({
+        sourceName: `Kod powitalny: ${welcomeCustomerPromo.code} (–15%)`,
+        sourceType: "WELCOME_COUPON",
+        percent: 15,
+        amount: discountAmt * item.quantity,
+        isFromCoupon: true,
+        code: welcomeCustomerPromo.code,
+      });
     }
 
     // WYBÓR KORZYSTNIEJSZEGO RABATU DLA TEJ POZYCJI (Zasada 9)
@@ -458,6 +513,11 @@ export async function calculateOrderPromotions(params: {
         couponMessageResult = {
           type: "success",
           text: `Twój kod za wystawioną opinię (–${reviewRewardPromo.discountPercent}%) został pomyślnie naliczony!`,
+        };
+      } else if (welcomeCustomerPromo) {
+        couponMessageResult = {
+          type: "success",
+          text: "Twój powitalny rabat –15% na pierwsze zamówienie został pomyślnie naliczony!",
         };
       } else {
         couponMessageResult = {

@@ -16,7 +16,13 @@ export interface OutboxEmail {
     | "ORDER_CONFIRMATION"
     | "ORDER_PLACED"
     | "ORDER_PAID"
+    | "ORDER_SHIPPED"
+    | "ORDER_CANCELLED"
+    | "ORDER_PAYMENT_FAILED"
+    | "RETURN_REQUESTED"
+    | "RETURN_STATUS_UPDATED"
     | "PASSWORD_RESET"
+    | "PASSWORD_CHANGED"
     | "TEST_EMAIL"
     | "WELCOME_CUSTOMER";
   status: "SENT" | "FAILED" | "NOT_CONFIGURED";
@@ -601,12 +607,31 @@ export async function sendWelcomeCustomerEmail(
   params: {
     customerEmail: string;
     firstName?: string;
+    welcomeDiscountCode?: string;
     force?: boolean;
   },
   customSettings?: Partial<StoreSettings>
 ): Promise<{ success: boolean; notConfigured?: boolean; error?: string; alreadySent?: boolean }> {
   const store = loadLocalStore();
   const normalizedEmail = params.customerEmail.trim().toLowerCase();
+
+  // Pobieramy lub generujemy trwały kod rabatowy dla klientki
+  let code = params.welcomeDiscountCode;
+  const customer = (store.customers || []).find(
+    (c) => c.email.trim().toLowerCase() === normalizedEmail
+  );
+
+  if (!code && customer?.welcomeDiscountCode) {
+    code = customer.welcomeDiscountCode;
+  }
+
+  if (!code) {
+    code = `WITAJ15-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    if (customer) {
+      customer.welcomeDiscountCode = code;
+      saveLocalStore(store);
+    }
+  }
 
   // Zabezpieczenie przed duplikatem: sprawdź czy mail powitalny nie został już wysłany na ten adres ze statusem SENT
   // Jeśli wysyłka została odrzucona (FAILED) lub nie była skonfigurowana, NIE uznajemy jej za wysłaną i pozwalamy na ponowienie.
@@ -634,37 +659,55 @@ export async function sendWelcomeCustomerEmail(
       </p>
 
       <p style="margin: 0 0 16px 0;">
-        Dziękujemy za dołączenie do AURA Boutique! 💛 Cieszymy się, że jesteś z nami.
+        Dziękujemy za dołączenie do AURA BOUTIQUE! 💛 Cieszymy się, że jesteś z nami.
       </p>
 
-      <p style="margin: 0 0 16px 0;">
-        Twoje konto jest już aktywne. Możesz wygodnie składać zamówienia, śledzić status swoich przesyłek na żywo i odkrywać nasze najnowsze kolekcje.
+      <p style="margin: 0 0 20px 0;">
+        Na powitanie mamy dla Ciebie <strong>15% rabatu</strong> na pierwsze zamówienie.
       </p>
 
-      <p style="margin: 0 0 24px 0;">
-        Życzymy Ci udanych zakupów i stylizacji, w których poczujesz się wyjątkowo!
+      <!-- Karta z unikalnym kodem powitalnym -->
+      <div style="background-color: #FAF6F1; border: 2px dashed #C5A069; border-radius: 6px; padding: 20px; text-align: center; margin: 24px 0;">
+        <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: #7A6458; display: block; margin-bottom: 6px;">
+          Twój unikalny kod rabatowy:
+        </span>
+        <span style="font-size: 26px; font-family: monospace; font-weight: bold; color: #241D1B; letter-spacing: 2px;">
+          ${code}
+        </span>
+      </div>
+
+      <p style="margin: 0 0 24px 0; text-align: center; color: #3E3835; font-size: 14px;">
+        Wpisz go w koszyku i wybierz coś dla siebie!
       </p>
 
-      <!-- Przycisk „Przejdź do sklepu” -->
+      <!-- Przycisk „Zrób zakupy” -->
       <div style="text-align: center; margin: 32px 0;">
-        <a href="${storeUrl}/katalog" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(197, 160, 105, 0.25);">
-          Przejdź do sklepu
+        <a href="${storeUrl}/katalog" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 14px 38px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(197, 160, 105, 0.25);">
+          Zrób zakupy
         </a>
+      </div>
+
+      <!-- Warunki promocji -->
+      <div style="background-color: #FAF9F7; border-left: 3px solid #C5A069; padding: 14px 18px; font-size: 11px; color: #6E6259; line-height: 1.6; margin: 24px 0;">
+        <strong style="color: #241D1B;">Warunki promocji powitalnej:</strong><br>
+        • Kod uprawnia do jednorazowego rabatu 15% na produkty w Twoim pierwszym zamówieniu (nie obejmuje kosztów dostawy).<br>
+        • Kod jest przypisany do Twojego adresu e-mail (${normalizedEmail}) i nie łączy się z innymi kodami rabatowymi.<br>
+        • Wpisz go w koszyku w polu «Kod rabatowy» przed zatwierdzeniem zamówienia.
       </div>
 
       <p style="margin: 24px 0 0 0; color: #5A4E47; font-size: 14px; line-height: 1.6;">
         Do zobaczenia w butiku,<br>
-        <strong style="color: #241D1B;">Zespół AURA Boutique</strong>
+        <strong style="color: #241D1B;">Zespół AURA BOUTIQUE</strong>
       </p>
     </div>
   `;
 
-  const html = wrapBoutiqueEmailTemplate("Witaj w AURA BOUTIQUE! 💛", content);
+  const html = wrapBoutiqueEmailTemplate("Witaj w AURA BOUTIQUE! Odbierz −15% na pierwsze zamówienie 💛", content);
 
   const res = await dispatchEmail(
     {
       to: normalizedEmail,
-      subject: "Witaj w AURA BOUTIQUE! 💛",
+      subject: "Witaj w AURA BOUTIQUE! Odbierz −15% na pierwsze zamówienie 💛",
       html,
       type: "WELCOME_CUSTOMER",
     },
@@ -941,6 +984,306 @@ export async function sendOrderPaymentConfirmedCustomerEmail(
       subject: `Potwierdzenie płatności za zamówienie ${order.orderNumber} ✨ | AURA Boutique`,
       html,
       type: "ORDER_PAID",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 9. Powiadomienie o nadaniu przesyłki (InPost Paczkomat / Kurier)
+ */
+export async function sendOrderShippedCustomerEmail(
+  order: Order,
+  trackingNumber: string,
+  carrier: string = "InPost",
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
+  const orderUrl = `${storeUrl}/zamowienie/${order.id}/potwierdzenie${order.accessKey ? `?key=${order.accessKey}` : ""}`;
+  const trackingUrl = `https://inpost.pl/sledzenie-przesylek?number=${encodeURIComponent(trackingNumber)}`;
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}! 📦
+      </p>
+
+      <div style="background-color: #FAF6F1; border: 1px solid #DFCA9B; border-radius: 4px; padding: 18px; margin: 16px 0;">
+        <p style="margin: 0; font-size: 15px; font-weight: bold; color: #241D1B;">
+          Twoja paczka została wysłana z butiku!
+        </p>
+        <p style="margin: 8px 0 0 0; font-size: 13px; color: #5A4E47;">
+          Numer zamówienia: <strong>${order.orderNumber}</strong><br>
+          Przewoźnik: <strong>${carrier}</strong><br>
+          Numer listu przewozowego: <strong style="font-family: monospace; font-size: 14px; color: #8F6B38;">${trackingNumber}</strong>
+        </p>
+      </div>
+
+      <div style="text-align: center; margin: 26px 0;">
+        <a href="${trackingUrl}" target="_blank" rel="noreferrer" style="display: inline-block; background-color: #FFD800; color: #111111; text-decoration: none; padding: 13px 32px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+          Śledź paczkę w InPost ↗
+        </a>
+      </div>
+
+      <div style="text-align: center; margin: 0 0 24px 0;">
+        <a href="${orderUrl}" style="color: #8F6B38; font-size: 12px; text-decoration: underline;">
+          Zobacz szczegóły swojego zamówienia w butiku
+        </a>
+      </div>
+
+      <p style="margin: 20px 0 0 0; color: #5A4E47; font-size: 13px;">
+        Życzymy radości z rozpakowywania paczki i zapraszamy ponownie!<br>
+        <strong>Zespół AURA BOUTIQUE</strong>
+      </p>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Wysłano zamówienie: ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Twoje zamówienie ${order.orderNumber} w AURA BOUTIQUE zostało wysłane! 📦`,
+      html,
+      type: "ORDER_SHIPPED",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 10. Powiadomienie o anulowaniu zamówienia
+ */
+export async function sendOrderCancelledCustomerEmail(
+  order: Order,
+  reason?: string,
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}!
+      </p>
+
+      <div style="background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 4px; padding: 16px; margin: 16px 0;">
+        <p style="margin: 0; font-size: 14px; color: #991B1B; font-weight: 600;">
+          Zamówienie ${order.orderNumber} zostało anulowane.
+        </p>
+        ${
+          reason
+            ? `<p style="margin: 6px 0 0 0; font-size: 12px; color: #B91C1C;">Powód: ${reason}</p>`
+            : ""
+        }
+      </div>
+
+      <p style="margin: 16px 0; color: #5A4E47;">
+        Zarezerwowane produkty zostały przywrócone na stan butiku. Jeżeli użyłaś w tym zamówieniu kodu rabatowego, został on zwolniony i możesz wykorzystać go ponownie przy kolejnych zakupach.
+      </p>
+
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${storeUrl}/katalog" style="display: inline-block; background-color: #241D1B; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600;">
+          Wróć do butiku
+        </a>
+      </div>
+
+      <p style="margin: 20px 0 0 0; color: #5A4E47; font-size: 12px;">
+        W razie pytań napisz do nas na <a href="mailto:aurazmigrod@wp.pl" style="color: #C5A069;">aurazmigrod@wp.pl</a>.
+      </p>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Anulowanie zamówienia: ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Potwierdzenie anulowania zamówienia ${order.orderNumber} | AURA BOUTIQUE`,
+      html,
+      type: "ORDER_CANCELLED",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 11. Powiadomienie o nieudanej próbie płatności z możliwością ponowienia
+ */
+export async function sendOrderPaymentFailedCustomerEmail(
+  order: Order,
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
+  const retryUrl = `${storeUrl}/zamowienie/${order.id}/potwierdzenie${order.accessKey ? `?key=${order.accessKey}` : ""}`;
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}! 💛
+      </p>
+
+      <div style="background-color: #FFFBEB; border: 1px solid #FDE68A; border-radius: 4px; padding: 16px; margin: 16px 0;">
+        <p style="margin: 0; font-size: 14px; color: #92400E; font-weight: 600;">
+          Płatność za zamówienie ${order.orderNumber} nie powiodła się lub została przerwana.
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 12px; color: #78350F;">
+          Nie martw się – Twoje zamówienie jest bezpiecznie zapisane, a wybrane ubrania pozostają dla Ciebie zarezerwowane.
+        </p>
+      </div>
+
+      <p style="margin: 16px 0; color: #5A4E47;">
+        Możesz w każdej chwili bezpiecznie dokończyć opłacenie zamówienia przez BLIK, szybki przelew lub wykonać tradycyjny przelew bankowy.
+      </p>
+
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${retryUrl}" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(197, 160, 105, 0.25);">
+          Opłać zamówienie teraz
+        </a>
+      </div>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Dokończ płatność: ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Nieudana płatność za zamówienie ${order.orderNumber} – możesz spróbować ponownie 💛 | AURA BOUTIQUE`,
+      html,
+      type: "ORDER_PAYMENT_FAILED",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 12. Powiadomienie o przyjęciu zgłoszenia zwrotu towaru
+ */
+export async function sendReturnRequestedCustomerEmail(
+  returnRequest: { id: string; items: any[]; returnMethod: string; customerNote?: string },
+  order: Order,
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
+  const orderUrl = `${storeUrl}/zamowienie/${order.id}/potwierdzenie${order.accessKey ? `?key=${order.accessKey}` : ""}`;
+
+  const itemsHtml = returnRequest.items
+    .map(
+      (it: any) => `
+        <li style="margin-bottom: 6px;">
+          <strong>${it.productName || "Produkt"}</strong> – ${it.quantity} szt.<br>
+          <span style="font-size: 12px; color: #7A6458;">Powód: ${it.reason || "Brak podanego powodu"}</span>
+        </li>
+      `
+    )
+    .join("");
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}!
+      </p>
+
+      <p style="margin: 0 0 16px 0;">
+        Przyjęłyśmy Twoje formularzowe zgłoszenie zwrotu do zamówienia <strong>${order.orderNumber}</strong>.
+      </p>
+
+      <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 18px; margin: 16px 0;">
+        <p style="margin: 0 0 10px 0; font-weight: bold; font-size: 13px; text-transform: uppercase; color: #241D1B;">
+          Zwracane produkty:
+        </p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+          ${itemsHtml}
+        </ul>
+      </div>
+
+      <div style="background-color: #FAF9F7; border-left: 3px solid #C5A069; padding: 14px 18px; font-size: 12px; color: #5A4E47; line-height: 1.6; margin: 20px 0;">
+        <strong>Adres do odesłania paczki ze zwrotem:</strong><br>
+        AURA Boutique K.B.<br>
+        ul. Poprzeczna 3/1A<br>
+        55-110 Żmigród<br>
+        tel. 605 540 681 • e-mail: aurazmigrod@wp.pl
+      </div>
+
+      <p style="font-size: 12px; color: #7A6458;">
+        Zwrot środków nastąpi w ciągu 14 dni od doręczenia przesyłki ze zwracanymi ubraniami do butiku na ten sam rachunek/metodę, którą opłacono zamówienie.
+      </p>
+
+      <div style="text-align: center; margin: 24px 0 10px;">
+        <a href="${orderUrl}" style="color: #8F6B38; font-size: 12px; text-decoration: underline;">
+          Sprawdź status zamówienia i zgłoszenia zwrotu
+        </a>
+      </div>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Zgłoszenie zwrotu: ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Przyjęłyśmy Twoje zgłoszenie zwrotu do zamówienia ${order.orderNumber} | AURA BOUTIQUE`,
+      html,
+      type: "RETURN_REQUESTED",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 13. Powiadomienie o zmianie decyzji/statusu zwrotu
+ */
+export async function sendReturnStatusUpdatedCustomerEmail(
+  order: Order,
+  newStatus: string,
+  decisionNotes?: string,
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const statusLabels: Record<string, string> = {
+    APPROVED: "Zaakceptowany (oczekujemy na paczkę)",
+    RECEIVED: "Paczka dotarła do butiku",
+    REFUNDED: "Zwrot środków został zrealizowany",
+    REJECTED: "Odrzucony",
+  };
+  const statusLabel = statusLabels[newStatus] || newStatus;
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}!
+      </p>
+
+      <p style="margin: 0 0 16px 0;">
+        Status Twojego zgłoszenia zwrotu do zamówienia <strong>${order.orderNumber}</strong> uległ zmianie:
+      </p>
+
+      <div style="background-color: #FAF6F1; border: 1px solid #DFCA9B; border-radius: 4px; padding: 16px; margin: 16px 0;">
+        <span style="font-size: 11px; text-transform: uppercase; color: #7A6458; letter-spacing: 0.1em; display: block; margin-bottom: 4px;">
+          Aktualny status zwrotu:
+        </span>
+        <strong style="font-size: 16px; color: #241D1B;">${statusLabel}</strong>
+        ${
+          decisionNotes
+            ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #5A4E47;">Informacja od butiku: ${decisionNotes}</p>`
+            : ""
+        }
+      </div>
+
+      <p style="font-size: 12px; color: #7A6458; margin-top: 20px;">
+        Dziękujemy za kontakt z AURA Boutique. W razie pytań służymy pomocą pod adresem <a href="mailto:aurazmigrod@wp.pl" style="color: #C5A069;">aurazmigrod@wp.pl</a>.
+      </p>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Status zwrotu: ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Status Twojego zwrotu do zamówienia ${order.orderNumber}: ${statusLabel} | AURA BOUTIQUE`,
+      html,
+      type: "RETURN_STATUS_UPDATED",
     },
     customSettings
   );

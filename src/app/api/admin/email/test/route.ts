@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   const customers = store.customers || [];
   const pendingWelcome = customers.filter((c) => c.welcomeEmailStatus !== "SENT");
   const failedWelcome = customers.filter((c) => c.welcomeEmailStatus === "FAILED");
+  const emailOutbox = ((store as any).emailOutbox || []).slice(0, 50);
 
   return NextResponse.json({
     totalCustomers: customers.length,
@@ -27,6 +28,17 @@ export async function GET(req: NextRequest) {
       status: c.welcomeEmailStatus || "PENDING",
       error: c.welcomeEmailError,
       createdAt: c.createdAt,
+    })),
+    emailOutbox: emailOutbox.map((e: any) => ({
+      id: e.id,
+      to: e.to,
+      subject: e.subject,
+      type: e.type,
+      status: e.status,
+      errorMessage: e.errorMessage,
+      smtpResponse: e.smtpResponse,
+      createdAt: e.createdAt,
+      sentAt: e.sentAt,
     })),
   });
 }
@@ -66,7 +78,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Ponowienie wysyłki powitalnych maili do klientek po naprawieniu konfiguracji
+    // 0. Ponowienie pojedynczej wiadomości z historii Outbox
+    if (body.action === "RETRY_OUTBOX_EMAIL" && body.outboxId) {
+      const store = loadLocalStore();
+      const item = ((store as any).emailOutbox || []).find((e: any) => e.id === body.outboxId);
+      if (!item) {
+        return NextResponse.json({ error: "Nie znaleziono wiadomości w historii." }, { status: 404 });
+      }
+      const { dispatchEmail } = await import("@/lib/email-service");
+      const res = await dispatchEmail(
+        {
+          to: item.to,
+          subject: item.subject,
+          html: item.html,
+          type: item.type,
+        },
+        customSettings
+      );
+      if (res.success) {
+        item.status = "SENT";
+        item.sentAt = new Date().toISOString();
+        item.smtpResponse = res.smtpResponse;
+        item.errorMessage = undefined;
+        saveLocalStore(store);
+        return NextResponse.json({ success: true, message: `Pomyślnie wysłano wiadomość do: ${item.to}` });
+      } else {
+        item.status = "FAILED";
+        item.errorMessage = res.error;
+        saveLocalStore(store);
+        return NextResponse.json({ success: false, error: res.error || "Błąd ponowienia wysyłki." }, { status: 400 });
+      }
+    }
     if (body.action === "RETRY_FAILED_WELCOME") {
       const store = loadLocalStore();
       const customers = store.customers || [];

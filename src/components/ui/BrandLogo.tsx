@@ -23,15 +23,15 @@ export function BrandLogo({
   };
 
   const content = (
-    <div className={`relative ${heightClasses[size]} aspect-[491/178] shrink-0 flex items-center justify-center`}>
-      {/* Wektorowy logotyp AURA Boutique (AURA_BOUTIQUE_05_szampan.svg) – szlachetny odcień szampana, ostry, bez złotej poświaty */}
+    <div className={`relative ${heightClasses[size]} aspect-[493/177] shrink-0 flex items-center justify-center`}>
+      {/* Wektorowy logotyp AURA Boutique (AURA_BOUTIQUE_02.svg) – czysty, elegancki, bez poświaty */}
       <Image
         src="/images/brand/aura-logo.svg"
         alt="AURA Boutique K.B."
         fill
         priority
         unoptimized
-        sizes="(max-width: 640px) 240px, (max-width: 1024px) 340px, 491px"
+        sizes="(max-width: 640px) 240px, (max-width: 1024px) 340px, 493px"
         className="relative z-10 object-contain object-center select-none"
       />
     </div>

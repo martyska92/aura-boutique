@@ -159,6 +159,7 @@ export type Order = {
   originalSubtotal?: number; // wartość produktów przed rabatem
   shippingCost: number;
   totalAmount: number;
+  couponCode?: string;
   customerNotes?: string;
   adminNotes?: string;
   reservedUntil?: string;
@@ -432,6 +433,8 @@ export type CustomerAccount = {
   referralCode: string; // Stały, unikalny kod polecający np. AURA-7K9P2X8M (UNIQUE)
   createdAt: string;
   welcomeDiscountCode?: string;
+  welcomeDiscountUsedAt?: string;
+  welcomeDiscountUsedInOrderId?: string;
   welcomeEmailStatus?: "PENDING" | "SENT" | "FAILED" | "NOT_CONFIGURED";
   welcomeEmailError?: string;
   welcomeEmailSentAt?: string;
