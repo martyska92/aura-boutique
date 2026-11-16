@@ -45,7 +45,10 @@ export function StoreSettingsClient({
       const res = await fetch("/api/admin/email/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetEmail: testEmailAddress }),
+        body: JSON.stringify({
+          targetEmail: testEmailAddress,
+          settings,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { sendTestEmail, sendWelcomeCustomerEmail, getEmailConfig } from "@/lib/email-service";
+import { loadLocalStore, saveLocalStore } from "@/lib/store-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -14,13 +15,27 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const targetEmail = body.targetEmail?.trim() || "aurazmigrod@wp.pl";
+    const customSettings = body.settings;
 
-    const config = getEmailConfig();
+    // Jeśli przekazano ustawienia bezpośrednio z formularza testowego, zapiszmy je do magazynu,
+    // aby użytkowniczka nie musiała ręcznie klikać "Zapisz" przed wykonaniem testu
+    if (customSettings && (customSettings.smtpPassword || customSettings.resendApiKey || customSettings.smtpHost)) {
+      const store = loadLocalStore();
+      store.settings = {
+        ...(store.settings || {}),
+        ...customSettings,
+      };
+      saveLocalStore(store);
+    }
+
+    const config = getEmailConfig(customSettings);
     if (!config.isConfigured) {
       return NextResponse.json(
         {
           success: false,
-          error: "Poczta nie jest skonfigurowana. Wprowadź hasło poczty (lub klucz Resend API) w Ustawieniach Butiku lub zmiennych środowiskowych Vercel.",
+          error: config.emailProvider === "smtp"
+            ? "Poczta SMTP nie jest jeszcze w pełni skonfigurowana. Upewnij się, że wpisano hasło do skrzynki pocztowej."
+            : "Brak klucza Resend API. Wprowadź klucz Resend API w panelu.",
         },
         { status: 400 }
       );
@@ -28,12 +43,15 @@ export async function POST(req: NextRequest) {
 
     let result;
     if (body.type === "WELCOME_CUSTOMER") {
-      result = await sendWelcomeCustomerEmail({
-        customerEmail: targetEmail,
-        firstName: body.firstName || "Martyna",
-      });
+      result = await sendWelcomeCustomerEmail(
+        {
+          customerEmail: targetEmail,
+          firstName: body.firstName || "Martyna",
+        },
+        customSettings
+      );
     } else {
-      result = await sendTestEmail(targetEmail);
+      result = await sendTestEmail(targetEmail, customSettings);
     }
 
     if (!result.success) {

@@ -74,13 +74,30 @@ function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
 /**
  * Pobiera aktualną konfigurację wysyłki poczty (z ustawień sklepu w panelu lub zmiennych środowiskowych)
  */
-export function getEmailConfig() {
+export function getEmailConfig(customSettings?: Partial<StoreSettings>) {
   const store = loadLocalStore();
-  const settings: Partial<StoreSettings> = store.settings || {};
+  const settings: Partial<StoreSettings> = {
+    ...(store.settings || {}),
+    ...(customSettings || {}),
+  };
+
+  // Określ providera poczty:
+  // Jeśli użytkowniczka wybrała "smtp" lub "resend" w ustawieniach, szanujemy ten wybór.
+  // Jeśli nie wybrano jawnie, preferujemy SMTP jeśli podano host/hasło SMTP, a dopiero w ostateczności Resend.
+  let emailProvider: "smtp" | "resend" = "smtp";
+  if (settings.emailProvider === "resend") {
+    emailProvider = "resend";
+  } else if (settings.emailProvider === "smtp") {
+    emailProvider = "smtp";
+  } else if (settings.smtpPassword || settings.smtpHost) {
+    emailProvider = "smtp";
+  } else if (settings.resendApiKey || process.env.RESEND_API_KEY) {
+    emailProvider = "resend";
+  }
 
   const resendApiKey = (settings.resendApiKey || process.env.RESEND_API_KEY || "").trim();
-  const smtpHost = (settings.smtpHost || process.env.SMTP_HOST || "").trim();
-  const smtpUser = (settings.smtpUser || process.env.SMTP_USER || "").trim();
+  const smtpHost = (settings.smtpHost || process.env.SMTP_HOST || "smtp.wp.pl").trim();
+  const smtpUser = (settings.smtpUser || process.env.SMTP_USER || "aurazmigrod@wp.pl").trim();
   const smtpPassword = (settings.smtpPassword || process.env.SMTP_PASS || process.env.SMTP_PASSWORD || "").trim();
   const smtpPort = Number(settings.smtpPort || process.env.SMTP_PORT || (settings.smtpSecure ? 465 : 587));
   const smtpSecure = settings.smtpSecure !== undefined ? Boolean(settings.smtpSecure) : (smtpPort === 465);
@@ -89,9 +106,12 @@ export function getEmailConfig() {
   const senderAddress = settings.emailSenderAddress || smtpUser || process.env.EMAIL_FROM || "aurazmigrod@wp.pl";
   const from = `"${senderName}" <${senderAddress}>`;
 
-  const isConfigured = Boolean(resendApiKey || (smtpHost && smtpUser && smtpPassword));
+  const isConfigured = emailProvider === "smtp"
+    ? Boolean(smtpHost && smtpUser && smtpPassword)
+    : Boolean(resendApiKey);
 
   return {
+    emailProvider,
     isConfigured,
     resendApiKey,
     smtpHost,
@@ -115,17 +135,24 @@ export function isEmailConfigured(): boolean {
 /**
  * Uniwersalny wysyłacz e-maili (obsługuje SMTP WP.pl / Gmail / dowolne oraz Resend API)
  */
-export async function dispatchEmail(options: {
-  to: string;
-  subject: string;
-  html: string;
-  type: OutboxEmail["type"];
-}): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+export async function dispatchEmail(
+  options: {
+    to: string;
+    subject: string;
+    html: string;
+    type: OutboxEmail["type"];
+  },
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
   const store = loadLocalStore();
   const outboxId = `eml-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  const config = getEmailConfig();
+  const config = getEmailConfig(customSettings);
 
   if (!config.isConfigured) {
+    const errorMsg = config.emailProvider === "smtp"
+      ? "Brak skonfigurowanej poczty SMTP. Wprowadź hasło do skrzynki pocztowej WP (aurazmigrod@wp.pl) w panelu /admin/ustawienia."
+      : "Brak klucza Resend API. Wprowadź klucz Resend API w panelu /admin/ustawienia.";
+
     const queuedEmail: OutboxEmail = {
       id: outboxId,
       to: options.to,
@@ -133,7 +160,7 @@ export async function dispatchEmail(options: {
       html: options.html,
       type: options.type,
       status: "NOT_CONFIGURED",
-      errorMessage: "Brak skonfigurowanej poczty. Podaj dane SMTP (np. poczty WP) lub klucz Resend API w panelu /admin/ustawienia.",
+      errorMessage: errorMsg,
       createdAt: new Date().toISOString(),
     };
 
@@ -144,12 +171,70 @@ export async function dispatchEmail(options: {
     return {
       success: false,
       notConfigured: true,
-      error: "Poczta e-mail nie jest jeszcze skonfigurowana. Wpisz hasło do poczty w Ustawieniach Butiku.",
+      error: errorMsg,
     };
   }
 
-  // 1. Jeśli Resend jest skonfigurowany
-  if (config.resendApiKey) {
+  // 1. Jeśli wybrano SMTP (np. poczta WP.pl)
+  if (config.emailProvider === "smtp") {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: config.smtpSecure,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPassword,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
+
+      await transporter.sendMail({
+        from: config.from,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      });
+
+      const successEmail: OutboxEmail = {
+        id: outboxId,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        type: options.type,
+        status: "SENT",
+        createdAt: new Date().toISOString(),
+        sentAt: new Date().toISOString(),
+      };
+      if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
+      (store as any).emailOutbox.unshift(successEmail);
+      saveLocalStore(store);
+
+      return { success: true };
+    } catch (err: any) {
+      console.error("Błąd wysyłki e-mail przez SMTP:", err);
+      const failedEmail: OutboxEmail = {
+        id: outboxId,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        type: options.type,
+        status: "FAILED",
+        errorMessage: err.message,
+        createdAt: new Date().toISOString(),
+      };
+      if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
+      (store as any).emailOutbox.unshift(failedEmail);
+      saveLocalStore(store);
+
+      return { success: false, error: `Błąd serwera SMTP (${config.smtpHost}): ${err.message}` };
+    }
+  }
+
+  // 2. Jeśli wybrano Resend API
+  if (config.emailProvider === "resend" && config.resendApiKey) {
     try {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -205,65 +290,10 @@ export async function dispatchEmail(options: {
     }
   }
 
-  // 2. Jeśli SMTP jest skonfigurowany (np. poczta WP.pl lub dowolna skrzynka)
-  if (config.smtpHost && config.smtpUser && config.smtpPassword) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: config.smtpHost,
-        port: config.smtpPort,
-        secure: config.smtpSecure,
-        auth: {
-          user: config.smtpUser,
-          pass: config.smtpPassword,
-        },
-        tls: {
-          rejectUnauthorized: false,
-        },
-      });
-
-      await transporter.sendMail({
-        from: config.from,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-      });
-
-      const successEmail: OutboxEmail = {
-        id: outboxId,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        type: options.type,
-        status: "SENT",
-        createdAt: new Date().toISOString(),
-        sentAt: new Date().toISOString(),
-      };
-      if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
-      (store as any).emailOutbox.unshift(successEmail);
-      saveLocalStore(store);
-
-      return { success: true };
-    } catch (err: any) {
-      console.error("Błąd wysyłki e-mail przez SMTP:", err);
-      const failedEmail: OutboxEmail = {
-        id: outboxId,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        type: options.type,
-        status: "FAILED",
-        errorMessage: err.message,
-        createdAt: new Date().toISOString(),
-      };
-      if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
-      (store as any).emailOutbox.unshift(failedEmail);
-      saveLocalStore(store);
-
-      return { success: false, error: err.message };
-    }
-  }
-
-  return { success: false, notConfigured: true, error: "Brak aktywnego dostawcy poczty." };
+  return {
+    success: false,
+    error: "Nieznany lub nieobsługiwany dostawca e-mail.",
+  };
 }
 
 // ==========================================
@@ -446,7 +476,10 @@ export async function sendIndividualDiscountNoticeEmail(params: {
 /**
  * 5. Test wysyłki poczty e-mail
  */
-export async function sendTestEmail(targetEmail: string) {
+export async function sendTestEmail(
+  targetEmail: string,
+  customSettings?: Partial<StoreSettings>
+) {
   const content = `
     <h2 style="font-family: Georgia, serif; font-size: 20px; color: #241D1B; margin-top: 0;">
       Test konfiguracji poczty e-mail w AURA Boutique ✨
@@ -459,21 +492,27 @@ export async function sendTestEmail(targetEmail: string) {
     </div>
   `;
   const html = wrapBoutiqueEmailTemplate("Test poczty AURA Boutique", content);
-  return dispatchEmail({
-    to: targetEmail,
-    subject: "Test konfiguracji poczty e-mail | AURA Boutique K.B.",
-    html,
-    type: "TEST_EMAIL",
-  });
+  return dispatchEmail(
+    {
+      to: targetEmail,
+      subject: "Test konfiguracji poczty e-mail | AURA Boutique K.B.",
+      html,
+      type: "TEST_EMAIL",
+    },
+    customSettings
+  );
 }
 
 /**
  * 6. Automatyczny mail powitalny po założeniu konta przez klientkę
  */
-export async function sendWelcomeCustomerEmail(params: {
-  customerEmail: string;
-  firstName?: string;
-}): Promise<{ success: boolean; notConfigured?: boolean; error?: string; alreadySent?: boolean }> {
+export async function sendWelcomeCustomerEmail(
+  params: {
+    customerEmail: string;
+    firstName?: string;
+  },
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string; alreadySent?: boolean }> {
   const store = loadLocalStore();
   const normalizedEmail = params.customerEmail.trim().toLowerCase();
 
@@ -527,12 +566,15 @@ export async function sendWelcomeCustomerEmail(params: {
 
   const html = wrapBoutiqueEmailTemplate("Witaj w AURA Boutique!", content);
 
-  const res = await dispatchEmail({
-    to: normalizedEmail,
-    subject: "Witaj w AURA Boutique! ✨ Dziękujemy, że jesteś z nami",
-    html,
-    type: "WELCOME_CUSTOMER",
-  });
+  const res = await dispatchEmail(
+    {
+      to: normalizedEmail,
+      subject: "Witaj w AURA Boutique! ✨ Dziękujemy, że jesteś z nami",
+      html,
+      type: "WELCOME_CUSTOMER",
+    },
+    customSettings
+  );
 
   return res;
 }
