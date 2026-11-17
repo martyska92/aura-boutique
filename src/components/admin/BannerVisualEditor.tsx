@@ -11,6 +11,7 @@ import {
   Undo2,
   Redo2,
   Eye,
+  EyeOff,
   Plus,
   Trash2,
   Copy,
@@ -505,6 +506,91 @@ export function BannerVisualEditor() {
     setSelectedId(config.textElements[0]?.id || config.buttonElement?.id || null);
   };
 
+  // Przełączanie widoczności elementu (Widoczny / Ukryty)
+  const handleToggleVisibility = (id: string, targetViewport?: DeviceViewport) => {
+    const vp = targetViewport || viewport;
+
+    setConfig((prev) => {
+      let next: VisualBannerConfig;
+
+      if (id === prev.buttonElement?.id && prev.buttonElement) {
+        const btn = prev.buttonElement;
+        const currentVpProps = btn[vp] || btn.desktop;
+        const currentVis = currentVpProps.visible !== false && btn.visible !== false;
+        const newVisible = !currentVis;
+
+        next = {
+          ...prev,
+          buttonElement: {
+            ...btn,
+            visible: newVisible ? true : (btn.desktop?.visible || btn.tablet?.visible || btn.mobile?.visible ? true : false),
+            [vp]: {
+              ...currentVpProps,
+              visible: newVisible,
+            },
+          },
+        };
+      } else {
+        next = {
+          ...prev,
+          textElements: prev.textElements.map((el) => {
+            if (el.id !== id) return el;
+            const currentVpProps = el[vp] || el.desktop;
+            const newVisible = currentVpProps.visible === false ? true : false;
+
+            return {
+              ...el,
+              [vp]: {
+                ...currentVpProps,
+                visible: newVisible,
+              },
+            };
+          }),
+        };
+      }
+
+      pushHistory(next);
+      return next;
+    });
+  };
+
+  // Ustawienie widoczności na wszystkich urządzeniach jednocześnie
+  const handleSetAllDevicesVisibility = (id: string, visible: boolean) => {
+    setConfig((prev) => {
+      let next: VisualBannerConfig;
+
+      if (id === prev.buttonElement?.id && prev.buttonElement) {
+        const btn = prev.buttonElement;
+        next = {
+          ...prev,
+          buttonElement: {
+            ...btn,
+            visible: visible,
+            desktop: { ...btn.desktop, visible },
+            tablet: btn.tablet ? { ...btn.tablet, visible } : { ...btn.desktop, visible },
+            mobile: btn.mobile ? { ...btn.mobile, visible } : { ...btn.desktop, visible },
+          },
+        };
+      } else {
+        next = {
+          ...prev,
+          textElements: prev.textElements.map((el) => {
+            if (el.id !== id) return el;
+            return {
+              ...el,
+              desktop: { ...el.desktop, visible },
+              tablet: el.tablet ? { ...el.tablet, visible } : { ...el.desktop, visible },
+              mobile: el.mobile ? { ...el.mobile, visible } : { ...el.desktop, visible },
+            };
+          }),
+        };
+      }
+
+      pushHistory(next);
+      return next;
+    });
+  };
+
   // Zapis szkicu do bazy
   const handleSaveDraft = async () => {
     setSaving(true);
@@ -751,6 +837,35 @@ export function BannerVisualEditor() {
             </span>
           </div>
 
+          {/* Informacja jeśli zaznaczony element jest ukryty na aktywnym urządzeniu */}
+          {(() => {
+            const isTextHidden = selectedText && selectedText[viewport]?.visible === false;
+            const isBtnHidden = selectedButton && (selectedButton.visible === false || selectedButton[viewport]?.visible === false);
+            if (!isTextHidden && !isBtnHidden) return null;
+
+            const name = selectedText?.label || selectedText?.text || selectedButton?.text || "Element";
+            const vpName = viewport === "desktop" ? "komputerach" : viewport === "tablet" ? "tabletach" : "telefonach";
+
+            return (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded text-xs flex items-center justify-between gap-2 shadow-2xs animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <EyeOff className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    Zaznaczony element „<strong>{name.length > 30 ? name.slice(0, 30) + "..." : name}</strong>” jest obecnie <strong>ukryty na {vpName}</strong> i nie wyświetla się w podglądzie.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => selectedId && handleToggleVisibility(selectedId)}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Pokaż na tym widoku</span>
+                </button>
+              </div>
+            );
+          })()}
+
           <div
             className={`bg-[#E6DDD3] p-4 sm:p-6 rounded-xs border border-[#D5C7B8] flex items-center justify-center overflow-hidden min-h-[460px]`}
           >
@@ -856,52 +971,202 @@ export function BannerVisualEditor() {
                   </button>
                 </div>
 
-                <div className="space-y-1 max-h-40 overflow-y-auto p-1 bg-[#FAF6F1] rounded border border-[#EADFD5]">
-                  {config.textElements.map((el, idx) => (
-                    <div
-                      key={el.id}
-                      onClick={() => setSelectedId(el.id)}
-                      className={`p-2 rounded flex items-center justify-between cursor-pointer transition-colors ${
-                        selectedId === el.id
-                          ? "bg-white border border-[#C5A069] shadow-xs text-[#241D1B] font-semibold"
-                          : "hover:bg-white/60 text-[#54463F]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <Type className="w-3.5 h-3.5 text-[#C5A069] shrink-0" />
-                        <span className="truncate">{el.text || el.label || `Tekst #${idx + 1}`}</span>
+                <div className="space-y-1.5 max-h-56 overflow-y-auto p-1.5 bg-[#FAF6F1] rounded border border-[#EADFD5]">
+                  {config.textElements.map((el, idx) => {
+                    const isVisibleOnCurrent = el[viewport]?.visible !== false;
+                    const isSelected = selectedId === el.id;
+
+                    return (
+                      <div
+                        key={el.id}
+                        onClick={() => setSelectedId(el.id)}
+                        className={`p-2 rounded flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-white border border-[#C5A069] shadow-xs text-[#241D1B] font-semibold ring-1 ring-[#C5A069]/30"
+                            : "hover:bg-white/70 text-[#54463F] border border-transparent"
+                        } ${!isVisibleOnCurrent ? "bg-[#F3EFEA]/80 text-[#857670]" : ""}`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Type className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#C5A069]" : "text-[#857670]"}`} />
+                          <span className={`truncate text-xs ${!isVisibleOnCurrent ? "italic line-through opacity-75" : ""}`}>
+                            {el.text || el.label || `Tekst #${idx + 1}`}
+                          </span>
+                        </div>
+
+                        {/* Przełącznik widoczności z ikoną oka */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleToggleVisibility(el.id);
+                          }}
+                          className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-2xs ${
+                            isVisibleOnCurrent
+                              ? "bg-[#FAF2EB] text-[#8C6B38] border border-[#DFCA9B] hover:bg-[#F3E7DC]"
+                              : "bg-white text-[#786D65] border border-[#D5C7B8] hover:bg-[#EAE4DC]"
+                          }`}
+                          title={
+                            isVisibleOnCurrent
+                              ? `Widoczny na: ${viewport === "desktop" ? "Komputer" : viewport === "tablet" ? "Tablet" : "Telefon"} (Kliknij, aby ukryć)`
+                              : `Ukryty na: ${viewport === "desktop" ? "Komputer" : viewport === "tablet" ? "Tablet" : "Telefon"} (Kliknij, aby pokazać)`
+                          }
+                          aria-label={isVisibleOnCurrent ? "Ukryj element" : "Pokaż element"}
+                        >
+                          {isVisibleOnCurrent ? (
+                            <>
+                              <Eye className="w-3.5 h-3.5 text-[#C5A069]" />
+                              <span>Widoczny</span>
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="w-3.5 h-3.5 text-[#857670]" />
+                              <span>Ukryty</span>
+                            </>
+                          )}
+                        </button>
                       </div>
-                      <span className="text-[10px] text-[#857670] shrink-0">
-                        {el[viewport]?.visible !== false ? "Widoczny" : "Ukryty"}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Przycisk CTA */}
-                  {config.buttonElement && (
-                    <div
-                      onClick={() => setSelectedId(config.buttonElement!.id)}
-                      className={`p-2 rounded flex items-center justify-between cursor-pointer transition-colors ${
-                        selectedId === config.buttonElement.id
-                          ? "bg-white border border-[#C5A069] shadow-xs text-[#241D1B] font-semibold"
-                          : "hover:bg-white/60 text-[#54463F]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <Square className="w-3.5 h-3.5 text-[#C5A069] shrink-0" />
-                        <span className="truncate">{config.buttonElement.text} (Przycisk)</span>
+                  {config.buttonElement && (() => {
+                    const btn = config.buttonElement;
+                    const isBtnVisible = btn.visible !== false && btn[viewport]?.visible !== false;
+                    const isSelected = selectedId === btn.id;
+
+                    return (
+                      <div
+                        onClick={() => setSelectedId(btn.id)}
+                        className={`p-2 rounded flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-white border border-[#C5A069] shadow-xs text-[#241D1B] font-semibold ring-1 ring-[#C5A069]/30"
+                            : "hover:bg-white/70 text-[#54463F] border border-transparent"
+                        } ${!isBtnVisible ? "bg-[#F3EFEA]/80 text-[#857670]" : ""}`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Square className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#C5A069]" : "text-[#857670]"}`} />
+                          <span className={`truncate text-xs ${!isBtnVisible ? "italic line-through opacity-75" : ""}`}>
+                            {btn.text || "Przycisk"} (Przycisk)
+                          </span>
+                        </div>
+
+                        {/* Przełącznik widoczności przycisku */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleToggleVisibility(btn.id);
+                          }}
+                          className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-2xs ${
+                            isBtnVisible
+                              ? "bg-[#FAF2EB] text-[#8C6B38] border border-[#DFCA9B] hover:bg-[#F3E7DC]"
+                              : "bg-white text-[#786D65] border border-[#D5C7B8] hover:bg-[#EAE4DC]"
+                          }`}
+                          title={
+                            isBtnVisible
+                              ? `Widoczny na: ${viewport === "desktop" ? "Komputer" : viewport === "tablet" ? "Tablet" : "Telefon"} (Kliknij, aby ukryć)`
+                              : `Ukryty na: ${viewport === "desktop" ? "Komputer" : viewport === "tablet" ? "Tablet" : "Telefon"} (Kliknij, aby pokazać)`
+                          }
+                          aria-label={isBtnVisible ? "Ukryj przycisk" : "Pokaż przycisk"}
+                        >
+                          {isBtnVisible ? (
+                            <>
+                              <Eye className="w-3.5 h-3.5 text-[#C5A069]" />
+                              <span>Widoczny</span>
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="w-3.5 h-3.5 text-[#857670]" />
+                              <span>Ukryty</span>
+                            </>
+                          )}
+                        </button>
                       </div>
-                      <span className="text-[10px] text-[#857670] shrink-0">
-                        {config.buttonElement[viewport]?.visible !== false ? "Widoczny" : "Ukryty"}
-                      </span>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
 
               {/* EDYCJA TEKSTU */}
               {selectedText && (
                 <div className="space-y-3.5 pt-2 border-t border-[#EADFD5]">
+                  {/* SEKCJA: WIDOCZNOŚĆ ELEMENTU NA URZĄDZENIACH */}
+                  <div className="p-3 bg-[#FAF6F1] border border-[#EADFD5] rounded space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-[#241D1B] flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-[#C5A069]" />
+                        <span>Widoczność na urządzeniach</span>
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          selectedText[viewport]?.visible !== false
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : "bg-amber-100 text-amber-800 border border-amber-200"
+                        }`}
+                      >
+                        {selectedText[viewport]?.visible !== false ? "Widoczny na tym widoku" : "Ukryty na tym widoku"}
+                      </span>
+                    </div>
+
+                    {/* Przełączniki dla komputera, tabletu i telefonu */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {(["desktop", "tablet", "mobile"] as DeviceViewport[]).map((vp) => {
+                        const isVpVisible = selectedText[vp]?.visible !== false;
+                        const label = vp === "desktop" ? "Komputer" : vp === "tablet" ? "Tablet" : "Telefon";
+
+                        return (
+                          <button
+                            key={vp}
+                            type="button"
+                            onClick={() => handleToggleVisibility(selectedText.id, vp)}
+                            className={`p-2 rounded border text-center transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                              isVpVisible
+                                ? "bg-white border-[#C5A069] text-[#241D1B] shadow-2xs hover:bg-[#FAF2EB]"
+                                : "bg-[#F3EFEA] border-[#D5C7B8] text-[#857670] hover:bg-[#EAE4DC]"
+                            }`}
+                          >
+                            <span className="text-[10px] uppercase font-bold text-[#6E6259]">{label}</span>
+                            <div className="flex items-center gap-1 text-[11px] font-semibold">
+                              {isVpVisible ? (
+                                <>
+                                  <Eye className="w-3.5 h-3.5 text-[#C5A069]" />
+                                  <span>Widoczny</span>
+                                </>
+                              ) : (
+                                <>
+                                  <EyeOff className="w-3.5 h-3.5 text-[#857670]" />
+                                  <span>Ukryty</span>
+                                </>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Przyciski: Zastosuj na wszystkich urządzeniach */}
+                    <div className="flex items-center gap-2 pt-1 border-t border-[#EADFD5]/60">
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllDevicesVisibility(selectedText.id, true)}
+                        className="flex-1 py-1.5 px-2 bg-white border border-[#C5A069] text-[#8C6B38] hover:bg-[#FAF2EB] rounded text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#C5A069]" />
+                        <span>Pokaż na wszystkich</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllDevicesVisibility(selectedText.id, false)}
+                        className="flex-1 py-1.5 px-2 bg-white border border-[#D5C7B8] text-[#786D65] hover:bg-[#F3EFEA] rounded text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <EyeOff className="w-3.5 h-3.5 text-[#857670]" />
+                        <span>Ukryj na wszystkich</span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Treść */}
                   <div className="space-y-1">
                     <label className="font-semibold text-[#241D1B] block">Treść tekstu:</label>
@@ -1243,6 +1508,83 @@ export function BannerVisualEditor() {
               {/* EDYCJA PRZYCISKU */}
               {isButtonSelected && selectedButton && (
                 <div className="space-y-3.5 pt-2 border-t border-[#EADFD5]">
+                  {/* SEKCJA: WIDOCZNOŚĆ PRZYCISKU NA URZĄDZENIACH */}
+                  <div className="p-3 bg-[#FAF6F1] border border-[#EADFD5] rounded space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-[#241D1B] flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-[#C5A069]" />
+                        <span>Widoczność przycisku na urządzeniach</span>
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          selectedButton.visible !== false && selectedButton[viewport]?.visible !== false
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : "bg-amber-100 text-amber-800 border border-amber-200"
+                        }`}
+                      >
+                        {selectedButton.visible !== false && selectedButton[viewport]?.visible !== false
+                          ? "Widoczny na tym widoku"
+                          : "Ukryty na tym widoku"}
+                      </span>
+                    </div>
+
+                    {/* Przełączniki dla komputera, tabletu i telefonu */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {(["desktop", "tablet", "mobile"] as DeviceViewport[]).map((vp) => {
+                        const isVpVisible = selectedButton.visible !== false && selectedButton[vp]?.visible !== false;
+                        const label = vp === "desktop" ? "Komputer" : vp === "tablet" ? "Tablet" : "Telefon";
+
+                        return (
+                          <button
+                            key={vp}
+                            type="button"
+                            onClick={() => handleToggleVisibility(selectedButton.id, vp)}
+                            className={`p-2 rounded border text-center transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                              isVpVisible
+                                ? "bg-white border-[#C5A069] text-[#241D1B] shadow-2xs hover:bg-[#FAF2EB]"
+                                : "bg-[#F3EFEA] border-[#D5C7B8] text-[#857670] hover:bg-[#EAE4DC]"
+                            }`}
+                          >
+                            <span className="text-[10px] uppercase font-bold text-[#6E6259]">{label}</span>
+                            <div className="flex items-center gap-1 text-[11px] font-semibold">
+                              {isVpVisible ? (
+                                <>
+                                  <Eye className="w-3.5 h-3.5 text-[#C5A069]" />
+                                  <span>Widoczny</span>
+                                </>
+                              ) : (
+                                <>
+                                  <EyeOff className="w-3.5 h-3.5 text-[#857670]" />
+                                  <span>Ukryty</span>
+                                </>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Przyciski: Zastosuj na wszystkich urządzeniach */}
+                    <div className="flex items-center gap-2 pt-1 border-t border-[#EADFD5]/60">
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllDevicesVisibility(selectedButton.id, true)}
+                        className="flex-1 py-1.5 px-2 bg-white border border-[#C5A069] text-[#8C6B38] hover:bg-[#FAF2EB] rounded text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#C5A069]" />
+                        <span>Pokaż na wszystkich</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllDevicesVisibility(selectedButton.id, false)}
+                        className="flex-1 py-1.5 px-2 bg-white border border-[#D5C7B8] text-[#786D65] hover:bg-[#F3EFEA] rounded text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <EyeOff className="w-3.5 h-3.5 text-[#857670]" />
+                        <span>Ukryj na wszystkich</span>
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
                     <label className="font-semibold text-[#241D1B] block">Napis na przycisku:</label>
                     <input

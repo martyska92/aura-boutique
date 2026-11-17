@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -84,11 +84,49 @@ export function BannerRenderer({
       : config.overlay.color
     : undefined;
 
+  // Wykrywanie aktualnego ekranu dla strony publicznej (gdy viewport nie jest wymuszony przez edytor)
+  const [clientViewport, setClientViewport] = useState<DeviceViewport | null>(null);
+
+  useEffect(() => {
+    if (viewport) return;
+
+    const updateClientViewport = () => {
+      const w = window.innerWidth;
+      if (w < 640) {
+        setClientViewport("mobile");
+      } else if (w < 1024) {
+        setClientViewport("tablet");
+      } else {
+        setClientViewport("desktop");
+      }
+    };
+
+    updateClientViewport();
+    window.addEventListener("resize", updateClientViewport);
+    return () => window.removeEventListener("resize", updateClientViewport);
+  }, [viewport]);
+
+  const activeViewport = viewport || clientViewport || "desktop";
+
   // Funkcja pobierająca responsywne właściwości elementu
   const getProps = (el: BannerTextElement | BannerButtonElement) => {
-    if (viewport === "mobile" && el.mobile) return el.mobile;
-    if (viewport === "tablet" && el.tablet) return el.tablet;
+    if (activeViewport === "mobile" && el.mobile) return el.mobile;
+    if (activeViewport === "tablet" && el.tablet) return el.tablet;
     return el.desktop;
+  };
+
+  // Klasy pomocnicze ukrywające element w CSS (zabezpieczenie SSR i dostępności)
+  const getResponsiveHiddenClass = (el: BannerTextElement | BannerButtonElement) => {
+    if (viewport) return ""; // W edytorze renderujemy bezpośrednio według aktywnego viewportu
+    const dVis = el.desktop?.visible !== false;
+    const tVis = el.tablet ? el.tablet.visible !== false : dVis;
+    const mVis = el.mobile ? el.mobile.visible !== false : dVis;
+
+    const classes: string[] = [];
+    if (!mVis) classes.push("max-sm:!hidden");
+    if (!tVis) classes.push("sm:max-lg:!hidden");
+    if (!dVis) classes.push("lg:!hidden");
+    return classes.join(" ");
   };
 
   return (
@@ -175,7 +213,7 @@ export function BannerRenderer({
               cursor: interactive ? "grab" : "default",
               touchAction: interactive ? "none" : "auto",
             }}
-            className={`transition-shadow ${
+            className={`transition-shadow ${getResponsiveHiddenClass(textEl)} ${
               isSelected ? "ring-2 ring-[#C5A069] ring-offset-1 rounded-sm shadow-lg" : ""
             }`}
           >
@@ -242,7 +280,8 @@ export function BannerRenderer({
         (() => {
           const btn = config.buttonElement;
           const props = getProps(btn);
-          if (props.visible === false || btn.visible === false) return null;
+          const isBtnVisible = props.visible !== undefined ? props.visible : btn.visible !== false;
+          if (!isBtnVisible) return null;
 
           const isSelected = interactive && selectedId === btn.id;
 
@@ -290,7 +329,7 @@ export function BannerRenderer({
                 cursor: interactive ? "grab" : "pointer",
                 touchAction: interactive ? "none" : "auto",
               }}
-              className={`${
+              className={`${getResponsiveHiddenClass(btn)} ${
                 isSelected ? "ring-2 ring-[#C5A069] ring-offset-2 rounded-lg shadow-lg" : ""
               }`}
             >
