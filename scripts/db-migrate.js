@@ -120,7 +120,9 @@ async function run() {
             },
           });
           console.log("[db-migrate] Zainicjalizowano konto wlascicielki w PostgreSQL.");
-        } else if (initialHash) {
+        } else if (!existingAdmin.passwordHash && initialHash) {
+          // Uzupełniamy TYLKO wtedy, gdy konto w bazie nie ma jeszcze ustawionego hasła.
+          // Jeśli właścicielka zmieniła hasło, NIGDY go nie nadpisujemy przy kolejnych wdrożeniach!
           await prisma.adminAccount.update({
             where: { id: "default" },
             data: {
@@ -128,7 +130,7 @@ async function run() {
               mustChangePassword: initialMustChange,
             },
           });
-          console.log("[db-migrate] Zsynchronizowano bezpieczny hash konta wlascicielki.");
+          console.log("[db-migrate] Uzupełniono początkowy hash konta właścicielki.");
         }
 
         // Migracja starszych haseł klientek do solonego formatu PBKDF2
