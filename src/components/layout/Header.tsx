@@ -185,35 +185,45 @@ function HeaderInner() {
             </div>
 
             {/* ─── PRAWA KOLUMNA (1fr, justify-self-end) ─── */}
-            <div className="flex items-center gap-1 sm:gap-2 justify-self-end text-xs font-medium">
+            <div className="flex items-center gap-1.5 sm:gap-2 justify-self-end text-xs font-medium">
               {/* Na telefonie: ikona wyszukiwarki (lupa) */}
               <button
                 type="button"
                 onClick={() => setSearchOpen(!searchOpen)}
-                className="lg:hidden w-10 h-10 flex items-center justify-center text-[#241D1B] active:scale-95 transition-transform rounded-md"
+                className="lg:hidden w-10 h-10 flex items-center justify-center text-[#241D1B] active:scale-95 transition-transform rounded-md hover:bg-white/40"
                 aria-label="Wyszukiwarka"
               >
                 <Search className="w-5 h-5 text-[#241D1B]" />
               </button>
 
+              {/* Na telefonie: bezpośrednia ikona Logowania / Konta */}
+              <Link
+                href={auth.isLoggedIn ? "/konto" : "/logowanie"}
+                className="lg:hidden w-10 h-10 flex items-center justify-center text-[#241D1B] hover:text-[#542823] active:scale-95 transition-transform rounded-md hover:bg-white/40"
+                title={auth.isLoggedIn ? "Moje konto" : "Zaloguj się"}
+                aria-label={auth.isLoggedIn ? "Moje konto" : "Zaloguj się"}
+              >
+                <User className="w-5 h-5 text-[#241D1B]" />
+              </Link>
+
               {/* Na komputerze: Ulubione */}
               <Link
                 href="/katalog?filter=bestsellery"
-                className="hidden lg:flex w-10 h-10 sm:w-auto sm:px-2.5 sm:py-2 items-center justify-center gap-1.5 rounded-md hover:bg-[#A89686]/40 text-[#241D1B] transition-colors"
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-2 rounded-md hover:bg-white/40 text-[#241D1B] transition-colors"
                 title="Ulubione i Bestsellery"
               >
-                <Heart className="w-4 h-4 text-[#C5A069]" />
+                <Heart className="w-4 h-4 text-[#241D1B]" />
                 <span className="hidden xl:inline">Ulubione</span>
               </Link>
 
-              {/* Na komputerze: Konto klientki */}
+              {/* Na komputerze: Wyraźny i czytelny przycisk Logowanie / Konto */}
               <Link
                 href={auth.isLoggedIn ? "/konto" : "/logowanie"}
-                className="hidden lg:flex w-10 h-10 sm:w-auto sm:px-2.5 sm:py-2 items-center justify-center gap-1.5 rounded-md hover:bg-[#A89686]/40 text-[#241D1B] transition-colors"
+                className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-semibold transition-all border border-[#968372] bg-white/70 hover:bg-white text-[#241D1B] shadow-2xs hover:shadow-xs"
                 title={auth.isLoggedIn ? "Moje konto" : "Zaloguj się"}
               >
-                <User className="w-4 h-4 text-[#C5A069]" />
-                <span className="hidden xl:inline">
+                <User className="w-4 h-4 text-[#8C7248]" />
+                <span>
                   {auth.isLoggedIn ? "Konto" : "Logowanie"}
                 </span>
               </Link>
@@ -230,19 +240,17 @@ function HeaderInner() {
                 </Link>
               )}
 
-              {/* Koszyk:
-                  Na telefonie: zgrabna ikona bez dużego prostokątnego tła przycisku
-                  Na komputerze: elegancki przycisk z napisem "Koszyk" */}
+              {/* Koszyk */}
               <button
                 type="button"
                 onClick={() => setIsCartOpen(true)}
-                className="relative flex items-center justify-center w-10 h-10 lg:w-auto lg:h-auto lg:px-3 lg:py-2 lg:bg-[#9E8359] lg:hover:bg-[#8B7147] text-[#241D1B] lg:text-white text-xs font-semibold rounded-md lg:shadow-xs transition-all active:scale-95"
+                className="relative flex items-center justify-center w-10 h-10 lg:w-auto lg:h-auto lg:px-3.5 lg:py-2 bg-[#9E8359] hover:bg-[#8B7147] text-white text-xs font-semibold rounded-md shadow-xs transition-all active:scale-95"
                 aria-label={`Koszyk, ${itemCount} pozycji`}
               >
-                <ShoppingBag className="w-5 h-5 lg:w-4 lg:h-4 text-[#241D1B] lg:text-white" />
-                <span className="hidden lg:inline ml-1.5">Koszyk</span>
+                <ShoppingBag className="w-5 h-5 lg:w-4 lg:h-4 text-white" />
+                <span className="hidden sm:inline ml-1.5">Koszyk</span>
                 {itemCount > 0 && (
-                  <span className="absolute top-1 right-1 lg:-top-1.5 lg:-right-1.5 bg-[#8C2D2D] lg:bg-[#241D1B] text-white lg:text-[#F3E7D3] lg:border lg:border-[#C5A069] text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold shadow-xs">
+                  <span className="absolute -top-1.5 -right-1.5 bg-[#8C2D2D] text-white border border-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold shadow-xs">
                     {itemCount > 99 ? "99+" : itemCount}
                   </span>
                 )}

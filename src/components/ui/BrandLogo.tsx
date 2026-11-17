@@ -4,7 +4,7 @@ import React from "react";
 
 interface BrandLogoProps {
   className?: string;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "header";
   isLink?: boolean;
   withAura?: boolean;
   variant?: "default" | "cashmere" | string;
@@ -15,31 +15,40 @@ export function BrandLogo({
   size = "md",
   isLink = true,
 }: BrandLogoProps) {
-  const heightClasses = {
-    sm: "h-8 sm:h-9",
-    md: "h-11 sm:h-14 lg:h-16",
-    lg: "h-16 sm:h-20",
-    xl: "h-22 sm:h-28 lg:h-36",
+  // Rozmiary logo:
+  // Na komputerze około 220px szerokości, na telefonie około 150px szerokości przy zachowaniu proporcji (493/177)
+  const sizeClasses = {
+    sm: "w-[120px] sm:w-[140px]",
+    header: "w-[150px] lg:w-[220px]",
+    md: "w-[150px] lg:w-[220px]",
+    lg: "w-[180px] sm:w-[240px]",
+    xl: "w-[220px] sm:w-[300px]",
   };
 
   const content = (
-    <div className={`relative ${heightClasses[size]} aspect-[491/178] shrink-0 flex items-center justify-center`}>
-      {/* Wektorowy logotyp AURA Boutique w szlachetnym odcieniu szampana (AURA_BOUTIQUE_05_szampan.svg) */}
+    <div
+      className={`relative ${sizeClasses[size] || sizeClasses.md} aspect-[493/177] shrink-0 flex items-center justify-center`}
+      style={{ filter: "none", opacity: 1 }}
+    >
       <Image
         src="/images/brand/aura-logo.svg"
-        alt="AURA Boutique K.B."
-        fill
+        alt="AURA Boutique"
+        width={493}
+        height={177}
         priority
         unoptimized
-        sizes="(max-width: 640px) 240px, (max-width: 1024px) 340px, 491px"
-        className="relative z-10 object-contain object-center select-none"
+        className="w-full h-auto object-contain object-center select-none"
+        style={{ filter: "none", opacity: 1 }}
       />
     </div>
   );
 
   if (!isLink) {
     return (
-      <div className={`inline-flex items-center justify-center select-none ${className}`}>
+      <div
+        className={`inline-flex items-center justify-center select-none ${className}`}
+        style={{ filter: "none", opacity: 1 }}
+      >
         {content}
       </div>
     );
@@ -49,7 +58,8 @@ export function BrandLogo({
     <Link
       href="/"
       className={`inline-flex items-center justify-center group cursor-pointer select-none transition-transform hover:scale-[1.02] duration-200 ${className}`}
-      title="AURA Boutique K.B."
+      title="AURA Boutique"
+      style={{ filter: "none", opacity: 1 }}
     >
       {content}
     </Link>
