@@ -60,13 +60,37 @@ function AuthForms() {
   // Przypomnienie / Reset hasła (dla klientek i właścicielki)
   const [forgotEmail, setForgotEmail] = useState(searchParams.get("email") || "");
   const [forgotStep, setForgotStep] = useState<1 | 2>(1);
-  const [forgotCode, setForgotCode] = useState("");
+  const [forgotCode, setForgotCode] = useState(searchParams.get("token") || searchParams.get("code") || "");
   const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
   const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
   const [isForgotLoading, setIsForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Obsługa parametrów linku odzyskiwania dostępu (?token=...&email=...)
+  useEffect(() => {
+    const token = searchParams.get("token") || searchParams.get("code");
+    const emailParam = searchParams.get("email");
+    const tabParam = searchParams.get("tab");
+
+    if (token) {
+      setActiveTab("forgot");
+      setForgotStep(2);
+      setForgotCode(token);
+      if (emailParam) {
+        setForgotEmail(emailParam);
+      }
+      setForgotSuccess("Zweryfikowano jednorazowy link odzyskiwania dostępu. Wprowadź poniżej swoje nowe, prywatne hasło.");
+    } else if (tabParam === "forgot") {
+      setActiveTab("forgot");
+      if (emailParam) {
+        setForgotEmail(emailParam);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -126,8 +150,13 @@ function AuthForms() {
     setForgotError(null);
     setForgotSuccess(null);
 
-    if (forgotNewPassword.trim().length < 6) {
-      setForgotError("Nowe hasło musi zawierać co najmniej 6 znaków.");
+    if (forgotNewPassword.trim().length < 8) {
+      setForgotError("Nowe hasło musi zawierać co najmniej 8 znaków dla zapewnienia bezpieczeństwa konta.");
+      return;
+    }
+
+    if (forgotConfirmPassword && forgotNewPassword.trim() !== forgotConfirmPassword.trim()) {
+      setForgotError("Wprowadzone hasła nie są identyczne. Upewnij się, że wpisujesz dokładnie to samo hasło w obu polach.");
       return;
     }
 
@@ -760,24 +789,38 @@ function AuthForms() {
                     Konto e-mail:
                   </label>
                   <div className="p-2.5 bg-[#FAF6F1] border border-[#EADFD5] text-xs font-semibold text-[#241D1B] rounded-xs">
-                    {forgotEmail}
+                    {forgotEmail || "Konto właścicielki / klientki"}
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                    6-cyfrowy kod weryfikacyjny *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={6}
-                    placeholder="Wpisz 6-cyfrowy kod..."
-                    value={forgotCode}
-                    onChange={(e) => setForgotCode(e.target.value)}
-                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-sm font-mono tracking-widest text-[#241D1B] text-center focus:outline-none focus:border-[#C5A069] rounded-xs font-bold"
-                  />
-                </div>
+                {forgotCode && forgotCode.length > 6 ? (
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
+                      Jednorazowy token autoryzacyjny:
+                    </label>
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-xs font-mono text-emerald-900 rounded-xs flex items-center justify-between">
+                      <span className="truncate max-w-[260px]">{forgotCode}</span>
+                      <span className="text-[10px] font-sans font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded shrink-0">
+                        Zweryfikowany
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                      6-cyfrowy kod weryfikacyjny *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={64}
+                      placeholder="Wpisz 6-cyfrowy kod..."
+                      value={forgotCode}
+                      onChange={(e) => setForgotCode(e.target.value)}
+                      className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-sm font-mono tracking-widest text-[#241D1B] text-center focus:outline-none focus:border-[#C5A069] rounded-xs font-bold"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
@@ -787,7 +830,7 @@ function AuthForms() {
                     <input
                       type={showForgotNewPassword ? "text" : "password"}
                       required
-                      placeholder="Wpisz nowe hasło..."
+                      placeholder="Wpisz nowe bezpieczne hasło..."
                       value={forgotNewPassword}
                       onChange={(e) => setForgotNewPassword(e.target.value)}
                       className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
@@ -799,6 +842,30 @@ function AuthForms() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
                     >
                       {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                    Powtórz nowe hasło *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showForgotConfirmPassword ? "text" : "password"}
+                      required
+                      placeholder="Powtórz nowe hasło..."
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                    />
+                    <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                    >
+                      {showForgotConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>

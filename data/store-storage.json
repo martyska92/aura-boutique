@@ -692,7 +692,15 @@
     "lastPasswordChangedAt": "1970-01-01T00:00:00.000Z"
   },
   "customers": [],
-  "passwordResetTokens": [],
+  "passwordResetTokens": [
+    {
+      "email": "aurazmigrod@wp.pl",
+      "codeHash": "80a04eea50902a7833ef34437604a8024529fbb26c1f5ef3a20ca24adbd01331",
+      "expiresAt": 1795012868870,
+      "attempts": 0,
+      "createdAt": 1794926468870
+    }
+  ],
   "priceHistory": [],
   "emailOutbox": []
 }

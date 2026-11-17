@@ -91,23 +91,71 @@ async function run() {
         console.log("[db-migrate] Dodano kategorie 'Legginsy' do bazy danych.");
       }
 
-      // 3. Inicjalizacja konta właścicielki w trwałej bazie danych
+      // 3. Inicjalizacja konta właścicielki i synchronizacja tokenów odzyskiwania dostępu
       try {
+        const fs = require("fs");
+        const path = require("path");
+        const storeFile = path.join(__dirname, "..", "data", "store-storage.json");
+        let localStore = null;
+        if (fs.existsSync(storeFile)) {
+          try {
+            localStore = JSON.parse(fs.readFileSync(storeFile, "utf8"));
+          } catch (_) {}
+        }
+
         const existingAdmin = await prisma.adminAccount.findUnique({
           where: { id: "default" },
         });
+
+        const initialHash = localStore?.adminAccount?.passwordHash || null;
+        const initialMustChange = localStore?.adminAccount?.mustChangePassword ?? true;
+
         if (!existingAdmin) {
           await prisma.adminAccount.create({
             data: {
               id: "default",
               email: "aurazmigrod@wp.pl",
-              mustChangePassword: true,
+              passwordHash: initialHash,
+              mustChangePassword: initialMustChange,
             },
           });
           console.log("[db-migrate] Zainicjalizowano konto wlascicielki w PostgreSQL.");
+        } else if (!existingAdmin.passwordHash && initialHash) {
+          await prisma.adminAccount.update({
+            where: { id: "default" },
+            data: {
+              passwordHash: initialHash,
+              mustChangePassword: initialMustChange,
+            },
+          });
+          console.log("[db-migrate] Zsynchronizowano bezpieczny hash konta wlascicielki.");
+        }
+
+        // Synchronizacja aktywnych tokenów odzyskiwania dostępu z magazynu lokalnego
+        if (localStore?.passwordResetTokens && Array.isArray(localStore.passwordResetTokens)) {
+          const now = new Date();
+          for (const tok of localStore.passwordResetTokens) {
+            const exp = new Date(tok.expiresAt);
+            if (exp > now && tok.codeHash) {
+              const existingTok = await prisma.passwordResetToken.findFirst({
+                where: { codeHash: tok.codeHash },
+              });
+              if (!existingTok) {
+                await prisma.passwordResetToken.create({
+                  data: {
+                    email: tok.email.toLowerCase(),
+                    codeHash: tok.codeHash,
+                    expiresAt: exp,
+                    attempts: tok.attempts || 0,
+                  },
+                });
+                console.log(`[db-migrate] Zsynchronizowano bezpieczny token odzyskiwania dla: ${tok.email}`);
+              }
+            }
+          }
         }
       } catch (adminErr) {
-        console.warn("[db-migrate] Ostrzezenie inicjalizacji adminAccount:", adminErr.message);
+        console.warn("[db-migrate] Ostrzezenie inicjalizacji adminAccount / tokenow:", adminErr.message);
       }
 
       await prisma.$disconnect();

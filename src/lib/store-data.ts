@@ -3179,6 +3179,8 @@ export async function resetUserPassword(
         await prisma.passwordResetToken.deleteMany({
           where: { email: normalized },
         });
+        // Unieważnienie wszystkich dotychczasowych aktywnych sesji administratora
+        await prisma.adminSession.deleteMany({});
       } catch (e) {
         console.warn("Neon admin password reset sync error:", e);
       }
@@ -3211,6 +3213,8 @@ export async function resetUserPassword(
           where: { email: customer.email },
           data: { passwordHash: cleanPassword },
         });
+        // Unieważnienie wszystkich dotychczasowych aktywnych sesji administratora
+        await prisma.adminSession.deleteMany({});
       } catch (e) {
         console.warn("Neon customer password reset sync error:", e);
       }
