@@ -3,6 +3,9 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { getStoreSettings, isNeonConfigured } from "@/lib/store-data";
 import { StoreSettingsClient } from "@/components/admin/StoreSettingsClient";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminSettingsPage() {
   await requireAdmin();
   const settings = await getStoreSettings({ forAdminClient: true });

@@ -228,7 +228,26 @@ export async function dispatchEmail(
 }> {
   const store = loadLocalStore();
   const outboxId = `eml-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  const config = getEmailConfig(customSettings);
+  let effectiveSettings = customSettings;
+  let config = getEmailConfig(effectiveSettings);
+
+  if (!config.isConfigured) {
+    try {
+      const { getStoreSettings } = await import("./store-data");
+      const freshSettings = await getStoreSettings();
+      effectiveSettings = {
+        ...freshSettings,
+        ...(customSettings || {}),
+      };
+      if (!effectiveSettings.smtpPassword && freshSettings.smtpPassword) {
+        effectiveSettings.smtpPassword = freshSettings.smtpPassword;
+      }
+      if (!effectiveSettings.resendApiKey && freshSettings.resendApiKey) {
+        effectiveSettings.resendApiKey = freshSettings.resendApiKey;
+      }
+      config = getEmailConfig(effectiveSettings);
+    } catch (_) {}
+  }
 
   if (!config.isConfigured) {
     const errorMsg = config.emailProvider === "smtp"

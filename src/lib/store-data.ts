@@ -1952,7 +1952,26 @@ export async function getStoreSettings(options?: { forAdminClient?: boolean }): 
           visualBannerPublished,
           bannerVersion: dbSettings.bannerVersion || settings.bannerVersion || 1,
           bannerPublishedAt: dbSettings.bannerPublishedAt ? dbSettings.bannerPublishedAt.toISOString() : settings.bannerPublishedAt,
+          smtpHost: dbSettings.smtpHost ?? settings.smtpHost,
+          smtpPort: dbSettings.smtpPort ?? settings.smtpPort,
+          smtpUser: dbSettings.smtpUser ?? settings.smtpUser,
+          smtpPassword: (dbSettings.smtpPassword && dbSettings.smtpPassword.trim()) ? dbSettings.smtpPassword.trim() : settings.smtpPassword,
+          smtpSecure: dbSettings.smtpSecure !== null && dbSettings.smtpSecure !== undefined ? dbSettings.smtpSecure : settings.smtpSecure,
+          emailSenderName: dbSettings.emailSenderName ?? settings.emailSenderName,
+          emailSenderAddress: dbSettings.emailSenderAddress ?? settings.emailSenderAddress,
+          emailProvider: (dbSettings.emailProvider as "smtp" | "resend") ?? settings.emailProvider,
+          resendApiKey: (dbSettings.resendApiKey && dbSettings.resendApiKey.trim()) ? dbSettings.resendApiKey.trim() : settings.resendApiKey,
+          payuPosId: dbSettings.payuPosId ?? settings.payuPosId,
+          payuSecondKey: (dbSettings.payuSecondKey && dbSettings.payuSecondKey.trim()) ? dbSettings.payuSecondKey.trim() : settings.payuSecondKey,
+          payuClientId: dbSettings.payuClientId ?? settings.payuClientId,
+          payuClientSecret: (dbSettings.payuClientSecret && dbSettings.payuClientSecret.trim()) ? dbSettings.payuClientSecret.trim() : settings.payuClientSecret,
+          payuSandbox: dbSettings.payuSandbox !== null && dbSettings.payuSandbox !== undefined ? dbSettings.payuSandbox : settings.payuSandbox,
         };
+
+        // Synchronizujemy stan lokalny/pamięci z bazą danych
+        if (store.settings) {
+          store.settings = { ...store.settings, ...settings };
+        }
       }
     } catch (dbErr) {
       console.warn("Ostrzeżenie: Błąd pobierania ustawień z bazy Prisma:", dbErr);
@@ -1996,10 +2015,29 @@ export async function updateStoreSettings(
   }
 ): Promise<StoreSettings> {
   const store = loadLocalStore();
-  const existingPassword = store.settings?.smtpPassword;
-  const existingResendKey = store.settings?.resendApiKey;
-  const existingPayuSec = store.settings?.payuSecondKey;
-  const existingPayuSecret = store.settings?.payuClientSecret;
+
+  // Wczytaj najświeższy stan bazy danych, aby zapobiec nadpisaniu nowszych sekretów z innego urządzenia
+  let dbExistingSettings: any = null;
+  if (await isDatabaseConnected()) {
+    try {
+      dbExistingSettings = await prisma.storeSettings.findUnique({
+        where: { id: "default" },
+      });
+    } catch (_) {}
+  }
+
+  const existingPassword =
+    (dbExistingSettings?.smtpPassword && dbExistingSettings.smtpPassword.trim()) ||
+    (store.settings?.smtpPassword && store.settings.smtpPassword.trim());
+  const existingResendKey =
+    (dbExistingSettings?.resendApiKey && dbExistingSettings.resendApiKey.trim()) ||
+    (store.settings?.resendApiKey && store.settings.resendApiKey.trim());
+  const existingPayuSec =
+    (dbExistingSettings?.payuSecondKey && dbExistingSettings.payuSecondKey.trim()) ||
+    (store.settings?.payuSecondKey && store.settings.payuSecondKey.trim());
+  const existingPayuSecret =
+    (dbExistingSettings?.payuClientSecret && dbExistingSettings.payuClientSecret.trim()) ||
+    (store.settings?.payuClientSecret && store.settings.payuClientSecret.trim());
   const existingPayuSecSandbox = store.settings?.payuSecondKeySandbox;
   const existingPayuSecretSandbox = store.settings?.payuClientSecretSandbox;
 
@@ -2012,6 +2050,7 @@ export async function updateStoreSettings(
   } else if (cleanSettings.smtpPassword && cleanSettings.smtpPassword.trim().length > 0) {
     cleanSettings.smtpPassword = cleanSettings.smtpPassword.trim();
   } else if (existingPassword) {
+    // Puste hasło oznacza zachowanie istniejącego sekretu!
     cleanSettings.smtpPassword = existingPassword;
   }
 
@@ -2082,6 +2121,32 @@ export async function updateStoreSettings(
         dataToSave.bannerPublishedAt = new Date(cleanSettings.bannerPublishedAt);
       }
 
+      // Konfiguracja SMTP & Email w trwałej bazie
+      if (cleanSettings.smtpHost !== undefined) dataToSave.smtpHost = cleanSettings.smtpHost;
+      if (cleanSettings.smtpPort !== undefined) dataToSave.smtpPort = cleanSettings.smtpPort;
+      if (cleanSettings.smtpUser !== undefined) dataToSave.smtpUser = cleanSettings.smtpUser;
+      if (cleanSettings.clearSmtpPassword) {
+        dataToSave.smtpPassword = null;
+      } else if (cleanSettings.smtpPassword && cleanSettings.smtpPassword.trim().length > 0) {
+        dataToSave.smtpPassword = cleanSettings.smtpPassword.trim();
+      }
+      if (cleanSettings.smtpSecure !== undefined) dataToSave.smtpSecure = cleanSettings.smtpSecure;
+      if (cleanSettings.emailSenderName !== undefined) dataToSave.emailSenderName = cleanSettings.emailSenderName;
+      if (cleanSettings.emailSenderAddress !== undefined) dataToSave.emailSenderAddress = cleanSettings.emailSenderAddress;
+      if (cleanSettings.emailProvider !== undefined) dataToSave.emailProvider = cleanSettings.emailProvider;
+      if (cleanSettings.clearResendApiKey) {
+        dataToSave.resendApiKey = null;
+      } else if (cleanSettings.resendApiKey && cleanSettings.resendApiKey.trim().length > 0) {
+        dataToSave.resendApiKey = cleanSettings.resendApiKey.trim();
+      }
+
+      // Konfiguracja PayU w trwałej bazie
+      if (cleanSettings.payuPosId !== undefined) dataToSave.payuPosId = cleanSettings.payuPosId;
+      if (cleanSettings.payuSecondKey !== undefined) dataToSave.payuSecondKey = cleanSettings.payuSecondKey;
+      if (cleanSettings.payuClientId !== undefined) dataToSave.payuClientId = cleanSettings.payuClientId;
+      if (cleanSettings.payuClientSecret !== undefined) dataToSave.payuClientSecret = cleanSettings.payuClientSecret;
+      if (cleanSettings.payuSandbox !== undefined) dataToSave.payuSandbox = cleanSettings.payuSandbox;
+
       // Usuwamy klucze z wartościami undefined
       Object.keys(dataToSave).forEach((k) => {
         if (dataToSave[k] === undefined) delete dataToSave[k];
@@ -2102,13 +2167,20 @@ export async function updateStoreSettings(
 
   // Przygotuj odpowiedź z poprawnymi flagami statusu
   const result: StoreSettings = { ...store.settings };
-  result.smtpPasswordConfigured = Boolean(result.smtpPassword);
-  result.resendApiKeyConfigured = Boolean(result.resendApiKey);
+  result.smtpPasswordConfigured = Boolean(
+    result.smtpPassword ||
+    process.env.SMTP_PASSWORD ||
+    process.env.SMTP_PASS ||
+    process.env.WP_MAIL_PASSWORD
+  );
+  result.resendApiKeyConfigured = Boolean(
+    result.resendApiKey || process.env.RESEND_API_KEY
+  );
   const pos = result.payuSandbox ? result.payuPosIdSandbox : result.payuPosId;
   const sec = result.payuSandbox ? result.payuSecondKeySandbox : result.payuSecondKey;
   result.payuConfigured = Boolean(pos && sec);
 
-  // Nie zwracaj haseł w odpowiedzi API
+  // Bezpieczeństwo: Nigdy nie zwracaj haseł w odpowiedzi API do przeglądarki
   result.smtpPassword = "";
   result.resendApiKey = "";
   result.payuSecondKey = "";

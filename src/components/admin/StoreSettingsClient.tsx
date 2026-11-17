@@ -72,6 +72,36 @@ export function StoreSettingsClient({
     }
   };
 
+  const [isRefreshingServerSettings, setIsRefreshingServerSettings] = useState(false);
+
+  const fetchFreshSettings = async () => {
+    try {
+      setIsRefreshingServerSettings(true);
+      const res = await fetch(`/api/admin/settings?_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.settings) {
+          setSettings((prev) => ({
+            ...prev,
+            ...data.settings,
+            // Zachowujemy pole hasła jeśli użytkownik właśnie je wpisuje w formularzu
+            smtpPassword: prev.smtpPassword || "",
+            smtpPasswordConfigured: Boolean(data.settings.smtpPasswordConfigured),
+            resendApiKeyConfigured: Boolean(data.settings.resendApiKeyConfigured),
+            payuConfigured: Boolean(data.settings.payuConfigured),
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn("Błąd weryfikacji konfiguracji z serwera:", e);
+    } finally {
+      setIsRefreshingServerSettings(false);
+    }
+  };
+
   const fetchOutbox = async () => {
     try {
       const res = await fetch("/api/admin/email/test");
@@ -83,7 +113,16 @@ export function StoreSettingsClient({
   };
 
   useEffect(() => {
+    // Natychmiastowa weryfikacja z backendu po wejściu na stronę
+    fetchFreshSettings();
     fetchOutbox();
+
+    // Automatyczne odświeżenie konfiguracji przy powrocie do karty
+    const onFocus = () => {
+      fetchFreshSettings();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   const handleRetrySingleOutbox = async (outboxId: string) => {
@@ -182,15 +221,9 @@ export function StoreSettingsClient({
 
       if (res.ok) {
         const data = await res.json();
+        // Potwierdzenie z backendu: weryfikujemy stan bezpośrednim odczytem serwera (nie tylko lokalną flagą)
+        await fetchFreshSettings();
         setFeedback("Ustawienia butiku zostały pomyślnie zaktualizowane!");
-        if (data.settings) {
-          setSettings((prev) => ({
-            ...prev,
-            ...data.settings,
-            smtpPassword: "",
-            smtpPasswordConfigured: Boolean(data.settings.smtpPasswordConfigured),
-          }));
-        }
         setTimeout(() => setFeedback(null), 3000);
       } else {
         alert("Błąd podczas zapisywania ustawień.");
@@ -1051,12 +1084,29 @@ export function StoreSettingsClient({
                       <label className="text-xs font-semibold text-[#241D1B]">
                         Hasło do skrzynki pocztowej
                       </label>
-                      {settings.smtpPasswordConfigured && (
-                        <span className="text-[10px] text-emerald-800 bg-emerald-100 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          <span>Hasło zapisane na serwerze</span>
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isRefreshingServerSettings && (
+                          <span className="text-[10px] text-[#857670] animate-pulse">Sprawdzanie...</span>
+                        )}
+                        {settings.smtpPasswordConfigured ? (
+                          <span className="text-[10px] text-emerald-800 bg-emerald-100 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span>Hasło zapisane na serwerze</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-amber-800 bg-amber-50 font-medium px-2 py-0.5 rounded border border-amber-200">
+                            Brak hasła
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => fetchFreshSettings()}
+                          title="Odśwież potwierdzony status z serwera"
+                          className="text-[10px] text-[#857670] hover:text-[#C5A069] underline cursor-pointer ml-1"
+                        >
+                          Odśwież
+                        </button>
+                      </div>
                     </div>
                     <input
                       type="password"

@@ -55,12 +55,24 @@ export async function POST(req: NextRequest) {
     const customSettings = body.settings;
 
     const store = loadLocalStore();
-    const serverSmtpPassword = store.settings?.smtpPassword || process.env.SMTP_PASSWORD;
-    const serverResendKey = store.settings?.resendApiKey || process.env.RESEND_API_KEY;
+    const { getStoreSettings, updateStoreSettings } = await import("@/lib/store-data");
+    const freshStoreSettings = await getStoreSettings();
+
+    const serverSmtpPassword =
+      freshStoreSettings.smtpPassword ||
+      store.settings?.smtpPassword ||
+      process.env.SMTP_PASSWORD ||
+      process.env.SMTP_PASS ||
+      process.env.WP_MAIL_PASSWORD;
+    const serverResendKey =
+      freshStoreSettings.resendApiKey ||
+      store.settings?.resendApiKey ||
+      process.env.RESEND_API_KEY;
 
     // Połącz przekazane ustawienia z trwale zapisanymi na serwerze
     const effectiveSettings = {
       ...(store.settings || {}),
+      ...freshStoreSettings,
       ...(customSettings || {}),
     };
 
@@ -72,10 +84,10 @@ export async function POST(req: NextRequest) {
       effectiveSettings.resendApiKey = serverResendKey;
     }
 
-    // Jeśli podano nowe hasło bezpośrednio w teście, zaktualizuj magazyn
+    // Jeśli podano nowe hasło bezpośrednio w teście, zaktualizuj magazyn i bazę trwale
     if (customSettings && customSettings.smtpPassword && customSettings.smtpPassword.trim().length > 0) {
-      store.settings.smtpPassword = customSettings.smtpPassword.trim();
-      saveLocalStore(store);
+      await updateStoreSettings({ smtpPassword: customSettings.smtpPassword.trim() });
+      effectiveSettings.smtpPassword = customSettings.smtpPassword.trim();
     }
 
     const config = getEmailConfig(effectiveSettings);
