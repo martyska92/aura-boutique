@@ -6,12 +6,14 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { CategorySidebar } from "@/components/layout/CategorySidebar";
 import { ProductCard } from "@/components/product/ProductCard";
-import { getProducts } from "@/lib/store-data";
+import { HeroBanner } from "@/components/home/HeroBanner";
+import { getProducts, getStoreSettings } from "@/lib/store-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function HomePage() {
+  const settings = await getStoreSettings();
   // Pobieramy opublikowane produkty w magazynie
   const allProducts = await getProducts({ inStockOnly: true });
 
@@ -41,16 +43,7 @@ export default async function HomePage() {
           {/* Prawa kolumna (na mobile cała szerokość): Baner, Nowości, Bestsellery i O butiku */}
           <div className="min-w-0 space-y-5 sm:space-y-8">
             {/* 1. GŁÓWNY BANER BUTIKU */}
-            <section className="relative w-full aspect-[1024/394] rounded-md overflow-hidden shadow-xs border border-[#EADFD5]">
-              <Image
-                src="/images/hero/aura-hero-motto.png"
-                alt="AURA Boutique K.B. - Styl, który zachwyca, ceny, które kuszą, jakość, którą poczujesz"
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 1200px"
-                className="object-cover object-center"
-              />
-            </section>
+            <HeroBanner settings={settings} />
 
             {/* 2. NOWOŚCI (Maksymalnie 8 produktów, 2 w rzędzie na telefonie) */}
             {newProducts.length > 0 && (

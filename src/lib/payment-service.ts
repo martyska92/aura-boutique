@@ -523,3 +523,291 @@ export function getTraditionalTransferDetails(
 export function generateOrderAccessKey(): string {
   return `acc_${crypto.randomBytes(16).toString("hex")}`;
 }
+
+// ==========================================
+// INTEGRACJA OPERATORA PŁATNOŚCI PAYU
+// ==========================================
+
+export interface PayUConfig {
+  posId: string;
+  secondKey: string;
+  clientId: string;
+  clientSecret: string;
+  isSandbox: boolean;
+  baseUrl: string;
+}
+
+export function getPayUConfig(customSettings?: Partial<StoreSettings>): PayUConfig | null {
+  const store = loadLocalStore();
+  const settings = {
+    ...(store.settings || {}),
+    ...(customSettings || {}),
+  };
+
+  const isSandbox = settings.payuSandbox !== false;
+
+  const posId = (
+    isSandbox
+      ? settings.payuPosIdSandbox || settings.payuPosId || process.env.PAYU_POS_ID_SANDBOX || process.env.PAYU_POS_ID
+      : settings.payuPosId || process.env.PAYU_POS_ID
+  )?.trim() || "";
+
+  const secondKey = (
+    isSandbox
+      ? settings.payuSecondKeySandbox || settings.payuSecondKey || process.env.PAYU_SECOND_KEY_SANDBOX || process.env.PAYU_SECOND_KEY
+      : settings.payuSecondKey || process.env.PAYU_SECOND_KEY
+  )?.trim() || "";
+
+  const clientId = (
+    isSandbox
+      ? settings.payuClientIdSandbox || settings.payuClientId || posId || process.env.PAYU_CLIENT_ID_SANDBOX || process.env.PAYU_CLIENT_ID
+      : settings.payuClientId || posId || process.env.PAYU_CLIENT_ID
+  )?.trim() || "";
+
+  const clientSecret = (
+    isSandbox
+      ? settings.payuClientSecretSandbox || settings.payuClientSecret || process.env.PAYU_CLIENT_SECRET_SANDBOX || process.env.PAYU_CLIENT_SECRET
+      : settings.payuClientSecret || process.env.PAYU_CLIENT_SECRET
+  )?.trim() || "";
+
+  if (!posId || !secondKey) {
+    return null;
+  }
+
+  const baseUrl = isSandbox
+    ? "https://secure.snd.payu.com"
+    : "https://secure.payu.com";
+
+  return {
+    posId,
+    secondKey,
+    clientId: clientId || posId,
+    clientSecret: clientSecret || secondKey,
+    isSandbox,
+    baseUrl,
+  };
+}
+
+export function isPayUConfigured(customSettings?: Partial<StoreSettings>): boolean {
+  const store = loadLocalStore();
+  const settings = {
+    ...(store.settings || {}),
+    ...(customSettings || {}),
+  };
+  if (settings.payuEnabled === false) return false;
+  return getPayUConfig(settings) !== null;
+}
+
+/**
+ * Uzyskuje token autoryzacyjny OAuth2 w PayU
+ */
+export async function getPayUAccessToken(
+  config: PayUConfig
+): Promise<{ success: boolean; accessToken?: string; error?: string }> {
+  try {
+    const tokenUrl = `${config.baseUrl}/pl/standard/user/oauth/authorize`;
+    const params = new URLSearchParams();
+    params.append("grant_type", "client_credentials");
+    params.append("client_id", config.clientId);
+    params.append("client_secret", config.clientSecret);
+
+    const res = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.access_token) {
+      return {
+        success: false,
+        error: data.error_description || data.error || `Błąd uwierzytelnienia PayU (${res.status})`,
+      };
+    }
+
+    return { success: true, accessToken: data.access_token };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Błąd połączenia z serwerem OAuth PayU" };
+  }
+}
+
+/**
+ * Rejestruje transakcję płatności w bramce PayU (REST v2.1)
+ */
+export async function registerPayUTransaction({
+  order,
+  returnUrl,
+  notifyUrl,
+  customerIp = "127.0.0.1",
+  customSettings,
+}: {
+  order: Order;
+  returnUrl: string;
+  notifyUrl: string;
+  customerIp?: string;
+  customSettings?: Partial<StoreSettings>;
+}): Promise<{
+  success: boolean;
+  paymentUrl?: string;
+  payuOrderId?: string;
+  error?: string;
+}> {
+  const config = getPayUConfig(customSettings);
+  if (!config) {
+    return { success: false, error: "Brak skonfigurowanych danych dostępowych PayU." };
+  }
+
+  const tokenRes = await getPayUAccessToken(config);
+  if (!tokenRes.success || !tokenRes.accessToken) {
+    return { success: false, error: tokenRes.error || "Nie udało się uzyskać tokenu autoryzacji PayU." };
+  }
+
+  try {
+    const totalAmountGrosze = Math.round(order.totalAmount * 100);
+
+    const buyer = {
+      email: order.customerEmail || "klientka@auraboutique.pl",
+      phone: order.customerPhone || "",
+      firstName: order.customerFirstName || "Klientka",
+      lastName: order.customerLastName || "Boutique",
+      language: "pl",
+    };
+
+    const products = (order.items || []).map((item) => ({
+      name: item.productNameSnapshot || "Produkt AURA",
+      unitPrice: Math.round(item.unitPriceSnapshot * 100),
+      quantity: item.quantity,
+    }));
+
+    if (order.shippingCost && order.shippingCost > 0) {
+      products.push({
+        name: `Dostawa: ${order.shippingMethod}`,
+        unitPrice: Math.round(order.shippingCost * 100),
+        quantity: 1,
+      });
+    }
+
+    const orderPayload = {
+      notifyUrl,
+      continueUrl: returnUrl,
+      customerIp: customerIp.includes(":") ? "127.0.0.1" : customerIp,
+      merchantPosId: config.posId,
+      description: `Zamówienie ${order.orderNumber} w AURA Boutique`,
+      currencyCode: "PLN",
+      totalAmount: totalAmountGrosze.toString(),
+      extOrderId: order.orderNumber,
+      buyer,
+      products,
+    };
+
+    const res = await fetch(`${config.baseUrl}/api/v2_1/orders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenRes.accessToken}`,
+      },
+      body: JSON.stringify(orderPayload),
+      redirect: "manual", // PayU może zwrócić 302 z RedirectUri w nagłówku Location
+    });
+
+    // PayU zwraca status 302 lub 200/201 z JSONem zawierającym redirectUri
+    if (res.status === 302) {
+      const location = res.headers.get("location");
+      if (location) {
+        return { success: true, paymentUrl: location };
+      }
+    }
+
+    const data = await res.json().catch(() => ({}));
+
+    if (data.redirectUri) {
+      return {
+        success: true,
+        paymentUrl: data.redirectUri,
+        payuOrderId: data.orderId,
+      };
+    }
+
+    if (data.status && data.status.statusCode !== "SUCCESS") {
+      return {
+        success: false,
+        error: data.status.statusDesc || "PayU odrzuciło utworzenie zamówienia.",
+      };
+    }
+
+    return {
+      success: false,
+      error: "Nie otrzymano adresu przekierowania płatności z PayU.",
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Błąd sieci podczas łączenia z PayU." };
+  }
+}
+
+/**
+ * Weryfikuje podpis sygnatury powiadomienia webhooka PayU (OpenPayU-Signature)
+ */
+export function verifyPayUNotificationSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+  customSettings?: Partial<StoreSettings>
+): boolean {
+  if (!signatureHeader) return false;
+  const config = getPayUConfig(customSettings);
+  if (!config) return false;
+
+  // Nagłówek ma format: sender=...;signature=...;algorithm=SHA-256;...
+  const parts = signatureHeader.split(";").reduce((acc: Record<string, string>, part) => {
+    const [k, v] = part.split("=");
+    if (k && v) acc[k.trim()] = v.trim();
+    return acc;
+  }, {});
+
+  const expectedSignature = parts.signature;
+  const algorithm = (parts.algorithm || "SHA-256").toUpperCase();
+
+  if (!expectedSignature) return false;
+
+  const dataToHash = rawBody + config.secondKey;
+  let computedSignature = "";
+
+  if (algorithm === "MD5") {
+    computedSignature = crypto.createHash("md5").update(dataToHash, "utf-8").digest("hex");
+  } else {
+    computedSignature = crypto.createHash("sha256").update(dataToHash, "utf-8").digest("hex");
+  }
+
+  return computedSignature.toLowerCase() === expectedSignature.toLowerCase();
+}
+
+/**
+ * Testuje połączenie z operatorem PayU (weryfikacja kluczy POS)
+ */
+export async function testPayUConnection(
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; message: string; isSandbox: boolean }> {
+  const config = getPayUConfig(customSettings);
+  if (!config) {
+    return {
+      success: false,
+      message: "Brak wpisanego POS ID lub Drugiego Klucza (MD5) w ustawieniach PayU.",
+      isSandbox: true,
+    };
+  }
+
+  const tokenRes = await getPayUAccessToken(config);
+  if (!tokenRes.success) {
+    return {
+      success: false,
+      message: `Błąd połączenia z PayU (${config.isSandbox ? "Sandbox" : "Produkcja"}): ${tokenRes.error}`,
+      isSandbox: config.isSandbox,
+    };
+  }
+
+  return {
+    success: true,
+    message: `Pomyślnie nawiązano połączenie z bramką PayU (${config.isSandbox ? "Środowisko Testowe Sandbox" : "Środowisko Produkcyjne"}). Token autoryzacyjny został wygenerowany poprawnie.`,
+    isSandbox: config.isSandbox,
+  };
+}

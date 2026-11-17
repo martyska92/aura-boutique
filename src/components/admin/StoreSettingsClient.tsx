@@ -15,6 +15,8 @@ import {
   Info,
   Mail,
   Send,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 import { StoreSettings } from "@/lib/types";
 
@@ -46,6 +48,29 @@ export function StoreSettingsClient({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [outboxList, setOutboxList] = useState<any[]>([]);
   const [isRetryingOutboxId, setIsRetryingOutboxId] = useState<string | null>(null);
+
+  // Stan testu i konfiguracji bramki PayU
+  const [isCheckingPayU, setIsCheckingPayU] = useState(false);
+  const [payuCheckResult, setPayuCheckResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [copiedPayUNotifyUrl, setCopiedPayUNotifyUrl] = useState(false);
+
+  const handleTestPayU = async () => {
+    setIsCheckingPayU(true);
+    setPayuCheckResult(null);
+    try {
+      const res = await fetch("/api/admin/payments/payu/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings }),
+      });
+      const data = await res.json();
+      setPayuCheckResult(data);
+    } catch (e: any) {
+      setPayuCheckResult({ success: false, message: "Błąd połączenia: " + e.message });
+    } finally {
+      setIsCheckingPayU(false);
+    }
+  };
 
   const fetchOutbox = async () => {
     try {
@@ -144,16 +169,29 @@ export function StoreSettingsClient({
     setFeedback(null);
 
     try {
+      const payload = {
+        ...settings,
+        smtpPassword: settings.smtpPassword?.trim() ? settings.smtpPassword.trim() : undefined,
+      };
+
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
+        const data = await res.json();
         setFeedback("Ustawienia butiku zostały pomyślnie zaktualizowane!");
+        if (data.settings) {
+          setSettings((prev) => ({
+            ...prev,
+            ...data.settings,
+            smtpPassword: "",
+            smtpPasswordConfigured: Boolean(data.settings.smtpPasswordConfigured),
+          }));
+        }
         setTimeout(() => setFeedback(null), 3000);
-        router.refresh();
       } else {
         alert("Błąd podczas zapisywania ustawień.");
       }
@@ -336,46 +374,148 @@ export function StoreSettingsClient({
             </div>
           </div>
 
-          {/* Treści Banera Głównego (Hero) */}
-          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
-            <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] pb-2 border-b border-[#EADFD5]">
-              Baner Główny na Stronie Głównej
-            </h2>
+          {/* Treści Banera Głównego & Paska Ogłoszeń */}
+          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
+            <div className="flex items-center justify-between pb-2 border-b border-[#EADFD5]">
+              <div>
+                <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B]">
+                  Baner Główny & Pasek Ogłoszeń
+                </h2>
+                <p className="text-[11px] text-[#7A6458] mt-0.5">
+                  Steruj tekstami, nagłówkami i banerami widocznymi na stronie głównej butiku oraz w górnym pasku.
+                </p>
+              </div>
+              <a
+                href="/"
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-[#FAF6F1] border border-[#C5A069] text-[#7A5B20] hover:bg-[#C5A069] hover:text-white rounded text-xs font-semibold transition-all inline-flex items-center gap-1.5 shrink-0"
+              >
+                <span>Zobacz na stronie</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
 
-            <div>
-              <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                Główny nagłówek banera
-              </label>
-              <input
-                type="text"
-                value={settings.heroHeadline}
-                onChange={(e) => handleChange("heroHeadline", e.target.value)}
-                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Główny nagłówek banera
+                </label>
+                <input
+                  type="text"
+                  placeholder="Styl, który zachwyca"
+                  value={settings.heroHeadline || ""}
+                  onChange={(e) => handleChange("heroHeadline", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+                <p className="text-[10px] text-[#8C7248] mt-1">Wyświetla się na banerze na stronie głównej.</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Adres zdjęcia banera
+                </label>
+                <input
+                  type="text"
+                  placeholder="/images/hero/aura-hero-motto.png"
+                  value={settings.heroImageUrl || ""}
+                  onChange={(e) => handleChange("heroImageUrl", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+                <p className="text-[10px] text-[#8C7248] mt-1">Ścieżka do grafiki banera lub URL.</p>
+              </div>
             </div>
 
             <div>
               <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                Podtytuł / hasło przewodnie
+                Podtytuł / hasło przewodnie banera
               </label>
               <textarea
                 rows={2}
-                value={settings.heroSubheadline}
+                placeholder="Ceny, które kuszą • Jakość, którą poczujesz"
+                value={settings.heroSubheadline || ""}
                 onChange={(e) => handleChange("heroSubheadline", e.target.value)}
                 className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
               />
+              <p className="text-[10px] text-[#8C7248] mt-1">Hasło widoczne pod nagłówkiem banera.</p>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                Tekst paska ogłoszeń (górny pudrowo-różowy pasek)
-              </label>
-              <input
-                type="text"
-                value={settings.announcementBarText}
-                onChange={(e) => handleChange("announcementBarText", e.target.value)}
-                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Napis na przycisku banera
+                </label>
+                <input
+                  type="text"
+                  placeholder="Odkryj kolekcję"
+                  value={settings.heroButtonText || ""}
+                  onChange={(e) => handleChange("heroButtonText", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Link przycisku banera
+                </label>
+                <input
+                  type="text"
+                  placeholder="/katalog"
+                  value={settings.heroButtonLink || ""}
+                  onChange={(e) => handleChange("heroButtonLink", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-[#EADFD5] space-y-4">
+              <h3 className="font-serif text-xs uppercase tracking-wider text-[#241D1B] font-semibold">
+                Górny kaszmirowy pasek ogłoszeń (Announcement Bar)
+              </h3>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Środkowy tekst paska ogłoszeń (Główny komunikat)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Darmowa dostawa od 300 zł • 14 dni na zwrot"
+                  value={settings.announcementBarText || ""}
+                  onChange={(e) => handleChange("announcementBarText", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+                <p className="text-[10px] text-[#8C7248] mt-1">
+                  Wyświetla się na środku paska na wszystkich stronach sklepu.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                    Lewy komunikat paska (komputery)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="AURA Boutique • Nowa Kolekcja"
+                    value={settings.announcementBarLeft || ""}
+                    onChange={(e) => handleChange("announcementBarLeft", e.target.value)}
+                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                    Prawy komunikat paska (komputery)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Wysyłka w 24h • Płatność BLIK"
+                    value={settings.announcementBarRight || ""}
+                    onChange={(e) => handleChange("announcementBarRight", e.target.value)}
+                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -544,6 +684,242 @@ export function StoreSettingsClient({
             </div>
           </div>
 
+          {/* Płatności Online: PayU & Przelewy24 */}
+          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-[#EADFD5] gap-2">
+              <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#C5A069]" />
+                <span>Płatności Online: PayU & BLIK</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                {settings.payuConfigured ? (
+                  <span className="text-[10px] text-emerald-800 bg-emerald-100 font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span>PayU Skonfigurowane</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-800 bg-amber-100 font-semibold px-2.5 py-0.5 rounded-full">
+                    Brak konfiguracji PayU
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-[#6E6259] leading-relaxed">
+              Skonfiguruj bramkę płatności <strong>PayU</strong>, aby umożliwić klientkom natychmiastowe płatności kodem BLIK, szybkimi przelewami online oraz kartami płatniczymi. Dane testowe i produkcyjne przechowywane są oddzielnie.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Status operatora PayU
+                </label>
+                <select
+                  value={settings.payuEnabled !== false ? "enabled" : "disabled"}
+                  onChange={(e) => handleChange("payuEnabled", e.target.value === "enabled")}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                >
+                  <option value="enabled">Włączony (Aktywny w sklepie)</option>
+                  <option value="disabled">Wyłączony</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Środowisko PayU
+                </label>
+                <select
+                  value={settings.payuSandbox !== false ? "sandbox" : "production"}
+                  onChange={(e) => handleChange("payuSandbox", e.target.value === "sandbox")}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                >
+                  <option value="sandbox">Środowisko Testowe (Sandbox - secure.snd.payu.com)</option>
+                  <option value="production">Środowisko Produkcyjne (secure.payu.com)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Domyślna bramka online
+                </label>
+                <select
+                  value={settings.defaultPaymentGateway || "PAYU"}
+                  onChange={(e) => handleChange("defaultPaymentGateway", e.target.value as any)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                >
+                  <option value="PAYU">PayU (Zalecane: BLIK + Przelewy)</option>
+                  <option value="P24">Przelewy24</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Pola konfiguracji dla wybranego środowiska */}
+            <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#241D1B]">
+                  Parametry punktu płatności ({settings.payuSandbox !== false ? "Sandbox" : "Produkcja"}):
+                </span>
+                <span className="text-[10px] text-[#7A6458]">
+                  Panel PayU → Moje sklepy → Punkty płatności POS → Klucze autoryzacji
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                    Identyfikator punktu płatności (POS ID) *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={settings.payuSandbox !== false ? "np. 300000" : "np. 456789"}
+                    value={
+                      (settings.payuSandbox !== false
+                        ? settings.payuPosIdSandbox
+                        : settings.payuPosId) || ""
+                    }
+                    onChange={(e) =>
+                      handleChange(
+                        settings.payuSandbox !== false ? "payuPosIdSandbox" : "payuPosId",
+                        e.target.value.trim()
+                      )
+                    }
+                    className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                    Drugi klucz MD5 (weryfikacja powiadomień) *
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Wpisz Drugi Klucz (MD5) lub pozostaw puste, aby zachować"
+                    value={
+                      (settings.payuSandbox !== false
+                        ? settings.payuSecondKeySandbox
+                        : settings.payuSecondKey) || ""
+                    }
+                    onChange={(e) =>
+                      handleChange(
+                        settings.payuSandbox !== false ? "payuSecondKeySandbox" : "payuSecondKey",
+                        e.target.value.trim()
+                      )
+                    }
+                    className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                  />
+                  <p className="text-[10px] text-[#8C7248] mt-1">
+                    Sekret jest bezpiecznie zapisany na serwerze i nie jest ujawniany w przeglądarce.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                    OAuth Client ID (opcjonalnie, domyślnie POS ID)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Domyślnie równe POS ID"
+                    value={
+                      (settings.payuSandbox !== false
+                        ? settings.payuClientIdSandbox
+                        : settings.payuClientId) || ""
+                    }
+                    onChange={(e) =>
+                      handleChange(
+                        settings.payuSandbox !== false ? "payuClientIdSandbox" : "payuClientId",
+                        e.target.value.trim()
+                      )
+                    }
+                    className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                    OAuth Client Secret (Klucz prywatny REST API)
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Wpisz Client Secret lub pozostaw puste"
+                    value={
+                      (settings.payuSandbox !== false
+                        ? settings.payuClientSecretSandbox
+                        : settings.payuClientSecret) || ""
+                    }
+                    onChange={(e) =>
+                      handleChange(
+                        settings.payuSandbox !== false
+                          ? "payuClientSecretSandbox"
+                          : "payuClientSecret",
+                        e.target.value.trim()
+                      )
+                    }
+                    className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                  />
+                </div>
+              </div>
+
+              {/* Adres powiadomień webhook do skopiowania do panelu PayU */}
+              <div className="pt-2 border-t border-[#EADFD5] space-y-1.5">
+                <label className="text-xs font-semibold text-[#241D1B] block">
+                  Adres powiadomień serwerowych (Powiadomienie URL do wpisania w PayU):
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value="https://aura-boutique-w38e.vercel.app/api/payments/payu/notify"
+                    className="w-full bg-white border border-[#EADFD5] p-2 text-xs font-mono text-[#3E3835] select-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText("https://aura-boutique-w38e.vercel.app/api/payments/payu/notify");
+                      setCopiedPayUNotifyUrl(true);
+                      setTimeout(() => setCopiedPayUNotifyUrl(false), 2000);
+                    }}
+                    className="px-3 py-2 bg-[#FAF6F1] border border-[#C5A069] text-[#7A5B20] text-xs font-semibold rounded hover:bg-[#C5A069] hover:text-white transition-all shrink-0 flex items-center gap-1"
+                  >
+                    {copiedPayUNotifyUrl ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedPayUNotifyUrl ? "Skopiowano!" : "Kopiuj URL"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Przycisk testu połączenia z PayU */}
+              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleTestPayU}
+                  disabled={isCheckingPayU}
+                  className="px-4 py-2.5 bg-[#241D1B] text-white text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#3E3835] transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                >
+                  <CreditCard className="w-3.5 h-3.5 text-[#C5A069]" />
+                  <span>{isCheckingPayU ? "Sprawdzanie..." : "Sprawdź połączenie z PayU"}</span>
+                </button>
+
+                {payuCheckResult && (
+                  <div
+                    className={`p-2.5 rounded text-xs flex items-center gap-2 flex-1 ${
+                      payuCheckResult.success
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-red-50 text-red-800 border border-red-200"
+                    }`}
+                  >
+                    {payuCheckResult.success ? (
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    )}
+                    <span>{payuCheckResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Konfiguracja Wysyłki E-mail (Kody Rabatowe, Opinie, Powiadomienia) */}
           <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-[#EADFD5]">
@@ -636,16 +1012,46 @@ export function StoreSettingsClient({
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                      Hasło do skrzynki pocztowej
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-[#241D1B]">
+                        Hasło do skrzynki pocztowej
+                      </label>
+                      {settings.smtpPasswordConfigured && (
+                        <span className="text-[10px] text-emerald-800 bg-emerald-100 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span>Hasło zapisane na serwerze</span>
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="password"
-                      placeholder="Wpisz hasło do poczty WP"
+                      placeholder={
+                        settings.smtpPasswordConfigured
+                          ? "Hasło zapisane. Pozostaw pole puste, aby go nie zmieniać"
+                          : "Wpisz hasło do poczty WP"
+                      }
                       value={settings.smtpPassword || ""}
                       onChange={(e) => handleChange("smtpPassword", e.target.value)}
                       className="w-full bg-white border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
                     />
+                    {settings.smtpPasswordConfigured && (
+                      <div className="flex items-center justify-between mt-1 text-[11px] text-[#7A6458]">
+                        <span>Hasło zapisane. Pozostaw pole puste, aby go nie zmieniać.</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Czy na pewno chcesz usunąć zapisane hasło SMTP?")) {
+                              handleChange("smtpPassword", "");
+                              handleChange("clearSmtpPassword" as any, true);
+                              handleChange("smtpPasswordConfigured", false);
+                            }
+                          }}
+                          className="text-red-600 hover:underline"
+                        >
+                          Usuń zapisane hasło
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 

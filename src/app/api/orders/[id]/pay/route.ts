@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderById, getStoreSettings } from "@/lib/store-data";
+import { getUserSession } from "@/lib/admin-auth";
 import {
   isP24Configured,
   registerP24Transaction,
+  isPayUConfigured,
+  registerPayUTransaction,
   getTraditionalTransferDetails,
 } from "@/lib/payment-service";
 
@@ -32,12 +35,29 @@ export async function POST(
       );
     }
 
-    // Bezpieczeństwo zakupów bez konta: weryfikacja accessKey jeśli zamówienie go posiada
-    if (order.accessKey && providedAccessKey && order.accessKey !== providedAccessKey) {
-      return NextResponse.json(
-        { error: "Brak uprawnień do opłacenia tego zamówienia (nieprawidłowy klucz dostępu)." },
-        { status: 403 }
-      );
+    const session = await getUserSession();
+    const isOwnerBySession =
+      session &&
+      session.email &&
+      (session.isAdmin ||
+        (order.customerEmail &&
+          order.customerEmail.trim().toLowerCase() === session.email.trim().toLowerCase()));
+
+    // Bezpieczeństwo zakupów: weryfikacja accessKey lub aktywnej sesji klientki
+    if (order.accessKey) {
+      if (providedAccessKey) {
+        if (order.accessKey !== providedAccessKey) {
+          return NextResponse.json(
+            { error: "Brak uprawnień do opłacenia tego zamówienia (nieprawidłowy klucz dostępu)." },
+            { status: 403 }
+          );
+        }
+      } else if (!isOwnerBySession) {
+        return NextResponse.json(
+          { error: "Brak uprawnień do opłacenia tego zamówienia. Zaloguj się lub użyj linku z e-maila." },
+          { status: 403 }
+        );
+      }
     }
 
     // 1. Zabezpieczenie przed ponowną płatnością za już opłacone zamówienie
@@ -77,7 +97,39 @@ export async function POST(
       });
     }
 
-    // 4. Płatność online (BLIK / Przelewy24)
+    // Określamy domenę dla powrotu i powiadomień webhook
+    const host = req.headers.get("host") || "localhost:3000";
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const origin = `${protocol}://${host}`;
+
+    // 4. Płatność online PayU (jeśli wybrano PayU lub PayU jest domyślnym operatorem)
+    const preferPayU = order.paymentMethod === "PAYU" || (settings.defaultPaymentGateway === "PAYU" && isPayUConfigured(settings));
+    if (preferPayU && isPayUConfigured(settings)) {
+      const returnUrl = `${origin}/zamowienie/${order.id}/potwierdzenie?key=${order.accessKey || ""}&check=1`;
+      const notifyUrl = `${origin}/api/payments/payu/notify`;
+
+      const payuRes = await registerPayUTransaction({
+        order,
+        returnUrl,
+        notifyUrl,
+        customSettings: settings,
+      });
+
+      if (!payuRes.success || !payuRes.paymentUrl) {
+        return NextResponse.json(
+          { error: payuRes.error || "Nie udało się rozpocząć płatności w bramce PayU." },
+          { status: 502 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        paymentUrl: payuRes.paymentUrl,
+        operator: "PAYU",
+      });
+    }
+
+    // 5. Płatność online Przelewy24
     if (!isP24Configured(settings)) {
       const missing: string[] = [];
       if (!settings.p24MerchantId && !process.env.P24_MERCHANT_ID) missing.push("ID Sprzedawcy (Merchant ID)");
@@ -86,18 +138,13 @@ export async function POST(
 
       return NextResponse.json(
         {
-          error: `Bramka płatności online nie jest obecnie skonfigurowana u operatora (brak: ${missing.join(", ")}). W celu opłacenia zamówienia prosimy o wykonanie przelewu tradycyjnego na konto butiku lub kontakt z obsługą.`,
+          error: `Bramka płatności online nie jest obecnie skonfigurowana u operatora. W celu opłacenia zamówienia prosimy o wykonanie przelewu tradycyjnego na konto butiku lub kontakt z obsługą.`,
           isConfigured: false,
           missingConfig: missing,
         },
         { status: 400 }
       );
     }
-
-    // Określamy domenę dla urlReturn i urlStatus
-    const host = req.headers.get("host") || "localhost:3000";
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const origin = `${protocol}://${host}`;
 
     const returnUrl = `${origin}/zamowienie/${order.id}/potwierdzenie?key=${order.accessKey || ""}&check=1`;
     const statusUrl = `${origin}/api/payments/p24/notify`;

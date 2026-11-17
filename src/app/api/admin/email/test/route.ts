@@ -54,33 +54,78 @@ export async function POST(req: NextRequest) {
     const targetEmail = body.targetEmail?.trim() || "aurazmigrod@wp.pl";
     const customSettings = body.settings;
 
-    // Jeśli przekazano ustawienia bezpośrednio z formularza testowego, zapiszmy je do magazynu,
-    // aby użytkowniczka nie musiała ręcznie klikać "Zapisz" przed wykonaniem testu
-    if (customSettings && (customSettings.smtpPassword || customSettings.resendApiKey || customSettings.smtpHost)) {
-      const store = loadLocalStore();
-      store.settings = {
-        ...(store.settings || {}),
-        ...customSettings,
-      };
+    const store = loadLocalStore();
+    const serverSmtpPassword = store.settings?.smtpPassword || process.env.SMTP_PASSWORD;
+    const serverResendKey = store.settings?.resendApiKey || process.env.RESEND_API_KEY;
+
+    // Połącz przekazane ustawienia z trwale zapisanymi na serwerze
+    const effectiveSettings = {
+      ...(store.settings || {}),
+      ...(customSettings || {}),
+    };
+
+    // Jeśli w formularzu testowym nie wpisano hasła na nowo, użyj zapisanego hasła z serwera
+    if ((!effectiveSettings.smtpPassword || effectiveSettings.smtpPassword.trim() === "") && serverSmtpPassword) {
+      effectiveSettings.smtpPassword = serverSmtpPassword;
+    }
+    if ((!effectiveSettings.resendApiKey || effectiveSettings.resendApiKey.trim() === "") && serverResendKey) {
+      effectiveSettings.resendApiKey = serverResendKey;
+    }
+
+    // Jeśli podano nowe hasło bezpośrednio w teście, zaktualizuj magazyn
+    if (customSettings && customSettings.smtpPassword && customSettings.smtpPassword.trim().length > 0) {
+      store.settings.smtpPassword = customSettings.smtpPassword.trim();
       saveLocalStore(store);
     }
 
-    const config = getEmailConfig(customSettings);
+    const config = getEmailConfig(effectiveSettings);
     if (!config.isConfigured) {
       return NextResponse.json(
         {
           success: false,
           error: config.emailProvider === "smtp"
-            ? "Poczta SMTP nie jest jeszcze w pełni skonfigurowana. Upewnij się, że wpisano hasło do skrzynki pocztowej."
+            ? "Poczta SMTP nie jest jeszcze w pełni skonfigurowana. Wprowadź hasło do skrzynki w panelu i kliknij Zapisz."
             : "Brak klucza Resend API. Wprowadź klucz Resend API w panelu.",
         },
         { status: 400 }
       );
     }
 
+    // 0. Ponowienie wysyłki e-mail dla wskazanego zamówienia (np. AURA-20261116-5467)
+    if (body.action === "RETRY_ORDER_EMAIL" && body.orderId) {
+      const order = (store.orders || []).find((o) => o.id === body.orderId || o.orderNumber === body.orderId);
+      if (!order) {
+        return NextResponse.json({ error: "Nie znaleziono wskazanego zamówienia w bazie." }, { status: 404 });
+      }
+
+      // Sprawdź czy to zamówienie miało już wysłaną wiadomość
+      const existingSent = ((store as any).emailOutbox || []).find(
+        (e: any) => (e.orderId === order.id || e.orderNumber === order.orderNumber) && e.status === "SENT"
+      );
+      if (existingSent && !body.force) {
+        return NextResponse.json({
+          success: false,
+          error: `Potwierdzenie dla zamówienia ${order.orderNumber} zostało już wysłane w dniu ${new Date(existingSent.sentAt || existingSent.createdAt).toLocaleString("pl-PL")}. Użyj opcji wymuszenia, aby wysłać duplikat.`,
+        }, { status: 400 });
+      }
+
+      const { sendOrderPlacedCustomerEmail } = await import("@/lib/email-service");
+      const res = await sendOrderPlacedCustomerEmail(order, effectiveSettings);
+      if (res.success) {
+        return NextResponse.json({
+          success: true,
+          message: `Pomyślnie wysłano potwierdzenie zamówienia ${order.orderNumber} na adres: ${order.customerEmail}.`,
+        });
+      } else {
+        return NextResponse.json({
+          success: false,
+          error: res.error || "Nie udało się wysłać potwierdzenia zamówienia.",
+        }, { status: 400 });
+      }
+    }
+
     // 0. Ponowienie pojedynczej wiadomości z historii Outbox
     if (body.action === "RETRY_OUTBOX_EMAIL" && body.outboxId) {
-      const store = loadLocalStore();
       const item = ((store as any).emailOutbox || []).find((e: any) => e.id === body.outboxId);
       if (!item) {
         return NextResponse.json({ error: "Nie znaleziono wiadomości w historii." }, { status: 404 });
@@ -93,7 +138,7 @@ export async function POST(req: NextRequest) {
           html: item.html,
           type: item.type,
         },
-        customSettings
+        effectiveSettings
       );
       if (res.success) {
         item.status = "SENT";

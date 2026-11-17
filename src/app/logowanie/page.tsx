@@ -58,7 +58,7 @@ function AuthForms() {
   const [regError, setRegError] = useState<string | null>(null);
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
 
-  const isOwnerEmail = loginEmail.trim().toLowerCase() === "aurazmigrod@wp.pl";
+
 
   const handleRequestResetCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,10 +77,8 @@ function AuthForms() {
         throw new Error(data.error || "Wystąpił błąd podczas generowania kodu.");
       }
 
-      setForgotSuccess(data.message || "Kod weryfikacyjny został wygenerowany!");
-      if (data.code) {
-        setForgotCode(data.code);
-      }
+      setForgotSuccess("Jeśli konto z podanym adresem istnieje, otrzymasz wiadomość z instrukcją resetowania hasła.");
+      setForgotCode("");
       setForgotStep(2);
     } catch (err: any) {
       setForgotError(err.message || "Błąd połączenia. Spróbuj ponownie.");
@@ -94,8 +92,8 @@ function AuthForms() {
     setForgotError(null);
     setForgotSuccess(null);
 
-    if (forgotNewPassword.trim().length < 4) {
-      setForgotError("Nowe hasło musi zawierać co najmniej 4 znaki.");
+    if (forgotNewPassword.trim().length < 6) {
+      setForgotError("Nowe hasło musi zawierać co najmniej 6 znaków.");
       return;
     }
 
@@ -226,7 +224,7 @@ function AuthForms() {
             ? "Konto klientki oraz panel zarządzania butikiem AURA"
             : activeTab === "register"
             ? "Zarejestruj się i odbierz rabat –15% na pierwsze zamówienie"
-            : "Dla klientek butiku oraz konta właścicielki (aurazmigrod@wp.pl)"}
+            : "Wpisz adres e-mail przypisany do Twojego konta, aby zresetować hasło."}
         </p>
       </div>
 
@@ -544,7 +542,7 @@ function AuthForms() {
               <div>
                 <p className="font-bold text-[11px]">Bezpieczne odzyskiwanie hasła</p>
                 <p className="text-[10px] text-amber-800">
-                  Działa zarówno dla klientek butiku, jak i konta administratora (aurazmigrod@wp.pl).
+                  Wyślemy instrukcję zmiany hasła na adres przypisany do Twojego konta.
                 </p>
               </div>
             </div>
@@ -573,7 +571,7 @@ function AuthForms() {
                     <input
                       type="email"
                       required
-                      placeholder="twoj-email@domena.pl lub aurazmigrod@wp.pl"
+                      placeholder="twoj-email@domena.pl"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
                       className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"

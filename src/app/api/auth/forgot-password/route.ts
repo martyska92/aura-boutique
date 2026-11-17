@@ -3,7 +3,6 @@ import {
   getAdminAccount,
   getCustomerByEmail,
   savePasswordResetCode,
-  loadLocalStore,
 } from "@/lib/store-data";
 
 export async function POST(req: NextRequest) {
@@ -24,25 +23,33 @@ export async function POST(req: NextRequest) {
     const isOwner = normalizedEmail === adminEmailNormalized;
     const customer = await getCustomerByEmail(normalizedEmail);
 
+    // Bezpieczeństwo: Jeśli konto nie istnieje, zwracamy ten sam neutralny komunikat
+    // Zapobiega to enumeracji adresów e-mail zarejestrowanych klientek
     if (!isOwner && !customer) {
+      return NextResponse.json({
+        success: true,
+        message: "Jeśli konto z podanym adresem istnieje, otrzymasz wiadomość z instrukcją resetowania hasła.",
+      });
+    }
+
+    // Generujemy losowy 6-cyfrowy kod weryfikacyjny (np. 842109)
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Zapisujemy kod ważny przez 15 minut z ochroną przed floodem (rate limit 60s)
+    const saveRes = await savePasswordResetCode(normalizedEmail, resetCode, 15 * 60 * 1000);
+    if (!saveRes.success && saveRes.rateLimited) {
       return NextResponse.json(
-        { error: "Nie znaleziono konta powiązanego z tym adresem e-mail. Sprawdź poprawność lub zarejestruj nowe konto." },
-        { status: 404 }
+        { error: "Kod został niedawno wysłany. Odczekaj chwilę przed ponowną próbą." },
+        { status: 429 }
       );
     }
 
-    // Generujemy 6-cyfrowy kod weryfikacyjny (np. 842109)
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Zapisujemy kod ważny przez 15 minut
-    await savePasswordResetCode(normalizedEmail, resetCode, 15 * 60 * 1000);
-
-    // Wysłanie kodu resetującego przez skonfigurowaną usługę e-mail (SMTP / Resend)
+    // Wysłanie kodu resetującego wyłącznie na adres e-mail przypisany do konta
     try {
       const { dispatchEmail } = await import("@/lib/email-service");
       await dispatchEmail({
         to: normalizedEmail,
-        subject: "Kod do zresetowania hasła w AURA Boutique",
+        subject: "Twój kod do resetowania hasła w AURA Boutique",
         html: `
           <div style="font-family: Georgia, serif; max-width: 500px; margin: 0 auto; padding: 24px; color: #241D1B; line-height: 1.6;">
             <h2 style="font-size: 20px; font-weight: normal; margin-top: 0; color: #241D1B;">Zresetuj hasło do konta AURA</h2>
@@ -50,34 +57,25 @@ export async function POST(req: NextRequest) {
             <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 16px; text-align: center; margin: 24px 0;">
               <span style="font-size: 28px; font-family: monospace; letter-spacing: 6px; font-weight: bold; color: #8F6B38;">${resetCode}</span>
             </div>
-            <p style="font-size: 12px; color: #7A6458;">Kod jest ważny przez 15 minut. Jeśli to nie Ty prosiłaś o zmianę hasła, zignoruj tę wiadomość – Twoje dotychczasowe hasło pozostaje bezpieczne.</p>
+            <p style="font-size: 12px; color: #7A6458;">Kod jest ważny przez 15 minut i może być użyty tylko raz. Jeśli to nie Ty prosiłaś o zmianę hasła, zignoruj tę wiadomość – Twoje dotychczasowe hasło pozostaje bezpieczne.</p>
           </div>
         `,
         type: "PASSWORD_RESET" as any,
       });
     } catch (mailErr) {
-      console.error("Błąd wysyłki e-mail resetu:", mailErr);
+      console.error("Błąd wysyłki e-mail resetu hasła:", mailErr);
     }
 
-    const recipientName = isOwner
-      ? "Właścicielka butiku"
-      : `${customer?.firstName || ""} ${customer?.lastName || ""}`.trim() || "Klientka";
-
+    // BEZPIECZEŃSTWO: Nigdy nie zwracamy kodu w odpowiedzi API, logach ani stanie!
     return NextResponse.json({
       success: true,
-      message: `Kod weryfikacyjny został wygenerowany dla: ${normalizedEmail}.`,
-      email: normalizedEmail,
-      isOwner,
-      recipientName,
-      // Kod zwracany do formularza dla natychmiastowego ułatwienia (wygoda przy braku zewnętrznego SMTP)
-      code: resetCode,
+      message: "Jeśli konto z podanym adresem istnieje, otrzymasz wiadomość z instrukcją resetowania hasła.",
     });
   } catch (err: any) {
-    console.error("Błąd generowania kodu resetu hasła:", err);
+    console.error("Błąd procedury resetu hasła:", err);
     return NextResponse.json(
-      { error: err.message || "Wystąpił błąd podczas generowania kodu resetu." },
+      { error: "Wystąpił błąd podczas generowania kodu resetu." },
       { status: 500 }
     );
   }
 }
-

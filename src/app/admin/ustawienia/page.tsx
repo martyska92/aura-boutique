@@ -5,7 +5,7 @@ import { StoreSettingsClient } from "@/components/admin/StoreSettingsClient";
 
 export default async function AdminSettingsPage() {
   await requireAdmin();
-  const settings = await getStoreSettings();
+  const settings = await getStoreSettings({ forAdminClient: true });
   const isNeonConnected = isNeonConfigured();
 
   return (

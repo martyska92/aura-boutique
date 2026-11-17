@@ -54,7 +54,13 @@ export interface StoreFileState {
   contactMessages: ContactMessage[];
   adminAccount: AdminAccount;
   customers?: CustomerAccount[];
-  passwordResetTokens?: { email: string; code: string; expiresAt: number }[];
+  passwordResetTokens?: {
+    email: string;
+    code: string;
+    expiresAt: number;
+    attempts?: number;
+    createdAt?: number;
+  }[];
   priceHistory?: PriceHistoryRecord[];
   emailOutbox?: any[];
 }
@@ -1809,8 +1815,44 @@ export async function createReturnRequest(
   }
 ): Promise<ReturnRequest> {
   const store = loadLocalStore();
-  const order = store.orders.find((o) => o.id === orderId);
-  if (!order) throw new Error("Nie znaleziono zamówienia");
+  const order = store.orders.find((o) => o.id === orderId || o.orderNumber === orderId);
+  if (!order) throw new Error("Nie znaleziono zamówienia.");
+
+  // Warunek 1: Zwrot wyłącznie dla w pełni opłaconych zamówień!
+  if (order.paymentStatus !== "PAID") {
+    throw new Error("Zgłoszenie zwrotu jest możliwe dopiero po potwierdzeniu pełnej zapłaty za zamówienie.");
+  }
+
+  // Warunek 2: Sprawdzenie ilości zwracanych sztuk
+  if (!order.returns) {
+    order.returns = [];
+  }
+
+  for (const item of data.items) {
+    if (!item.quantity || item.quantity <= 0) {
+      throw new Error(`Nieprawidłowa liczba zwracanych sztuk dla ${item.productName}.`);
+    }
+
+    const originalOrderItem = order.items.find((oi) => oi.id === item.orderItemId);
+    if (!originalOrderItem) {
+      throw new Error(`Produkt ${item.productName} nie znajduje się w tym zamówieniu.`);
+    }
+
+    // Oblicz już zwrócone sztuki w aktywnych zwrotach (nieodrzuconych)
+    const alreadyReturnedQty = order.returns
+      .filter((r) => r.status !== "REJECTED")
+      .reduce((sum, ret) => {
+        const retItem = ret.items.find((ri) => ri.orderItemId === item.orderItemId);
+        return sum + (retItem ? retItem.quantity : 0);
+      }, 0);
+
+    const availableToReturn = originalOrderItem.quantity - alreadyReturnedQty;
+    if (item.quantity > availableToReturn) {
+      throw new Error(
+        `Nie możesz zgłosić ${item.quantity} szt. produktu ${item.productName}. Zakupiono ${originalOrderItem.quantity} szt., z czego wcześniej zgłoszono już ${alreadyReturnedQty} szt.`
+      );
+    }
+  }
 
   const returnId = `ZWR-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -1831,9 +1873,6 @@ export async function createReturnRequest(
     customerNote: data.customerNote || "",
   };
 
-  if (!order.returns) {
-    order.returns = [];
-  }
   order.returns.unshift(returnRequest);
   order.updatedAt = new Date().toISOString();
 
@@ -1853,30 +1892,110 @@ export async function createReturnRequest(
 // ==========================================
 // USTAWIENIA SKLEPU
 // ==========================================
-export async function getStoreSettings(): Promise<StoreSettings> {
+export async function getStoreSettings(options?: { forAdminClient?: boolean }): Promise<StoreSettings> {
   const store = loadLocalStore();
-  return store.settings;
+  const settings: StoreSettings = { ...store.settings };
+
+  // Sprawdzamy stan konfiguracji sekretów
+  settings.smtpPasswordConfigured = Boolean(
+    settings.smtpPassword ||
+    process.env.SMTP_PASSWORD ||
+    process.env.SMTP_PASS ||
+    process.env.WP_MAIL_PASSWORD
+  );
+  settings.resendApiKeyConfigured = Boolean(
+    settings.resendApiKey || process.env.RESEND_API_KEY
+  );
+
+  const activePos = settings.payuSandbox ? settings.payuPosIdSandbox : settings.payuPosId;
+  const activeSec = settings.payuSandbox ? settings.payuSecondKeySandbox : settings.payuSecondKey;
+  settings.payuConfigured = Boolean(activePos && activeSec);
+
+  // Bezpieczeństwo: Jeśli ustawienia są wysyłane do przeglądarki administratora,
+  // maskujemy wrażliwe hasła i klucze prywatne, nie ujawniając ich w kodzie HTML/JSON
+  if (options?.forAdminClient) {
+    if (settings.smtpPassword) settings.smtpPassword = "";
+    if (settings.resendApiKey) settings.resendApiKey = "";
+    if (settings.payuSecondKey) settings.payuSecondKey = "";
+    if (settings.payuClientSecret) settings.payuClientSecret = "";
+    if (settings.payuSecondKeySandbox) settings.payuSecondKeySandbox = "";
+    if (settings.payuClientSecretSandbox) settings.payuClientSecretSandbox = "";
+  }
+
+  return settings;
 }
 
 export async function updateStoreSettings(
-  settings: Partial<StoreSettings>
+  settings: Partial<StoreSettings> & {
+    clearSmtpPassword?: boolean;
+    clearResendApiKey?: boolean;
+    clearPayuSecrets?: boolean;
+  }
 ): Promise<StoreSettings> {
   const store = loadLocalStore();
   const existingPassword = store.settings?.smtpPassword;
   const existingResendKey = store.settings?.resendApiKey;
+  const existingPayuSec = store.settings?.payuSecondKey;
+  const existingPayuSecret = store.settings?.payuClientSecret;
+  const existingPayuSecSandbox = store.settings?.payuSecondKeySandbox;
+  const existingPayuSecretSandbox = store.settings?.payuClientSecretSandbox;
 
   const cleanSettings = { ...settings };
-  // Nie nadpisuj hasła pustym ciągiem, jeśli nie zostało podane nowe
-  if (!cleanSettings.smtpPassword && existingPassword) {
+
+  // 1. Bezpieczne zachowanie hasła SMTP
+  if (cleanSettings.clearSmtpPassword) {
+    cleanSettings.smtpPassword = "";
+    if (store.settings) store.settings.smtpPassword = "";
+  } else if (cleanSettings.smtpPassword && cleanSettings.smtpPassword.trim().length > 0) {
+    cleanSettings.smtpPassword = cleanSettings.smtpPassword.trim();
+  } else if (existingPassword) {
     cleanSettings.smtpPassword = existingPassword;
   }
-  if (!cleanSettings.resendApiKey && existingResendKey) {
+
+  // 2. Bezpieczne zachowanie klucza Resend API
+  if (cleanSettings.clearResendApiKey) {
+    cleanSettings.resendApiKey = "";
+    if (store.settings) store.settings.resendApiKey = "";
+  } else if (cleanSettings.resendApiKey && cleanSettings.resendApiKey.trim().length > 0) {
+    cleanSettings.resendApiKey = cleanSettings.resendApiKey.trim();
+  } else if (existingResendKey) {
     cleanSettings.resendApiKey = existingResendKey;
+  }
+
+  // 3. Bezpieczne zachowanie sekretów PayU (produkcja i sandbox)
+  if (!cleanSettings.payuSecondKey && existingPayuSec) {
+    cleanSettings.payuSecondKey = existingPayuSec;
+  }
+  if (!cleanSettings.payuClientSecret && existingPayuSecret) {
+    cleanSettings.payuClientSecret = existingPayuSecret;
+  }
+  if (!cleanSettings.payuSecondKeySandbox && existingPayuSecSandbox) {
+    cleanSettings.payuSecondKeySandbox = existingPayuSecSandbox;
+  }
+  if (!cleanSettings.payuClientSecretSandbox && existingPayuSecretSandbox) {
+    cleanSettings.payuClientSecretSandbox = existingPayuSecretSandbox;
   }
 
   store.settings = { ...store.settings, ...cleanSettings };
   saveLocalStore(store);
-  return store.settings;
+
+  // Przygotuj odpowiedź z poprawnymi flagami statusu
+  const result: StoreSettings = { ...store.settings };
+  result.smtpPasswordConfigured = Boolean(result.smtpPassword);
+  result.resendApiKeyConfigured = Boolean(result.resendApiKey);
+  const pos = result.payuSandbox ? result.payuPosIdSandbox : result.payuPosId;
+  const sec = result.payuSandbox ? result.payuSecondKeySandbox : result.payuSecondKey;
+  result.payuConfigured = Boolean(pos && sec);
+
+  // Nie zwracaj haseł w odpowiedzi API
+  result.smtpPassword = "";
+  result.resendApiKey = "";
+  result.payuSecondKey = "";
+  result.payuClientSecret = "";
+  result.payuSecondKeySandbox = "";
+  result.payuClientSecretSandbox = "";
+
+  return result;
 }
 
 // ==========================================
@@ -2593,50 +2712,83 @@ export async function getAdminAccount(): Promise<AdminAccount> {
 }
 
 /**
- * Zapisuje kod resetowania hasła (ważny np. 15 minut)
+ * Zapisuje kod resetowania hasła z ograniczeniem częstotliwości (rate limit 60s) i limitem prób
  */
 export async function savePasswordResetCode(
   email: string,
   code: string,
   ttlMs: number = 15 * 60 * 1000
-): Promise<void> {
+): Promise<{ success: boolean; rateLimited?: boolean }> {
   const store = loadLocalStore();
   if (!store.passwordResetTokens) store.passwordResetTokens = [];
 
   const normalized = email.trim().toLowerCase();
-  // Usuń ewentualne stare kody dla tego adresu
+  const now = Date.now();
+
+  const existing = store.passwordResetTokens.find(
+    (t) => t.email.toLowerCase() === normalized && t.expiresAt > now
+  );
+
+  // Rate limit: 60 sekund między kolejnymi żądaniami
+  if (existing && existing.createdAt && now - existing.createdAt < 60 * 1000) {
+    return { success: false, rateLimited: true };
+  }
+
+  // Usuń stare kody dla tego adresu
   store.passwordResetTokens = store.passwordResetTokens.filter(
-    (t) => t.email.toLowerCase() !== normalized && t.expiresAt > Date.now()
+    (t) => t.email.toLowerCase() !== normalized && t.expiresAt > now
   );
 
   store.passwordResetTokens.push({
     email: normalized,
     code: code.trim(),
-    expiresAt: Date.now() + ttlMs,
+    expiresAt: now + ttlMs,
+    attempts: 0,
+    createdAt: now,
   });
 
   saveLocalStore(store);
+  return { success: true };
 }
 
 /**
- * Weryfikuje kod resetowania hasła
+ * Weryfikuje kod resetowania hasła z zabezpieczeniem brute-force (max 5 prób)
  */
 export async function verifyPasswordResetCode(
   email: string,
   code: string
-): Promise<boolean> {
+): Promise<{ valid: boolean; error?: string }> {
   const store = loadLocalStore();
   const normalized = email.trim().toLowerCase();
   const trimmedCode = code.trim();
+  const now = Date.now();
 
   const token = (store.passwordResetTokens || []).find(
-    (t) =>
-      t.email.toLowerCase() === normalized &&
-      t.code === trimmedCode &&
-      t.expiresAt > Date.now()
+    (t) => t.email.toLowerCase() === normalized && t.expiresAt > now
   );
 
-  return Boolean(token);
+  if (!token) {
+    return { valid: false, error: "Kod wygasł lub nie istnieje. Poproś o nowy kod." };
+  }
+
+  if ((token.attempts || 0) >= 5) {
+    store.passwordResetTokens = (store.passwordResetTokens || []).filter(
+      (t) => t.email.toLowerCase() !== normalized
+    );
+    saveLocalStore(store);
+    return { valid: false, error: "Zbyt wiele nieudanych prób. Wygeneruj nowy kod resetowania." };
+  }
+
+  if (token.code !== trimmedCode) {
+    token.attempts = (token.attempts || 0) + 1;
+    saveLocalStore(store);
+    return {
+      valid: false,
+      error: `Nieprawidłowy kod weryfikacyjny. Pozostało prób: ${Math.max(0, 5 - token.attempts)}.`,
+    };
+  }
+
+  return { valid: true };
 }
 
 /**

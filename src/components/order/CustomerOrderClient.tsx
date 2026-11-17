@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -26,7 +26,7 @@ import {
   CreditCard,
   ShieldCheck,
 } from "lucide-react";
-import { Order, OrderItem, Product, StoreSettings, ReturnRequest } from "@/lib/types";
+import { Order, OrderItem, Product, StoreSettings, ReturnRequest, PaymentStatus } from "@/lib/types";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 
 interface CustomerOrderClientProps {
@@ -60,6 +60,47 @@ export function CustomerOrderClient({
   const [customerReturnNote, setCustomerReturnNote] = useState("");
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [returnSuccessData, setReturnSuccessData] = useState<ReturnRequest | null>(null);
+
+  // Weryfikacja rzeczywistego statusu płatności z backendu dla uprawnień do zwrotu
+  const [backendPaymentStatus, setBackendPaymentStatus] = useState<PaymentStatus | null>(null);
+  const [isLoadingPaymentStatus, setIsLoadingPaymentStatus] = useState<boolean>(true);
+  const [paymentStatusError, setPaymentStatusError] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+    const fetchStatus = async () => {
+      try {
+        setIsLoadingPaymentStatus(true);
+        setPaymentStatusError(false);
+        const res = await fetch(`/api/orders/${order.id}/status?key=${order.accessKey || ""}`);
+        if (!res.ok) {
+          throw new Error("Błąd pobierania statusu");
+        }
+        const data = await res.json();
+        if (active && data.paymentStatus) {
+          setBackendPaymentStatus(data.paymentStatus);
+          if (data.paymentStatus !== order.paymentStatus) {
+            setOrder((prev) => ({ ...prev, paymentStatus: data.paymentStatus }));
+          }
+        }
+      } catch {
+        if (active) setPaymentStatusError(true);
+      } finally {
+        if (active) setIsLoadingPaymentStatus(false);
+      }
+    };
+
+    fetchStatus();
+    return () => {
+      active = false;
+    };
+  }, [order.id, order.accessKey]);
+
+  // Prawo do zgłoszenia zwrotu online: tylko po potwierdzeniu pełnej zapłaty (PAID) z backendu
+  const isReturnAllowed =
+    !isLoadingPaymentStatus &&
+    !paymentStatusError &&
+    backendPaymentStatus === "PAID";
 
   // Stan ponawiania płatności online oraz kopiowania danych przelewu
   const [isInitiatingPayment, setIsInitiatingPayment] = useState(false);
@@ -288,6 +329,7 @@ export function CustomerOrderClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId: order.id,
+          accessKey: order.accessKey,
           items: itemsToReturn,
           returnMethod,
           customerNote: customerReturnNote,
@@ -1021,27 +1063,59 @@ export function CustomerOrderClient({
         </div>
 
         {/* ========================================================
-            NOWA SEKCJA: WYKLIKANIE ZWROTU PRODUKTÓW (14 DNI)
+            SEKCJA: ZWROT PRODUKTÓW (WIDOCZNY TYLKO PO PEŁNEJ ZAPŁACIE)
            ======================================================== */}
-        <div className="pt-4 border-t border-[#EADFD5] flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-center sm:text-left">
-            <h4 className="font-serif text-xs uppercase tracking-wider font-bold text-[#241D1B] flex items-center justify-center sm:justify-start gap-1.5">
-              <RotateCcw className="w-3.5 h-3.5 text-[#C5A069]" />
-              <span>Prawo do Zwrotu (14 dni)</span>
-            </h4>
-            <p className="text-[11px] text-[#6E6259] mt-0.5">
-              Ubranie nie pasuje? Możesz łatwo i szybko wyklikać zwrot bez drukowania formularza.
-            </p>
-          </div>
+        {isReturnAllowed ? (
+          <div className="pt-4 border-t border-[#EADFD5] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-center sm:text-left">
+              <h4 className="font-serif text-xs uppercase tracking-wider font-bold text-[#241D1B] flex items-center justify-center sm:justify-start gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5 text-[#C5A069]" />
+                <span>Prawo do Zwrotu (14 dni)</span>
+              </h4>
+              <p className="text-[11px] text-[#6E6259] mt-0.5">
+                Ubranie nie pasuje? Możesz łatwo i szybko wyklikać zwrot bez drukowania formularza.
+              </p>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setIsReturnModalOpen(true)}
-            className="px-5 py-2.5 bg-white border border-[#D8BE8E] hover:border-[#C5A069] hover:bg-[#FAF6F1] text-xs uppercase tracking-wider font-semibold text-[#241D1B] rounded transition-all shadow-xs shrink-0"
-          >
-            Zgłoś zwrot produktów
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setIsReturnModalOpen(true)}
+              className="px-5 py-2.5 bg-white border border-[#D8BE8E] hover:border-[#C5A069] hover:bg-[#FAF6F1] text-xs uppercase tracking-wider font-semibold text-[#241D1B] rounded transition-all shadow-xs shrink-0"
+            >
+              Zgłoś zwrot produktów
+            </button>
+          </div>
+        ) : (
+          <div className="pt-4 border-t border-[#EADFD5] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-center sm:text-left">
+              <h4 className="font-serif text-xs uppercase tracking-wider font-bold text-[#241D1B] flex items-center justify-center sm:justify-start gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5 text-[#C5A069]" />
+                <span>Zasady Zwrotów i Reklamacji</span>
+              </h4>
+              <p className="text-[11px] text-[#6E6259] mt-0.5">
+                {order.paymentStatus === "PENDING"
+                  ? "Możliwość zgłoszenia zwrotu online zostanie aktywowana po opłaceniu zamówienia."
+                  : "W AURA BOUTIQUE masz 14 dni na zwrot od momentu doręczenia przesyłki."}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs shrink-0">
+              <Link
+                href="/zwroty-i-reklamacje"
+                className="text-[#8C7248] hover:text-[#241D1B] font-medium underline"
+              >
+                Regulamin zwrotów
+              </Link>
+              <span className="text-[#C5A069]">•</span>
+              <Link
+                href="/kontakt"
+                className="text-[#8C7248] hover:text-[#241D1B] font-medium underline"
+              >
+                Kontakt z butikiem
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================

@@ -68,7 +68,7 @@ export type Product = {
 };
 
 export type ShippingMethod = 'INPOST_LOCKER' | 'COURIER' | 'LOCAL_PICKUP';
-export type PaymentMethod = 'PRZELEWY24' | 'BLIK' | 'TRADITIONAL_TRANSFER' | 'COD';
+export type PaymentMethod = 'PRZELEWY24' | 'BLIK' | 'PAYU' | 'TRADITIONAL_TRANSFER' | 'COD';
 export type PaymentStatus =
   | 'PENDING'
   | 'PAID'
@@ -136,6 +136,7 @@ export type Order = {
   id: string;
   orderNumber: string;
   accessKey?: string; // bezpieczny unikalny token dostępu dla klientki (np. gościa)
+  customerId?: string; // powiązanie z kontem zarejestrowanej klientki
   customerFirstName: string;
   customerLastName: string;
   customerEmail: string;
@@ -231,12 +232,46 @@ export type StoreSettings = {
   p24ApiKey?: string;
   p24Sandbox: boolean;
   p24Enabled?: boolean;
+  // Integracja PayU (w tym BLIK przez PayU)
+  payuEnabled?: boolean;
+  payuSandbox?: boolean;
+  payuPosId?: string;
+  payuSecondKey?: string;
+  payuClientId?: string;
+  payuClientSecret?: string;
+  payuPosIdSandbox?: string;
+  payuSecondKeySandbox?: string;
+  payuClientIdSandbox?: string;
+  payuClientSecretSandbox?: string;
+  defaultPaymentGateway?: "P24" | "PAYU";
+  payuConfigured?: boolean;
+  // Treści banera i paska ogłoszeń
+  heroButtonText?: string;
+  heroButtonLink?: string;
+  heroSlides?: HeroSlide[];
+  announcementBarLeft?: string;
+  announcementBarRight?: string;
+  announcementItems?: string[];
+  // Flagi bezpieczeństwa sekretów serwerowych
+  smtpPasswordConfigured?: boolean;
+  resendApiKeyConfigured?: boolean;
   // Płatności tradycyjne i za pobraniem
   bankAccountNumber?: string;
   bankName?: string;
   bankAccountRecipient?: string;
   traditionalTransferEnabled?: boolean;
   codEnabled?: boolean;
+};
+
+export type HeroSlide = {
+  id: string;
+  headline: string;
+  subheadline: string;
+  imageUrl: string;
+  buttonText?: string;
+  buttonLink?: string;
+  isActive: boolean;
+  order: number;
 };
 
 export type CartItem = {

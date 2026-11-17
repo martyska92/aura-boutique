@@ -5,9 +5,12 @@ import { ShippingMethod, PaymentMethod, OrderItem } from "@/lib/types";
 import {
   isP24Configured,
   registerP24Transaction,
+  isPayUConfigured,
+  registerPayUTransaction,
   getTraditionalTransferDetails,
   generateOrderAccessKey,
 } from "@/lib/payment-service";
+import { getUserSession } from "@/lib/admin-auth";
 import { sendOrderPlacedCustomerEmail } from "@/lib/email-service";
 
 export async function POST(req: NextRequest) {
@@ -163,7 +166,18 @@ export async function POST(req: NextRequest) {
     // Czas wygaśnięcia rezerwacji (60 minut)
     const reservedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
+    let customerId: string | undefined = undefined;
+    try {
+      const session = await getUserSession();
+      if (session && session.email && session.email.toLowerCase() === customerEmail.trim().toLowerCase()) {
+        const store = (await import("@/lib/store-data")).loadLocalStore();
+        const customer = (store.customers || []).find((c) => c.email.toLowerCase() === session.email.toLowerCase());
+        if (customer) customerId = customer.id;
+      }
+    } catch {}
+
     const orderInput: any = {
+      customerId,
       accessKey,
       customerFirstName,
       customerLastName,
@@ -205,17 +219,38 @@ export async function POST(req: NextRequest) {
       order.bankTransferDetails = getTraditionalTransferDetails(order, settings);
     }
 
-    // Jeśli płatność online (BLIK / Przelewy24), sprawdzamy konfigurację i rejestrujemy transakcję
+    // Jeśli płatność online (PayU, BLIK, Przelewy24), sprawdzamy konfigurację i rejestrujemy transakcję
     let paymentUrl: string | undefined = undefined;
     let paymentError: string | undefined = undefined;
 
-    if (paymentMethod === "BLIK" || paymentMethod === "PRZELEWY24") {
-      if (isP24Configured(settings)) {
-        const host = req.headers.get("host") || "localhost:3000";
-        const protocol = host.includes("localhost") ? "http" : "https";
-        const origin = `${protocol}://${host}`;
+    const host = req.headers.get("host") || "localhost:3000";
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const origin = `${protocol}://${host}`;
+    const returnUrl = `${origin}/zamowienie/${order.id}/potwierdzenie?key=${order.accessKey}&check=1`;
 
-        const returnUrl = `${origin}/zamowienie/${order.id}/potwierdzenie?key=${order.accessKey}&check=1`;
+    const isPayUOnline =
+      paymentMethod === "PAYU" ||
+      ((paymentMethod === "BLIK" || paymentMethod === "PRZELEWY24") &&
+        settings.defaultPaymentGateway === "PAYU" &&
+        isPayUConfigured(settings));
+
+    if (isPayUOnline && isPayUConfigured(settings)) {
+      const notifyUrl = `${origin}/api/payments/payu/notify`;
+      const payuRes = await registerPayUTransaction({
+        order,
+        returnUrl,
+        notifyUrl,
+        customSettings: settings,
+      });
+
+      if (payuRes.success && payuRes.paymentUrl) {
+        paymentUrl = payuRes.paymentUrl;
+      } else {
+        paymentError = payuRes.error;
+        console.warn("Rejestracja PayU nie powiodła się:", payuRes.error);
+      }
+    } else if (paymentMethod === "BLIK" || paymentMethod === "PRZELEWY24") {
+      if (isP24Configured(settings)) {
         const statusUrl = `${origin}/api/payments/p24/notify`;
 
         const p24Res = await registerP24Transaction({

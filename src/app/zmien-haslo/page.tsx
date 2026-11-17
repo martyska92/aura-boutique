@@ -19,8 +19,8 @@ export default function ChangePasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (newPassword.length < 4) {
-      setError("Hasło musi mieć co najmniej 4 znaki.");
+    if (newPassword.length < 6) {
+      setError("Hasło musi mieć co najmniej 6 znaków.");
       return;
     }
 
@@ -69,7 +69,7 @@ export default function ChangePasswordPage() {
           Wymagana Zmiana Hasła
         </h1>
         <p className="mt-1 text-xs text-[#7A6458]">
-          Konto Właścicielki Butiku: <strong className="text-[#241D1B]">aurazmigrod@wp.pl</strong>
+          Wprowadź nowe, bezpieczne hasło do swojego konta.
         </p>
       </div>
 
