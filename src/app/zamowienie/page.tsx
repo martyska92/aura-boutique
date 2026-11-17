@@ -23,6 +23,7 @@ import {
   ShoppingBag,
   Lock,
   Navigation,
+  User,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -86,6 +87,31 @@ export default function CheckoutPage() {
   const [giftItem, setGiftItem] = useState<{ productName: string; color: string; value: number } | null>(null);
   const [serverShippingCost, setServerShippingCost] = useState<number | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+
+  // Sesja klientki
+  const [sessionUser, setSessionUser] = useState<{
+    isLoggedIn: boolean;
+    email?: string;
+    fullName?: string;
+    firstName?: string;
+    emailVerified?: boolean;
+    welcomeDiscountCode?: string;
+    welcomeDiscountUsed?: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.isLoggedIn) {
+          setSessionUser(data);
+          if (!email && data.email) setEmail(data.email);
+          if (!firstName && data.firstName) setFirstName(data.firstName);
+          if (!lastName && data.lastName) setLastName(data.lastName);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Zwijane podsumowanie na telefonie
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
@@ -250,12 +276,13 @@ export default function CheckoutPage() {
   };
 
   // Przeliczanie promocji i rabatów (serwer)
-  const calculatePromotions = async (couponToTest?: string) => {
+  const calculatePromotions = async (couponToTest?: string, methodOverride?: ShippingMethod) => {
     if (items.length === 0) return;
     setIsApplyingCoupon(true);
 
     try {
       const code = couponToTest !== undefined ? couponToTest : appliedCouponCode;
+      const method = methodOverride || shippingMethod;
       const res = await fetch("/api/promotions/calculate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -263,7 +290,7 @@ export default function CheckoutPage() {
           cartItems: items,
           customerEmail: email.trim(),
           couponCode: code.trim(),
-          shippingMethod,
+          shippingMethod: method,
         }),
       });
 
@@ -271,7 +298,7 @@ export default function CheckoutPage() {
         const data = await res.json();
         setDiscountAmount(data.totalDiscountAmount || 0);
         setAppliedPromotions(data.appliedPromotions || []);
-        setServerShippingCost(data.shippingCost);
+        setServerShippingCost(method === "LOCAL_PICKUP" ? 0 : data.shippingCost);
 
         if (data.gift?.isEligible && data.gift?.giftItem) {
           setGiftItem(data.gift.giftItem);
@@ -302,6 +329,14 @@ export default function CheckoutPage() {
     } finally {
       setIsApplyingCoupon(false);
     }
+  };
+
+  const handleSelectShippingMethod = (method: ShippingMethod) => {
+    setShippingMethod(method);
+    if (method === "LOCAL_PICKUP") {
+      setServerShippingCost(0);
+    }
+    calculatePromotions(appliedCouponCode, method);
   };
 
   // Automatyczne odświeżenie rabatów przy zmianie dostawy lub e-maila
@@ -351,7 +386,15 @@ export default function CheckoutPage() {
     else if (shippingMethod === "LOCAL_PICKUP") fallbackShippingCost = 0.0;
   }
 
-  const shippingCost = serverShippingCost !== null ? serverShippingCost : fallbackShippingCost;
+  // Odbiór osobisty jest bezwzględnie bezpłatny (0 zł)
+  const shippingCost =
+    shippingMethod === "LOCAL_PICKUP"
+      ? 0
+      : isFreeShipping
+      ? 0
+      : serverShippingCost !== null && serverShippingCost > 0
+      ? serverShippingCost
+      : fallbackShippingCost;
   const grandTotal = Math.round((finalSubtotal + shippingCost) * 100) / 100;
   const totalItemsCount = items.reduce((acc, it) => acc + it.quantity, 0);
 
@@ -438,6 +481,7 @@ export default function CheckoutPage() {
           customerNotes: notes.trim(),
           cartItems: items,
           couponCode: appliedCouponCode || undefined,
+          newsletterConsent: marketingConsent,
         }),
       });
 
@@ -493,14 +537,78 @@ export default function CheckoutPage() {
           </div>
 
           {/* Tytuł kasy */}
-          <div className="text-center max-w-xl mx-auto mb-4 sm:mb-8">
+          <div className="text-center max-w-xl mx-auto mb-4 sm:mb-6">
             <h1 className="font-serif text-2xl sm:text-[28px] text-[#241D1B] tracking-tight">
               Dane i dostawa
             </h1>
-            <p className="text-xs sm:text-sm text-[#857670] mt-1 font-light">
-              Kupujesz jako gość — nie musisz zakładać konta.
-            </p>
+            {sessionUser?.isLoggedIn ? (
+              <p className="text-xs sm:text-sm text-[#5A483D] mt-1.5 flex items-center justify-center gap-1.5 font-medium">
+                <User className="w-3.5 h-3.5 text-[#C5A069]" />
+                <span>
+                  Zalogowana jako <strong>{sessionUser.fullName || sessionUser.email}</strong>
+                </span>
+              </p>
+            ) : (
+              <p className="text-xs sm:text-sm text-[#857670] mt-1 font-light">
+                Kupujesz jako gość — nie musisz zakładać konta.
+              </p>
+            )}
           </div>
+
+          {/* Baner zachęcający do założenia konta (widoczny wyłącznie dla niezalogowanych) */}
+          {!sessionUser?.isLoggedIn && (
+            <div className="mb-6 p-4 sm:p-5 bg-gradient-to-r from-[#FDFBF7] to-[#FAF6F1] border border-[#EADFD5] rounded-xl shadow-2xs">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h2 className="font-serif text-base sm:text-lg text-[#241D1B] flex items-center gap-1.5 font-medium">
+                    <span>Pierwsze zakupy w AURA? Odbierz −15% 💛</span>
+                  </h2>
+                  <p className="text-xs text-[#5A483D] leading-relaxed max-w-xl">
+                    Załóż konto i skorzystaj z rabatu na pierwsze zamówienie. Zyskasz też dostęp do historii zakupów i wygodnych zwrotów.
+                  </p>
+                  <p className="text-[11px] text-[#857670] pt-0.5">
+                    Możesz też kontynuować zakupy jako gość.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto shrink-0">
+                  <Link
+                    href="/logowanie?tab=register&returnUrl=/zamowienie"
+                    className="px-4 py-2.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-wider font-semibold rounded-xs shadow-xs text-center transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <span>Załóż konto i odbierz −15%</span>
+                  </Link>
+                  <Link
+                    href="/logowanie?tab=login&returnUrl=/zamowienie"
+                    className="px-3 py-2 text-xs text-[#8C7248] hover:text-[#241D1B] font-medium text-center underline"
+                  >
+                    Masz już konto? Zaloguj się
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Baner z dostępnym kodem powitalnym dla zalogowanej klientki */}
+          {sessionUser?.isLoggedIn && sessionUser.welcomeDiscountCode && !sessionUser.welcomeDiscountUsed && appliedCouponCode !== sessionUser.welcomeDiscountCode && (
+            <div className="mb-6 p-3.5 sm:p-4 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-xs text-emerald-900">
+                <Sparkles className="w-4 h-4 text-[#C5A069] shrink-0" />
+                <span>
+                  Masz dostępny rabat powitalny <strong>−15%</strong> (kod: <code className="font-mono font-bold">{sessionUser.welcomeDiscountCode}</code>).
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCouponCodeInput(sessionUser.welcomeDiscountCode!);
+                  calculatePromotions(sessionUser.welcomeDiscountCode!);
+                }}
+                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xs shadow-2xs transition-colors cursor-pointer"
+              >
+                Nalicz rabat −15%
+              </button>
+            </div>
+          )}
 
           {/* ─── Zwijane podsumowanie zamówienia na telefonie (Mobile Accordion) ─── */}
           <div className="lg:hidden mb-4 bg-white border border-[#EADFD5] rounded-xl shadow-xs overflow-hidden">
@@ -806,7 +914,7 @@ export default function CheckoutPage() {
                             type="radio"
                             name="shipping"
                             checked={shippingMethod === "INPOST_LOCKER"}
-                            onChange={() => setShippingMethod("INPOST_LOCKER")}
+                            onChange={() => handleSelectShippingMethod("INPOST_LOCKER")}
                             className="accent-[#C5A069] w-4 h-4 cursor-pointer"
                           />
                           <div>
@@ -975,7 +1083,7 @@ export default function CheckoutPage() {
                             type="radio"
                             name="shipping"
                             checked={shippingMethod === "COURIER"}
-                            onChange={() => setShippingMethod("COURIER")}
+                            onChange={() => handleSelectShippingMethod("COURIER")}
                             className="accent-[#C5A069] w-4 h-4 cursor-pointer"
                           />
                           <div>
@@ -1104,7 +1212,7 @@ export default function CheckoutPage() {
                             type="radio"
                             name="shipping"
                             checked={shippingMethod === "LOCAL_PICKUP"}
-                            onChange={() => setShippingMethod("LOCAL_PICKUP")}
+                            onChange={() => handleSelectShippingMethod("LOCAL_PICKUP")}
                             className="accent-[#C5A069] w-4 h-4 cursor-pointer"
                           />
                           <div>
@@ -1286,7 +1394,10 @@ export default function CheckoutPage() {
                         className="mt-0.5 accent-[#C5A069] w-4 h-4 rounded cursor-pointer"
                       />
                       <span>
-                        Chcę otrzymywać informacje o nowych kolekcjach i specjalnych kodach rabatowych na podany e-mail (opcjonalnie).
+                        Chcę otrzymywać e-mailem newsletter AURA Boutique z nowościami i promocjami. Zgodę mogę wycofać w każdej chwili.{" "}
+                        <Link href="/polityka-prywatnosci" target="_blank" className="underline hover:text-[#C5A069]">
+                          (Polityka prywatności)
+                        </Link>
                       </span>
                     </label>
                   </div>

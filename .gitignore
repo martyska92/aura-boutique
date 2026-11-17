@@ -36,6 +36,11 @@ yarn-error.log*
 
 # vercel
 .vercel
+.backups/
+backups/
+*.enc.json
+*.backup.json
+
 
 # typescript
 *.tsbuildinfo
@@ -46,3 +51,8 @@ scratch*
 
 
 .vercel
+.backups/
+backups/
+*.enc.json
+*.backup.json
+

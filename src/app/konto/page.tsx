@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { clearCustomerGreetingSession } from "@/lib/customer-greetings";
 import type { Order, OrderItem, ReturnRequest, PaymentMethod, ShippingMethod } from "@/lib/types";
 
 type AccountTab = "orders" | "returns" | "discounts" | "profile";
@@ -466,10 +467,10 @@ export default function AccountPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="font-serif text-xl sm:text-2xl text-[#241D1B] font-semibold">
                     {profile.firstName
-                      ? `Witaj, ${profile.firstName}!`
+                      ? `Witaj ${profile.firstName}!`
                       : isOwner
-                      ? "Witaj, Właścicielko Butiku!"
-                      : "Witaj w AURA Boutique!"}
+                      ? "Witaj Właścicielko Butiku!"
+                      : "Witaj! Miło Cię widzieć w AURA 💛"}
                   </h1>
                   {isOwner && (
                     <span className="px-2.5 py-0.5 bg-[#FFF2DE] text-[#8C6418] border border-[#E8CD9B] text-[10px] font-bold uppercase rounded-full">
@@ -478,7 +479,7 @@ export default function AccountPage() {
                   )}
                 </div>
                 <p className="text-xs text-[#7A6458] mt-1">
-                  Zalogowano jako: <strong className="text-[#241D1B] font-medium">{session.email}</strong>
+                  Konto klientki • Dostęp do zamówień, zwrotów i zniżek
                 </p>
               </div>
             </div>

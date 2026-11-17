@@ -17,8 +17,21 @@ import {
   Send,
   ExternalLink,
   Copy,
+  HardDrive,
+  Lock,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  FileText,
+  Layers,
 } from "lucide-react";
-import { StoreSettings } from "@/lib/types";
+import {
+  StoreSettings,
+  BackupMetadata,
+  BackupSystemStatus,
+  RestoreTestResult,
+} from "@/lib/types";
 
 interface StoreSettingsClientProps {
   initialSettings: StoreSettings;
@@ -59,6 +72,78 @@ export function StoreSettingsClient({
   const [isCheckingPayU, setIsCheckingPayU] = useState(false);
   const [payuCheckResult, setPayuCheckResult] = useState<{ success: boolean; message: string } | null>(null);
   const [copiedPayUNotifyUrl, setCopiedPayUNotifyUrl] = useState(false);
+
+  // Stan systemu kopii zapasowych i disaster recovery
+  const [backupStatus, setBackupStatus] = useState<BackupSystemStatus | null>(null);
+  const [backupsList, setBackupsList] = useState<BackupMetadata[]>([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [backupFeedback, setBackupFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [isTestingRestore, setIsTestingRestore] = useState(false);
+  const [restoreTestResult, setRestoreTestResult] = useState<RestoreTestResult | null>(null);
+
+  const fetchBackupData = async () => {
+    try {
+      setIsLoadingBackups(true);
+      const res = await fetch("/api/admin/backup");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status) setBackupStatus(data.status);
+        if (data.backups) setBackupsList(data.backups);
+      }
+    } catch (e) {
+      console.warn("Błąd pobierania statusu kopii:", e);
+    } finally {
+      setIsLoadingBackups(false);
+    }
+  };
+
+  const handleCreateBackupNow = async () => {
+    setIsCreatingBackup(true);
+    setBackupFeedback(null);
+    try {
+      const res = await fetch("/api/admin/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trigger: "MANUAL", label: "Ręczna kopia właścicielki" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBackupFeedback({ success: true, message: "Kopia zapasowa utworzona i zaszyfrowana pomyślnie!" });
+        if (data.status) setBackupStatus(data.status);
+        if (data.backups) setBackupsList(data.backups);
+      } else {
+        setBackupFeedback({ success: false, message: data.error || "Nie udało się wykonać kopii." });
+      }
+    } catch (err: any) {
+      setBackupFeedback({ success: false, message: "Błąd sieci: " + err.message });
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+
+  const handleTestIsolatedRestore = async () => {
+    setIsTestingRestore(true);
+    setRestoreTestResult(null);
+    try {
+      const res = await fetch("/api/admin/backup/test-restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok && data.testResult) {
+        setRestoreTestResult(data.testResult);
+        if (data.status) setBackupStatus(data.status);
+      } else {
+        alert("Błąd testu odtworzenia: " + (data.error || "Nieznany błąd"));
+      }
+    } catch (err: any) {
+      alert("Błąd testu odtworzenia: " + err.message);
+    } finally {
+      setIsTestingRestore(false);
+    }
+  };
 
   const handleTestPayU = async () => {
     setIsCheckingPayU(true);
@@ -122,6 +207,7 @@ export function StoreSettingsClient({
     // Natychmiastowa weryfikacja z backendu po wejściu na stronę
     fetchFreshSettings();
     fetchOutbox();
+    fetchBackupData();
 
     // Automatyczne odświeżenie konfiguracji przy powrocie do karty
     const onFocus = () => {
@@ -465,25 +551,18 @@ export function StoreSettingsClient({
             </div>
           </div>
 
-          {/* Treści Banera Głównego & Paska Ogłoszeń */}
+          {/* Górny pasek ogłoszeń */}
           <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-[#EADFD5]">
               <div>
                 <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B]">
-                  Baner Główny & Pasek Ogłoszeń
+                  Górny pasek ogłoszeń
                 </h2>
                 <p className="text-[11px] text-[#7A6458] mt-0.5">
-                  Steruj tekstami, nagłówkami i banerami widocznymi na stronie głównej butiku oraz w górnym pasku.
+                  Steruj komunikatami widocznymi w górnym pasku ogłoszeń (Announcement Bar) na wszystkich podstronach.
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <a
-                  href="/admin/baner"
-                  className="px-3.5 py-1.5 bg-[#C5A069] hover:bg-[#AF884F] text-white rounded text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-2xs shrink-0"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Wizualny Edytor Banera (Drag & Drop)</span>
-                </a>
                 <a
                   href="/"
                   target="_blank"
@@ -496,83 +575,29 @@ export function StoreSettingsClient({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                  Główny nagłówek banera
-                </label>
-                <input
-                  type="text"
-                  placeholder="Styl, który zachwyca"
-                  value={settings.heroHeadline || ""}
-                  onChange={(e) => handleChange("heroHeadline", e.target.value)}
-                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
-                />
-                <p className="text-[10px] text-[#8C7248] mt-1">Wyświetla się na banerze na stronie głównej.</p>
+            {/* Informacja o zarządzaniu banerem strony głównej */}
+            <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="w-5 h-5 text-[#C5A069] shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-[#241D1B]">
+                    Banerem strony głównej zarządzasz w Edytorze banera
+                  </p>
+                  <p className="text-[11px] text-[#7A6458]">
+                    Układ, nagłówki, slajdy i przyciski banera są publikowane z jednego, bezpiecznego źródła.
+                  </p>
+                </div>
               </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                  Adres zdjęcia banera
-                </label>
-                <input
-                  type="text"
-                  placeholder="/images/hero/aura-hero-motto.png"
-                  value={settings.heroImageUrl || ""}
-                  onChange={(e) => handleChange("heroImageUrl", e.target.value)}
-                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
-                />
-                <p className="text-[10px] text-[#8C7248] mt-1">Ścieżka do grafiki banera lub URL.</p>
-              </div>
+              <a
+                href="/admin/baner"
+                className="px-4 py-2 bg-[#C5A069] hover:bg-[#AF884F] text-white rounded text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 shrink-0 shadow-2xs"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Przejdź do Edytora banera</span>
+              </a>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                Podtytuł / hasło przewodnie banera
-              </label>
-              <textarea
-                rows={2}
-                placeholder="Ceny, które kuszą • Jakość, którą poczujesz"
-                value={settings.heroSubheadline || ""}
-                onChange={(e) => handleChange("heroSubheadline", e.target.value)}
-                className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
-              />
-              <p className="text-[10px] text-[#8C7248] mt-1">Hasło widoczne pod nagłówkiem banera.</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                  Napis na przycisku banera
-                </label>
-                <input
-                  type="text"
-                  placeholder="Odkryj kolekcję"
-                  value={settings.heroButtonText || ""}
-                  onChange={(e) => handleChange("heroButtonText", e.target.value)}
-                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
-                  Link przycisku banera
-                </label>
-                <input
-                  type="text"
-                  placeholder="/katalog"
-                  value={settings.heroButtonLink || ""}
-                  onChange={(e) => handleChange("heroButtonLink", e.target.value)}
-                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
-                />
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-[#EADFD5] space-y-4">
-              <h3 className="font-serif text-xs uppercase tracking-wider text-[#241D1B] font-semibold">
-                Górny kaszmirowy pasek ogłoszeń (Announcement Bar)
-              </h3>
-
+            <div className="space-y-4 pt-1">
               <div>
                 <label className="text-xs font-semibold text-[#241D1B] block mb-1">
                   Środkowy tekst paska ogłoszeń (Główny komunikat)
@@ -988,17 +1013,26 @@ export function StoreSettingsClient({
                 </div>
               </div>
 
-              {/* Przycisk testu połączenia z PayU */}
+              {/* Przycisk testu połączenia z PayU & Centrum Sandbox */}
               <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <button
                   type="button"
                   onClick={handleTestPayU}
                   disabled={isCheckingPayU}
-                  className="px-4 py-2.5 bg-[#241D1B] text-white text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#3E3835] transition-all disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                  className="px-4 py-2.5 bg-[#241D1B] text-white text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#3E3835] transition-all disabled:opacity-50 shrink-0 flex items-center justify-center gap-1.5"
                 >
                   <CreditCard className="w-3.5 h-3.5 text-[#C5A069]" />
                   <span>{isCheckingPayU ? "Sprawdzanie..." : "Sprawdź połączenie z PayU"}</span>
                 </button>
+
+                <a
+                  href="/admin/platnosci-testowe"
+                  className="px-4 py-2.5 bg-[#FAF6F1] border border-[#C5A069] hover:bg-[#C5A069] text-[#7A5B20] hover:text-white text-xs uppercase tracking-wider font-semibold rounded transition-all shrink-0 flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#C5A069]" />
+                  <span>Centrum Testowania Sandbox (8 Scenariuszy)</span>
+                  <ExternalLink className="w-3 h-3 ml-0.5" />
+                </a>
 
                 {payuCheckResult && (
                   <div
@@ -1407,6 +1441,297 @@ export function StoreSettingsClient({
                 )}
               </div>
             </div>
+          </div>
+
+          {/* SEKCJA: KOPIE ZAPASOWE I DISASTER RECOVERY */}
+          <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#EADFD5] gap-3">
+              <div>
+                <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] flex items-center gap-2">
+                  <HardDrive className="w-5 h-5 text-[#C5A069]" />
+                  <span>Kopie zapasowe i ochrona danych (Disaster Recovery)</span>
+                </h2>
+                <p className="text-xs text-[#6E6259] mt-0.5">
+                  Automatyczne i ręczne szyfrowane kopie bazy Neon, kont, zamówień, banera, notatek i zdjęć
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2.5 py-1 text-[11px] font-bold rounded bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>AES-256-GCM</span>
+                </span>
+                <span className="px-2.5 py-1 text-[11px] font-bold rounded bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Off-Site Izolacja</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Alert o błędzie, jeśli wystąpił */}
+            {backupStatus?.activeAlert && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded text-red-900 text-xs flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Ostrzeżenie systemu kopii zapasowych</p>
+                  <p className="mt-0.5">{backupStatus.activeAlert.message}</p>
+                </div>
+              </div>
+            )}
+
+            {/* 4 Kluczowe kafelki statusu */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded">
+                <div className="text-[11px] uppercase tracking-wider font-semibold text-[#6E6259] flex items-center gap-1.5 mb-1">
+                  <Clock className="w-3.5 h-3.5 text-[#C5A069]" />
+                  <span>Ostatnia kopia</span>
+                </div>
+                <div className="text-sm font-semibold text-[#241D1B]">
+                  {backupStatus?.lastBackupDate
+                    ? new Date(backupStatus.lastBackupDate).toLocaleString("pl-PL", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Brak kopii"}
+                </div>
+                <div className="text-[11px] text-[#8C827A] mt-0.5">
+                  Rozmiar: {backupStatus?.lastBackupSize || "0 KB"}
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded">
+                <div className="text-[11px] uppercase tracking-wider font-semibold text-[#6E6259] flex items-center gap-1.5 mb-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#C5A069]" />
+                  <span>Wynik ostatniej próby</span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {backupStatus?.lastBackupStatus === "SUCCESS" ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span className="text-sm font-semibold text-emerald-700">Udany (Zabezpieczono)</span>
+                    </>
+                  ) : backupStatus?.lastBackupStatus === "FAILED" ? (
+                    <>
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                      <span className="text-sm font-semibold text-red-700">Błąd zapisu</span>
+                    </>
+                  ) : (
+                    <span className="text-sm font-semibold text-[#8C827A]">Oczekuje na wykonanie</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-[#8C827A] mt-0.5">
+                  Zarejestrowane kopie: {backupStatus?.totalBackupsCount || 0}
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded">
+                <div className="text-[11px] uppercase tracking-wider font-semibold text-[#6E6259] flex items-center gap-1.5 mb-1">
+                  <Layers className="w-3.5 h-3.5 text-[#C5A069]" />
+                  <span>Zakres i retencja</span>
+                </div>
+                <div className="text-sm font-semibold text-[#241D1B]">10 modułów danych</div>
+                <div className="text-[11px] text-[#8C827A] mt-0.5">
+                  30 dni (dzienne), 6 mies. (miesięczne)
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded">
+                <div className="text-[11px] uppercase tracking-wider font-semibold text-[#6E6259] flex items-center gap-1.5 mb-1">
+                  <RefreshCw className="w-3.5 h-3.5 text-[#C5A069]" />
+                  <span>Ostatni test odtworzenia</span>
+                </div>
+                <div className="text-sm font-semibold text-[#241D1B]">
+                  {backupStatus?.lastRestoreTestDate
+                    ? new Date(backupStatus.lastRestoreTestDate).toLocaleString("pl-PL", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Nie testowano"}
+                </div>
+                <div className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                  {backupStatus?.lastRestoreTestResult?.success
+                    ? "✓ Integralność potwierdzona"
+                    : "Brak weryfikacji"}
+                </div>
+              </div>
+            </div>
+
+            {/* Karta Audytu Bazy Neon i Magazynu Zdjęć */}
+            <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] rounded text-xs text-[#3E3B38] space-y-3">
+              <div className="font-semibold text-sm text-[#241D1B] flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-[#C5A069]" />
+                  <span>Audyt hostingu, planu Neon i magazynu zdjęć</span>
+                </span>
+                <span className="px-2 py-0.5 text-[10px] uppercase font-bold rounded bg-amber-100 text-amber-800">
+                  {backupStatus?.neonPlanAudit?.planType || "Neon Free Tier"}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] leading-relaxed">
+                <div className="p-3 bg-white border border-[#EADFD5] rounded space-y-1">
+                  <div className="font-semibold text-[#241D1B]">Punkt w czasie (PITR) & RPO / RTO:</div>
+                  <div>• <strong>Neon Free Tier (obecny):</strong> Historia odzyskiwania PITR wynosi <strong>24 godziny</strong>.</div>
+                  <div>• <strong>RPO (potencjalna utrata):</strong> Max 24h z kopii dziennej; 0 minut w oknie 24h PITR bazy.</div>
+                  <div>• <strong>RTO (czas odtworzenia):</strong> 2–5 minut procedurą awaryjną ze snapshotu AES-256-GCM.</div>
+                  <div className="text-[#8C827A] pt-1 border-t border-[#F0E6DC]">
+                    💡 <em>Opcjonalnie: Neon Launch (~19 USD/mc) pozwala na 30-dniowe PITR na klastrze Neon bez konieczności migracji. Decyzja należy do właścicielki.</em>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white border border-[#EADFD5] rounded space-y-1">
+                  <div className="font-semibold text-[#241D1B]">Ochrona zdjęć i zakres kopii:</div>
+                  <div>• <strong>Zdjęcia produktów:</strong> Przechowywane w Cloudinary CDN ze stałymi URL-ami i manifestem w kopii.</div>
+                  <div>• <strong>Zakres snapshotu:</strong> Konta klientek i skróty haseł, zamówienia, magazyn, rabaty, newsletter, banery, notatki, terminarz.</div>
+                  <div>• <strong>Lokalizacja:</strong> Szyfrowany magazyn odseparowany od bazy (brak możliwości usunięcia z poziomu samej bazy).</div>
+                  <div className="text-emerald-700 font-medium pt-1 border-t border-[#F0E6DC]">
+                    ✓ Repozytorium GitHub nie zawiera danych osobowych ani kopii bazy (.gitignore).
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Feedback z akcji */}
+            {backupFeedback && (
+              <div className={`p-3 text-xs rounded border flex items-center gap-2 ${
+                backupFeedback.success
+                  ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                  : "bg-red-50 text-red-900 border-red-200"
+              }`}>
+                {backupFeedback.success ? <Check className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-red-600" />}
+                <span>{backupFeedback.message}</span>
+              </div>
+            )}
+
+            {/* Wyniki testu próbnego odtworzenia */}
+            {restoreTestResult && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded text-emerald-950 text-xs space-y-2">
+                <div className="font-semibold text-sm flex items-center justify-between text-emerald-900">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                    <span>Wynik testu próbnego odtworzenia (Środowisko izolowane)</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-emerald-800">
+                    Czas weryfikacji: {restoreTestResult.durationMs} ms
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  {restoreTestResult.details}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+                  <div className="p-2 bg-white/80 rounded border border-emerald-200 text-center">
+                    <div className="font-bold text-emerald-900">{restoreTestResult.verifiedCounts.products}</div>
+                    <div className="text-[10px] text-emerald-700">Produktów</div>
+                  </div>
+                  <div className="p-2 bg-white/80 rounded border border-emerald-200 text-center">
+                    <div className="font-bold text-emerald-900">{restoreTestResult.verifiedCounts.orders}</div>
+                    <div className="text-[10px] text-emerald-700">Zamówień</div>
+                  </div>
+                  <div className="p-2 bg-white/80 rounded border border-emerald-200 text-center">
+                    <div className="font-bold text-emerald-900">{restoreTestResult.verifiedCounts.customers}</div>
+                    <div className="text-[10px] text-emerald-700">Klientek</div>
+                  </div>
+                  <div className="p-2 bg-white/80 rounded border border-emerald-200 text-center">
+                    <div className="font-bold text-emerald-900">{restoreTestResult.verifiedCounts.newsletter}</div>
+                    <div className="text-[10px] text-emerald-700">Subskrypcji</div>
+                  </div>
+                </div>
+                <div className="p-2 bg-white/80 rounded border border-emerald-200 text-[11px] text-emerald-900 space-y-1">
+                  <div className="font-semibold">Bezpieczeństwo testu (Zero skutków ubocznych):</div>
+                  <div>✓ Wysyłka e-maili wyłączona (żadna klientka nie otrzymała fałszywych powiadomień)</div>
+                  <div>✓ Bramki płatności wyciszone (brak fałszywych obciążeń lub zwrotów)</div>
+                  <div>✓ Wygaszenie dawnych tokenów sesji i resetu hasła</div>
+                </div>
+                {restoreTestResult.warnings.length > 0 && (
+                  <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-900 text-[11px]">
+                    <span className="font-semibold">Uwagi uzgodnieniowe: </span>
+                    {restoreTestResult.warnings.join(" | ")}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Przyciski akcji właścicielki */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleCreateBackupNow}
+                disabled={isCreatingBackup}
+                className="px-5 py-2.5 bg-[#241D1B] text-white text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#3E3835] transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+              >
+                <HardDrive className="w-4 h-4 text-[#C5A069]" />
+                <span>{isCreatingBackup ? "Szyfrowanie i zapis..." : "Utwórz kopię teraz"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleTestIsolatedRestore}
+                disabled={isTestingRestore}
+                className="px-5 py-2.5 bg-white border border-[#C5A069] text-[#241D1B] text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#FAF6F1] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 text-[#C5A069] ${isTestingRestore ? "animate-spin" : ""}`} />
+                <span>{isTestingRestore ? "Weryfikacja piaskownicy..." : "Przetestuj próbne odtworzenie (Izolowane)"}</span>
+              </button>
+            </div>
+
+            {/* Tabela zarejestrowanych kopii zapasowych */}
+            {backupsList.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-[#EADFD5]">
+                <div className="text-xs font-semibold uppercase tracking-wider text-[#241D1B]">
+                  Historia wykonanych kopii zapasowych
+                </div>
+                <div className="overflow-x-auto border border-[#EADFD5] rounded">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#FAF6F1] text-[#6E6259] font-semibold border-b border-[#EADFD5]">
+                      <tr>
+                        <th className="p-2.5">Identyfikator i data</th>
+                        <th className="p-2.5">Typ / Powód</th>
+                        <th className="p-2.5">Rozmiar</th>
+                        <th className="p-2.5">Rekordy</th>
+                        <th className="p-2.5">Szyfrowanie</th>
+                        <th className="p-2.5">Retencja</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#EADFD5]">
+                      {backupsList.slice(0, 5).map((b) => (
+                        <tr key={b.id} className="hover:bg-[#FAF6F1]/50">
+                          <td className="p-2.5">
+                            <div className="font-mono text-[11px] font-semibold text-[#241D1B]">{b.id}</div>
+                            <div className="text-[10px] text-[#8C827A]">
+                              {new Date(b.createdAt).toLocaleString("pl-PL")}
+                            </div>
+                          </td>
+                          <td className="p-2.5">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              b.trigger === "MANUAL"
+                                ? "bg-purple-100 text-purple-800"
+                                : b.trigger === "MONTHLY"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-blue-100 text-blue-800"
+                            }`}>
+                              {b.trigger}
+                            </span>
+                          </td>
+                          <td className="p-2.5 font-mono text-[11px] text-[#3E3B38]">{b.sizeFormatted}</td>
+                          <td className="p-2.5 text-[11px] text-[#6E6259]">
+                            P: {b.recordCounts.products} | Z: {b.recordCounts.orders} | K: {b.recordCounts.customers}
+                          </td>
+                          <td className="p-2.5">
+                            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[10px] font-semibold">
+                              AES-256-GCM
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-[11px] text-[#6E6259]">{b.retentionDays} dni</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-2">

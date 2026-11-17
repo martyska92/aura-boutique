@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       customerNotes,
       cartItems,
       couponCode,
+      newsletterConsent,
     } = body;
 
     // Podstawowa walidacja pól
@@ -205,6 +206,18 @@ export async function POST(req: NextRequest) {
       items: verifiedOrderItems,
     };
 
+    // Ścisłe oddzielenie błędów magazynowych od płatniczych:
+    // Jeśli wybrano PayU, a bramka nie jest skonfigurowana, zgłaszamy błąd płatności przed stworzeniem zamówienia
+    if (paymentMethod === "PAYU" && !isPayUConfigured(settings)) {
+      return NextResponse.json(
+        {
+          error: "Bramka płatności PayU nie jest obecnie aktywna lub nie została skonfigurowana przez butik. Wybierz inną metodę płatności (np. BLIK lub przelew tradycyjny).",
+          paymentError: "Brak konfiguracji PayU",
+        },
+        { status: 400 }
+      );
+    }
+
     if (paymentMethod === "TRADITIONAL_TRANSFER") {
       orderInput.bankTransferDetails = getTraditionalTransferDetails(
         { ...orderInput, id: "temp", orderNumber: "AURA-PENDING" },
@@ -217,6 +230,20 @@ export async function POST(req: NextRequest) {
     // Jeśli wybrano przelew tradycyjny, uzupełniamy tytuł o ostateczny numer zamówienia
     if (order.paymentMethod === "TRADITIONAL_TRANSFER") {
       order.bankTransferDetails = getTraditionalTransferDetails(order, settings);
+    }
+
+    // Obsługa dobrowolnej zgody na newsletter przy zamówieniu
+    if (newsletterConsent === true) {
+      try {
+        const { subscribeToNewsletter } = await import("@/lib/newsletter-service");
+        await subscribeToNewsletter({
+          email: customerEmail.trim().toLowerCase(),
+          source: "CHECKOUT",
+          customerId: order.customerId,
+        });
+      } catch (newsErr) {
+        console.warn("Błąd zapisu newslettera przy zamówieniu:", newsErr);
+      }
     }
 
     // Jeśli płatność online (PayU, BLIK, Przelewy24), sprawdzamy konfigurację i rejestrujemy transakcję

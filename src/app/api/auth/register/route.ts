@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createCustomerAccount, getCustomerByEmail, updateCustomerWelcomeEmailStatus } from "@/lib/store-data";
+import { getCustomerByEmail } from "@/lib/store-data";
 import { createUserSessionPayload, ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
-import { sendWelcomeCustomerEmail } from "@/lib/email-service";
+import { createPendingCustomerRegistration, sanitizeReturnUrl } from "@/lib/customer-auth-service";
+import { subscribeToNewsletter } from "@/lib/newsletter-service";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { firstName, lastName, email, phone, password } = body;
+    const { firstName, lastName, email, phone, password, newsletterConsent, returnUrl } = body;
 
     if (!firstName || !firstName.trim()) {
       return NextResponse.json({ error: "Podaj swoje imię." }, { status: 400 });
@@ -46,62 +47,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Zapis konta klientki w bazie – ODDZIELONY OD WYSYŁKI MAILA
-    const newCustomer = await createCustomerAccount({
-      email: normalizedEmail,
+    const safeReturn = sanitizeReturnUrl(returnUrl);
+
+    // 1. Utworzenie niezweryfikowanego konta i wysyłka maila z linkiem weryfikacyjnym
+    const regResult = await createPendingCustomerRegistration({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
+      email: normalizedEmail,
       phone: phone?.trim(),
       password: password.trim(),
+      returnUrl: safeReturn,
     });
 
-    // 2. Oddzielna próba wysyłki maila powitalnego
-    // Błąd wysyłki NIE może usuwać konta ani blokować pomyślnej rejestracji klientki
-    let emailStatus: "SENT" | "FAILED" | "NOT_CONFIGURED" = "NOT_CONFIGURED";
-    let emailError: string | undefined = undefined;
-
-    try {
-      const emailRes = await sendWelcomeCustomerEmail({
-        customerEmail: normalizedEmail,
-        firstName: newCustomer.firstName,
-        welcomeDiscountCode: newCustomer.welcomeDiscountCode,
-      });
-
-      if (emailRes.success) {
-        emailStatus = "SENT";
-      } else if (emailRes.notConfigured) {
-        emailStatus = "NOT_CONFIGURED";
-        emailError = emailRes.error;
-      } else {
-        emailStatus = "FAILED";
-        emailError = emailRes.error;
+    // 2. Jeśli zaznaczono dobrowolny checkbox newslettera -> rejestrujemy zapis Double Opt-In
+    // Brak zgody NIE wpływa na konto ani rabat powitalny
+    if (newsletterConsent === true) {
+      try {
+        await subscribeToNewsletter({
+          email: normalizedEmail,
+          source: "REGISTER",
+          customerId: regResult.customer.id,
+        });
+      } catch (newsErr) {
+        console.warn("Błąd zapisu newslettera przy rejestracji:", newsErr);
       }
-    } catch (mailErr: any) {
-      emailStatus = "FAILED";
-      emailError = mailErr?.message || "Błąd wysyłki e-mail";
-      console.warn("Ostrzeżenie: wysyłka automatycznego maila powitalnego nie powiodła się:", emailError);
     }
 
-    // 3. Aktualizacja rzeczywistego statusu powitalnego e-maila w rekordzie klientki
-    try {
-      await updateCustomerWelcomeEmailStatus(newCustomer.id, emailStatus, emailError);
-    } catch (e) {
-      // Ignorujemy błędy aktualizacji statusu
-    }
-
-    const fullName = `${newCustomer.firstName} ${newCustomer.lastName}`;
+    const fullName = `${regResult.customer.firstName} ${regResult.customer.lastName}`;
     const sessionPayload = createUserSessionPayload(normalizedEmail, fullName);
 
     const response = NextResponse.json({
       success: true,
-      message: "Konto zostało pomyślnie utworzone! Witamy w AURA Boutique.",
-      welcomeCoupon: newCustomer.welcomeDiscountCode,
-      welcomeEmail: {
-        sent: emailStatus === "SENT",
-        status: emailStatus,
-        error: emailError,
-      },
-      redirect: "/konto",
+      needsVerification: true,
+      email: normalizedEmail,
+      emailSent: regResult.emailSent,
+      emailError: regResult.emailError,
+      returnUrl: safeReturn,
+      message: "Konto zostało utworzone. Aby odebrać rabat −15%, potwierdź swój adres e-mail.",
     });
 
     // Ustawienie ciasteczka sesji
@@ -124,4 +106,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

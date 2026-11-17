@@ -434,6 +434,21 @@ export function CustomerOrderClient({
           </p>
         </div>
 
+        {/* Oznaczenie zamówienia testowego Sandbox */}
+        {order.isTest && (
+          <div className="p-4 bg-amber-500/10 border-2 border-amber-500/40 rounded-xl flex items-start gap-3 text-amber-950">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-xs uppercase tracking-wider text-amber-900">
+                PŁATNOŚĆ TESTOWA — bez pobierania pieniędzy
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                To zamówienie zostało wygenerowane w środowisku testowym (PayU Sandbox). Prawdziwe środki nie zostały i nie zostaną pobrane z Twojej karty ani konta bankowego.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ========================================================
             SEKCJA PŁATNOŚCI: RZECZYWISTY STATUS I DOKOŃCZENIE PŁATNOŚCI
            ======================================================== */}

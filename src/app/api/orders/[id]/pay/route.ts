@@ -102,9 +102,13 @@ export async function POST(
     const protocol = host.includes("localhost") ? "http" : "https";
     const origin = `${protocol}://${host}`;
 
-    // 4. Płatność online PayU (jeśli wybrano PayU lub PayU jest domyślnym operatorem)
-    const preferPayU = order.paymentMethod === "PAYU" || (settings.defaultPaymentGateway === "PAYU" && isPayUConfigured(settings));
-    if (preferPayU && isPayUConfigured(settings)) {
+    // 4. Płatność online PayU (jeśli zamówienie testowe, wybrano PayU lub PayU jest domyślnym operatorem)
+    const preferPayU =
+      order.isTest ||
+      order.paymentMethod === "PAYU" ||
+      (settings.defaultPaymentGateway === "PAYU" && isPayUConfigured(settings));
+
+    if (preferPayU) {
       const returnUrl = `${origin}/zamowienie/${order.id}/potwierdzenie?key=${order.accessKey || ""}&check=1`;
       const notifyUrl = `${origin}/api/payments/payu/notify`;
 
@@ -126,6 +130,7 @@ export async function POST(
         success: true,
         paymentUrl: payuRes.paymentUrl,
         operator: "PAYU",
+        isTest: Boolean(order.isTest),
       });
     }
 

@@ -27,6 +27,8 @@ export interface OutboxEmail {
     | "PASSWORD_RESET"
     | "PASSWORD_CHANGED"
     | "TEST_EMAIL"
+    | "ACCOUNT_VERIFICATION"
+    | "GENERAL_NOTIFICATION"
     | "WELCOME_CUSTOMER";
   status: "SENT" | "FAILED" | "NOT_CONFIGURED";
   errorMessage?: string;
@@ -921,6 +923,139 @@ export async function sendWelcomeCustomerEmail(
   );
 
   return res;
+}
+
+/**
+ * 6b. E-mail z jednorazowym linkiem weryfikacyjnym adresu e-mail (odblokowujący rabat -15%)
+ */
+export async function sendAccountVerificationEmail(
+  params: {
+    customerEmail: string;
+    firstName?: string;
+    verificationUrl: string;
+  },
+  customSettings?: Partial<StoreSettings>
+): Promise<{
+  success: boolean;
+  notConfigured?: boolean;
+  error?: string;
+  attemptId?: string;
+  timestamp?: string;
+}> {
+  const normalizedEmail = params.customerEmail.trim().toLowerCase();
+  const greeting =
+    params.firstName && params.firstName.trim()
+      ? `Cześć, ${params.firstName.trim()}!`
+      : "Cześć!";
+
+  const content = `
+    <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 22px; color: #241D1B; margin: 0 0 16px 0; font-weight: 500;">
+      Potwierdź swój adres e-mail i odbierz −15% 💛
+    </h2>
+    <p style="font-size: 14px; line-height: 1.6; color: #4A3F3B; margin: 0 0 16px 0;">
+      ${greeting} Dziękujemy za dołączenie do AURA Boutique.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; color: #4A3F3B; margin: 0 0 24px 0;">
+      Aby dokończyć rejestrację konta i odblokować rabat <strong>−15% na pierwsze zamówienie</strong>, kliknij poniższy przycisk w celu potwierdzenia adresu e-mail:
+    </p>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${params.verificationUrl}" style="background-color: #C5A069; color: #ffffff; padding: 14px 32px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; text-decoration: none; border-radius: 4px; display: inline-block;">
+        Potwierdzam mój adres e-mail
+      </a>
+    </div>
+    <p style="font-size: 12px; line-height: 1.5; color: #857670; margin: 24px 0 0 0; text-align: center;">
+      Link jest bezpieczny, jednorazowy i ważny przez 24 godziny. Jeśli nie zakładałaś konta w butiku AURA, możesz zignorować tę wiadomość.
+    </p>
+    <p style="font-size: 11px; line-height: 1.4; color: #B0A29A; margin: 12px 0 0 0; text-align: center; word-break: break-all;">
+      Gdyby przycisk nie reagował, przejdź pod poniższy adres:<br/>
+      <a href="${params.verificationUrl}" style="color: #8C7248;">${params.verificationUrl}</a>
+    </p>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate("Potwierdź swój adres e-mail — AURA Boutique", content);
+
+  return await dispatchEmail(
+    {
+      to: normalizedEmail,
+      subject: "Potwierdź swój adres e-mail w AURA Boutique 💛",
+      html,
+      type: "ACCOUNT_VERIFICATION",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 6c. E-mail z indywidualnym kodem rabatowym przyznanym ręcznie przez właścicielkę
+ */
+export async function sendIndividualDiscountEmail(
+  params: {
+    customerEmail: string;
+    firstName?: string;
+    discountCode: string;
+    discountPercent: number;
+    isPermanent: boolean;
+    validUntil?: string;
+    minCartValue?: number;
+    adminNote?: string;
+  },
+  customSettings?: Partial<StoreSettings>
+): Promise<{
+  success: boolean;
+  notConfigured?: boolean;
+  error?: string;
+  attemptId?: string;
+  timestamp?: string;
+}> {
+  const normalizedEmail = params.customerEmail.trim().toLowerCase();
+  const greeting =
+    params.firstName && params.firstName.trim()
+      ? `Cześć, ${params.firstName.trim()}!`
+      : "Cześć!";
+
+  const validUntilText = params.validUntil
+    ? new Date(params.validUntil).toLocaleDateString("pl-PL")
+    : null;
+
+  const content = `
+    <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 22px; color: #241D1B; margin: 0 0 16px 0; font-weight: 500;">
+      Specjalny rabat od AURA Boutique dla Ciebie 💛
+    </h2>
+    <p style="font-size: 14px; line-height: 1.6; color: #4A3F3B; margin: 0 0 16px 0;">
+      ${greeting} Właścicielka butiku AURA przyznała Ci dedykowany rabat <strong>−${params.discountPercent}%</strong> na zakupy!
+    </p>
+    <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+      <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #8C7248; margin: 0 0 8px 0; font-weight: 600;">
+        Twój indywidualny kod rabatowy:
+      </p>
+      <p style="font-family: monospace; font-size: 22px; font-weight: bold; color: #241D1B; margin: 0 0 12px 0; letter-spacing: 0.1em;">
+        ${params.discountCode}
+      </p>
+      <div style="font-size: 12px; color: #63534B; line-height: 1.6;">
+        <p style="margin: 4px 0;">• Typ: <strong>${params.isPermanent ? "Rabat stały (wielorazowy)" : "Rabat jednorazowy"}</strong></p>
+        ${validUntilText ? `<p style="margin: 4px 0;">• Ważny do: <strong>${validUntilText}</strong></p>` : ""}
+        ${params.minCartValue ? `<p style="margin: 4px 0;">• Minimalna wartość zamówienia: <strong>${params.minCartValue.toFixed(2)} zł</strong></p>` : ""}
+        <p style="margin: 4px 0; color: #857670;">• Kod jest przypisany wyłącznie do Twojego konta: <strong>${normalizedEmail}</strong></p>
+      </div>
+    </div>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="https://aura-boutique-w38e.vercel.app" style="background-color: #C5A069; color: #ffffff; padding: 14px 32px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; text-decoration: none; border-radius: 4px; display: inline-block;">
+        Przejdź do butiku i skorzystaj z rabatu
+      </a>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate("Twój indywidualny rabat — AURA Boutique", content);
+
+  return await dispatchEmail(
+    {
+      to: normalizedEmail,
+      subject: `Dedykowany rabat −${params.discountPercent}% od AURA Boutique 💛`,
+      html,
+      type: "GENERAL_NOTIFICATION",
+    },
+    customSettings
+  );
 }
 
 /**

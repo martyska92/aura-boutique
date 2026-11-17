@@ -100,6 +100,8 @@ export async function calculateOrderPromotions(params: {
   shippingMethod?: ShippingMethod;
   customSettings?: StoreSettings;
   overrideWeekend?: boolean; // do testów
+  sessionEmail?: string;
+  isLoggedIn?: boolean;
 }): Promise<PromotionCalculationOutput> {
   const store = loadLocalStore();
   const settings = params.customSettings || store.settings;
@@ -127,6 +129,7 @@ export async function calculateOrderPromotions(params: {
   let referralReward: ReferralRewardCode | undefined = undefined;
   let reviewRewardPromo: { discountPercent: number; code: string; reviewId?: string } | undefined = undefined;
   let welcomeCustomerPromo: { discountPercent: number; code: string; customerEmail: string } | undefined = undefined;
+  let individualRecordPromo: { discountPercent: number; code: string; canCombine: boolean } | undefined = undefined;
   let couponErrorMessage: string | undefined = undefined;
 
   if (normalizedCoupon) {
@@ -219,10 +222,20 @@ export async function calculateOrderPromotions(params: {
         };
       }
     } else if (customerWithWelcomeCode) {
-      // Sprawdzenie przypisania e-mail
-      if (normalizedEmail && normalizeEmail(customerWithWelcomeCode.email) !== normalizedEmail) {
-        couponErrorMessage = `Ten powitalny kod rabatowy jest przypisany do adresu: ${customerWithWelcomeCode.email}.`;
-      } else if (customerWithWelcomeCode.welcomeDiscountUsedAt) {
+      const codeOwnerEmail = normalizeEmail(customerWithWelcomeCode.email);
+      const activeEmail = params.sessionEmail
+        ? normalizeEmail(params.sessionEmail)
+        : params.isLoggedIn && normalizedEmail
+        ? normalizedEmail
+        : null;
+
+      if (!params.isLoggedIn && !activeEmail) {
+        couponErrorMessage = "Ten kod jest przypisany do konta klientki. Zaloguj się, aby z niego skorzystać.";
+      } else if (activeEmail !== codeOwnerEmail) {
+        couponErrorMessage = "Ten kod jest przypisany do innego konta. Zaloguj się na konto, któremu przyznano rabat.";
+      } else if (customerWithWelcomeCode.emailVerified === false) {
+        couponErrorMessage = "Aby skorzystać z rabatu powitalnego, potwierdź swój adres e-mail.";
+      } else if (customerWithWelcomeCode.welcomeDiscountUsed || customerWithWelcomeCode.welcomeDiscountUsedAt) {
         couponErrorMessage = "Ten powitalny kod rabatowy został już wykorzystany.";
       } else {
         // Blokada równoległego wykorzystania w aktywnym oczekującym zamówieniu
@@ -238,7 +251,7 @@ export async function calculateOrderPromotions(params: {
         // Sprawdzenie czy klientka nie ma już innego opłaconego/zrealizowanego zamówienia
         const hasExistingPaidOrder = (store.orders || []).some(
           (o) =>
-            normalizeEmail(o.customerEmail) === normalizeEmail(customerWithWelcomeCode.email) &&
+            normalizeEmail(o.customerEmail) === codeOwnerEmail &&
             o.paymentStatus !== "FAILED" &&
             o.fulfillmentStatus !== "CANCELLED"
         );
@@ -256,7 +269,38 @@ export async function calculateOrderPromotions(params: {
         }
       }
     } else {
-      couponErrorMessage = "Podany kod rabatowy nie istnieje, został już wykorzystany lub wygasł.";
+      // F) Indywidualny rabat przypisany do klientki przez właścicielkę
+      const indDisc = ((store as any).individualDiscountsList || []).find(
+        (d: any) => d.code && d.code.trim().toUpperCase() === normalizedCoupon
+      );
+      if (indDisc) {
+        const codeOwnerEmail = normalizeEmail(indDisc.customerEmail);
+        const activeEmail = params.sessionEmail
+          ? normalizeEmail(params.sessionEmail)
+          : params.isLoggedIn && normalizedEmail
+          ? normalizedEmail
+          : null;
+
+        if (!params.isLoggedIn && !activeEmail) {
+          couponErrorMessage = "Ten kod jest przypisany do konta klientki. Zaloguj się, aby z niego skorzystać.";
+        } else if (activeEmail !== codeOwnerEmail) {
+          couponErrorMessage = "Ten kod jest przypisany do innego konta. Zaloguj się na konto, któremu przyznano rabat.";
+        } else if (indDisc.isRevoked) {
+          couponErrorMessage = "Ten kod rabatowy został unieważniony.";
+        } else if (indDisc.isUsed && !indDisc.isPermanent) {
+          couponErrorMessage = "Ten jednorazowy kod został już wykorzystany.";
+        } else if (indDisc.validUntil && new Date(indDisc.validUntil).getTime() < Date.now()) {
+          couponErrorMessage = "Ważność tego kodu rabatowego upłynęła.";
+        } else {
+          individualRecordPromo = {
+            discountPercent: indDisc.discountPercent,
+            code: indDisc.code,
+            canCombine: indDisc.canCombine,
+          };
+        }
+      } else {
+        couponErrorMessage = "Podany kod rabatowy nie istnieje, został już wykorzystany lub wygasł.";
+      }
     }
   }
 
@@ -425,6 +469,16 @@ export async function calculateOrderPromotions(params: {
         isFromCoupon: true,
         code: welcomeCustomerPromo.code,
       });
+    } else if (individualRecordPromo) {
+      const discountAmt = Math.round(item.price * (individualRecordPromo.discountPercent / 100) * 100) / 100;
+      candidates.push({
+        sourceName: `Dedykowany rabat: –${individualRecordPromo.discountPercent}%`,
+        sourceType: "INDIVIDUAL_ASSIGNED",
+        percent: individualRecordPromo.discountPercent,
+        amount: discountAmt * item.quantity,
+        isFromCoupon: true,
+        code: individualRecordPromo.code,
+      });
     }
 
     // WYBÓR KORZYSTNIEJSZEGO RABATU DLA TEJ POZYCJI (Zasada 9)
@@ -532,10 +586,11 @@ export async function calculateOrderPromotions(params: {
   const remainingToFreeShipping = Math.max(0, Math.round((freeShippingThreshold - finalSubtotal) * 100) / 100);
 
   let shippingCost = 0;
-  if (!isFreeShippingEligible) {
+  if (shippingMethod === "LOCAL_PICKUP") {
+    shippingCost = 0.0;
+  } else if (!isFreeShippingEligible) {
     if (shippingMethod === "INPOST_LOCKER") shippingCost = Number(settings.inpostLockerCost || 13.0);
     else if (shippingMethod === "COURIER") shippingCost = Number(settings.courierCost || 15.0);
-    else if (shippingMethod === "LOCAL_PICKUP") shippingCost = 0.0;
   }
 
   const freeShippingMessage = isFreeShippingEligible

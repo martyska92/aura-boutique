@@ -610,6 +610,37 @@
       "isActive": true,
       "createdAt": "2026-11-10T11:09:25.209Z",
       "updatedAt": "2026-11-10T11:09:25.209Z"
+    },
+    {
+      "id": "promo-test-1794957067261",
+      "name": "Test 15%",
+      "code": "TEST15-1794957067261",
+      "type": "PERCENTAGE",
+      "discountValue": 15,
+      "isActive": true,
+      "noEndDate": true,
+      "currentUsageCount": 0
+    },
+    {
+      "id": "promo-test-1794957108983",
+      "name": "Test 15%",
+      "code": "TEST15-1794957108983",
+      "type": "PERCENTAGE",
+      "discountValue": 15,
+      "isActive": true,
+      "noEndDate": true,
+      "currentUsageCount": 0
+    },
+    {
+      "id": "promo-test-1794957163916",
+      "name": "Test 15%",
+      "code": "TEST15-1794957163916",
+      "type": "PERCENTAGE",
+      "discountValue": 15,
+      "targetScope": "ALL",
+      "isActive": true,
+      "noEndDate": true,
+      "currentUsageCount": 0
     }
   ],
   "individualDiscounts": [

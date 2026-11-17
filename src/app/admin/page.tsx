@@ -12,6 +12,7 @@ import {
   Database,
   ArrowRight,
   Tag,
+  ShieldCheck,
 } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getAllOrders, getProducts, isNeonConfigured } from "@/lib/store-data";
@@ -24,10 +25,11 @@ export default async function AdminDashboardPage() {
   const products = await getProducts({ includeArchived: true });
   const neonConnected = isNeonConfigured();
 
-  // Statystyki
-  const newOrders = orders.filter((o) => o.fulfillmentStatus === "NEW");
-  const totalRevenue = orders
-    .filter((o) => o.fulfillmentStatus !== "CANCELLED")
+  // Statystyki (wyłącznie dla rzeczywistej sprzedaży — zamówienia testowe wykluczone)
+  const productionOrders = orders.filter((o) => !o.isTest);
+  const newOrders = productionOrders.filter((o) => o.fulfillmentStatus === "NEW");
+  const totalRevenue = productionOrders
+    .filter((o) => o.paymentStatus === "PAID")
     .reduce((sum, o) => sum + o.totalAmount, 0);
 
   const activeProducts = products.filter((p) => p.isPublished && !p.isArchived);
@@ -96,13 +98,18 @@ export default async function AdminDashboardPage() {
         </Link>
       </div>
 
-      {/* Karty KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {/* Nowe zamówienia */}
-        <div className="bg-white p-5 border border-[#EADFD5] rounded shadow-sm flex flex-col justify-between">
+      {/* 5 Klikalnych Kart KPI */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* 1. Do Realizacji */}
+        <Link
+          href="/admin/zamowienia?status=do-realizacji"
+          className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-[#C5A069] hover:shadow-md transition-all flex flex-col justify-between group"
+        >
           <div className="flex items-center justify-between text-[#6E6259]">
-            <span className="text-[11px] uppercase tracking-wider font-semibold">Do Realizacji</span>
-            <span className="p-2 bg-amber-50 text-amber-700 rounded-full">
+            <span className="text-[11px] uppercase tracking-wider font-semibold group-hover:text-[#C5A069] transition-colors">
+              Do Realizacji
+            </span>
+            <span className="p-2 bg-amber-50 text-amber-700 rounded-full group-hover:bg-[#FAF6F1] group-hover:text-[#C5A069] transition-colors">
               <Clock className="w-4 h-4" />
             </span>
           </div>
@@ -110,15 +117,20 @@ export default async function AdminDashboardPage() {
             <span className="text-2xl sm:text-3xl font-serif text-[#241D1B] font-semibold">
               {newOrders.length}
             </span>
-            <p className="text-[11px] text-[#6E6259] mt-0.5">Nowe zamówienia klientek</p>
+            <p className="text-[11px] text-[#6E6259] mt-0.5">Nowe zamówienia klientek →</p>
           </div>
-        </div>
+        </Link>
 
-        {/* Przychód łączny */}
-        <div className="bg-white p-5 border border-[#EADFD5] rounded shadow-sm flex flex-col justify-between">
+        {/* 2. Łączny Przychód */}
+        <Link
+          href="/admin/rozliczenia"
+          className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between group"
+        >
           <div className="flex items-center justify-between text-[#6E6259]">
-            <span className="text-[11px] uppercase tracking-wider font-semibold">Łączny Przychód</span>
-            <span className="p-2 bg-emerald-50 text-emerald-700 rounded-full">
+            <span className="text-[11px] uppercase tracking-wider font-semibold group-hover:text-emerald-700 transition-colors">
+              Łączny Przychód
+            </span>
+            <span className="p-2 bg-emerald-50 text-emerald-700 rounded-full group-hover:bg-emerald-100 transition-colors">
               <TrendingUp className="w-4 h-4" />
             </span>
           </div>
@@ -126,15 +138,20 @@ export default async function AdminDashboardPage() {
             <span className="text-2xl sm:text-3xl font-serif text-[#241D1B] font-semibold">
               {totalRevenue.toFixed(2)} zł
             </span>
-            <p className="text-[11px] text-[#6E6259] mt-0.5">Zrealizowane / Oczekujące</p>
+            <p className="text-[11px] text-[#6E6259] mt-0.5">Rozliczenia sprzedaży →</p>
           </div>
-        </div>
+        </Link>
 
-        {/* Aktywne produkty */}
-        <div className="bg-white p-5 border border-[#EADFD5] rounded shadow-sm flex flex-col justify-between">
+        {/* 3. Asortyment */}
+        <Link
+          href="/admin/produkty?filter=active"
+          className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-[#C5A069] hover:shadow-md transition-all flex flex-col justify-between group"
+        >
           <div className="flex items-center justify-between text-[#6E6259]">
-            <span className="text-[11px] uppercase tracking-wider font-semibold">Asortyment</span>
-            <span className="p-2 bg-[#F2DCD7] text-[#916738] rounded-full">
+            <span className="text-[11px] uppercase tracking-wider font-semibold group-hover:text-[#C5A069] transition-colors">
+              Asortyment
+            </span>
+            <span className="p-2 bg-[#F2DCD7] text-[#916738] rounded-full group-hover:bg-[#FAF6F1] transition-colors">
               <Package className="w-4 h-4" />
             </span>
           </div>
@@ -142,15 +159,20 @@ export default async function AdminDashboardPage() {
             <span className="text-2xl sm:text-3xl font-serif text-[#241D1B] font-semibold">
               {activeProducts.length}
             </span>
-            <p className="text-[11px] text-[#6E6259] mt-0.5">Aktywnych w sklepie</p>
+            <p className="text-[11px] text-[#6E6259] mt-0.5">Aktywnych w sklepie →</p>
           </div>
-        </div>
+        </Link>
 
-        {/* W promocji */}
-        <div className="bg-white p-5 border border-[#EADFD5] rounded shadow-sm flex flex-col justify-between">
+        {/* 4. W Promocji */}
+        <Link
+          href="/admin/produkty?filter=promoted"
+          className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-rose-400 hover:shadow-md transition-all flex flex-col justify-between group"
+        >
           <div className="flex items-center justify-between text-[#6E6259]">
-            <span className="text-[11px] uppercase tracking-wider font-semibold">W Promocji</span>
-            <span className="p-2 bg-rose-50 text-rose-700 rounded-full">
+            <span className="text-[11px] uppercase tracking-wider font-semibold group-hover:text-rose-700 transition-colors">
+              W Promocji
+            </span>
+            <span className="p-2 bg-rose-50 text-rose-700 rounded-full group-hover:bg-rose-100 transition-colors">
               <Sparkles className="w-4 h-4" />
             </span>
           </div>
@@ -158,9 +180,54 @@ export default async function AdminDashboardPage() {
             <span className="text-2xl sm:text-3xl font-serif text-rose-700 font-semibold">
               {promotedProducts.length}
             </span>
-            <p className="text-[11px] text-[#6E6259] mt-0.5">Wybrane modele na wyprzedaży</p>
+            <p className="text-[11px] text-[#6E6259] mt-0.5">Wyprzedaże i rabaty →</p>
+          </div>
+        </Link>
+
+        {/* 5. Notatki i Kalendarz */}
+        <Link
+          href="/admin/kalendarz"
+          className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-[#C5A069] hover:shadow-md transition-all flex flex-col justify-between group"
+        >
+          <div className="flex items-center justify-between text-[#6E6259]">
+            <span className="text-[11px] uppercase tracking-wider font-semibold group-hover:text-[#C5A069] transition-colors">
+              Notatki & Kalendarz
+            </span>
+            <span className="p-2 bg-[#FAF6F1] text-[#7A5B20] rounded-full group-hover:bg-[#EADFD5] transition-colors">
+              <Tag className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-3">
+            <span className="text-2xl sm:text-3xl font-serif text-[#241D1B] font-semibold">
+              Zadania
+            </span>
+            <p className="text-[11px] text-[#6E6259] mt-0.5">Dostawy, notatki, plan →</p>
+          </div>
+        </Link>
+      </div>
+
+      {/* Skrót do Centrum Testowania Płatności (Sandbox) */}
+      <div className="p-4 bg-gradient-to-r from-[#FAF6F1] to-white border border-[#EADFD5] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-[#C5A069]/15 flex items-center justify-center text-[#7A5B20] shrink-0">
+            <ShieldCheck className="w-4 h-4 text-[#C5A069]" />
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold text-[#241D1B]">
+              Środowisko Testowe Płatności (PayU Sandbox)
+            </h3>
+            <p className="text-[11px] text-[#6E6259]">
+              Wykonaj testy 8 kluczowych scenariuszy bez obciążeń finansowych: sukces, odmowa, ponowienie, webhook IPN i zwalnianie rezerwacji.
+            </p>
           </div>
         </div>
+        <Link
+          href="/admin/platnosci-testowe"
+          className="px-4 py-2 bg-white border border-[#C5A069] hover:bg-[#C5A069] text-[#7A5B20] hover:text-white rounded text-xs font-semibold transition-all inline-flex items-center justify-center gap-1.5 shadow-2xs shrink-0 self-start sm:self-auto"
+        >
+          <span>Centrum Sandbox (8 Testów)</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       {/* Sekcja: Ostatnie Zamówienia & Alerty Magazynowe */}

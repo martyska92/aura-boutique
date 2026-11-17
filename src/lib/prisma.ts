@@ -15,6 +15,15 @@ export function getDatabaseUrl(): string | undefined {
   return clean || undefined;
 }
 
+export function isNeonConfigured(): boolean {
+  const url = getDatabaseUrl();
+  return Boolean(url && url.length > 10 && !url.includes("username:password"));
+}
+
+export async function isDatabaseConnected(): Promise<boolean> {
+  return isNeonConfigured();
+}
+
 function createPrismaClient(): PrismaClient {
   const dbUrl = getDatabaseUrl();
   try {

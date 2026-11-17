@@ -1,7 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
-import { loadLocalStore, saveLocalStore } from "@/lib/store-data";
-import { IndividualCustomerDiscount } from "@/lib/types";
+import { getCustomerById, getCustomerByEmail } from "@/lib/store-data";
+import {
+  grantIndividualDiscount,
+  getDiscountsForCustomer,
+  revokeIndividualDiscount,
+  resendDiscountEmail,
+} from "@/lib/individual-discount-service";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const isAuth = await verifyAdminSession();
+  if (!isAuth) {
+    return NextResponse.json({ error: "Brak autoryzacji sesji właścicielki." }, { status: 401 });
+  }
+
+  try {
+    const { id } = await params;
+    let customer = await getCustomerById(id);
+    if (!customer) {
+      customer = await getCustomerByEmail(id);
+    }
+
+    if (!customer) {
+      return NextResponse.json({ error: "Nie znaleziono klientki." }, { status: 404 });
+    }
+
+    const discounts = await getDiscountsForCustomer(customer.email);
+
+    return NextResponse.json({
+      success: true,
+      customerEmail: customer.email,
+      welcomeDiscountCode: customer.welcomeDiscountCode,
+      welcomeDiscountUsed: customer.welcomeDiscountUsed || Boolean(customer.welcomeDiscountUsedAt),
+      emailVerified: customer.emailVerified || false,
+      discounts,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
 
 export async function POST(
   req: NextRequest,
@@ -9,66 +51,100 @@ export async function POST(
 ) {
   const isAuth = await verifyAdminSession();
   if (!isAuth) {
-    return NextResponse.json({ error: "Brak autoryzacji sesji." }, { status: 401 });
+    return NextResponse.json({ error: "Brak autoryzacji sesji właścicielki." }, { status: 401 });
   }
 
   try {
     const { id } = await params;
-    const { discountPercentage, note } = await req.json();
+    const body = await req.json();
 
-    const store = loadLocalStore();
-    const customer = (store.customers || []).find((c) => c.id === id || c.email.toLowerCase() === id.toLowerCase());
+    // Akcja ponowienia wysyłki istniejącego kodu
+    if (body.action === "resend") {
+      if (!body.discountId) {
+        return NextResponse.json({ error: "Wymagane discountId." }, { status: 400 });
+      }
+      const resendRes = await resendDiscountEmail(body.discountId);
+      if (!resendRes.success) {
+        return NextResponse.json({ error: resendRes.error }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        message: "Wysłano ponownie ten sam kod rabatowy na adres klientki.",
+        sentAt: resendRes.sentAt,
+      });
+    }
+
+    let customer = await getCustomerById(id);
+    if (!customer) {
+      customer = await getCustomerByEmail(id);
+    }
 
     if (!customer) {
       return NextResponse.json({ error: "Nie znaleziono klientki." }, { status: 404 });
     }
 
-    if (!store.individualDiscounts) {
-      store.individualDiscounts = [];
-    }
+    const {
+      discountPercent,
+      isPermanent,
+      validUntil,
+      minCartValue,
+      canCombine,
+      adminNote,
+      sendEmail,
+    } = body;
 
-    const emailNorm = customer.email.toLowerCase();
-    const existingIdx = store.individualDiscounts.findIndex(
-      (d) => d.email.toLowerCase() === emailNorm
-    );
-
-    const percent = Number(discountPercentage);
-    if (isNaN(percent) || percent < 0 || percent > 100) {
-      return NextResponse.json({ error: "Podaj prawidłową wartość rabatu (0-100%)." }, { status: 400 });
-    }
-
-    if (percent === 0) {
-      // Usunięcie rabatu
-      if (existingIdx > -1) {
-        store.individualDiscounts.splice(existingIdx, 1);
-      }
-    } else {
-      const existing = existingIdx > -1 ? store.individualDiscounts[existingIdx] : null;
-      const discountObj: IndividualCustomerDiscount = {
-        id: existing ? existing.id : `ind-${Date.now()}`,
-        email: customer.email.toLowerCase().trim(),
-        discountPercent: percent,
-        scope: "ALL",
-        isIndefinite: true,
-        isActive: true,
-        adminNote: note?.trim() || "Indywidualny rabat stałej klientki",
-        isEmailVerified: true,
-        createdAt: existing ? existing.createdAt : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (existingIdx > -1) {
-        store.individualDiscounts[existingIdx] = discountObj;
-      } else {
-        store.individualDiscounts.push(discountObj);
-      }
-    }
-
-    saveLocalStore(store);
+    const result = await grantIndividualDiscount({
+      customerId: customer.id,
+      customerEmail: customer.email,
+      discountPercent: Number(discountPercent),
+      isPermanent: Boolean(isPermanent),
+      validUntil: validUntil || undefined,
+      minCartValue: minCartValue ? Number(minCartValue) : undefined,
+      canCombine: Boolean(canCombine),
+      adminNote,
+      sendEmail: Boolean(sendEmail),
+      grantedBy: "Właścicielka",
+    });
 
     return NextResponse.json({
       success: true,
-      message: percent === 0 ? "Usunięto rabat indywidualny." : `Ustawiono ${percent}% rabatu dla ${customer.email}.`,
+      message: `Przyznano rabat −${result.discount.discountPercent}% dla ${customer.email}.`,
+      discount: result.discount,
+      emailSent: result.emailSent,
+      emailError: result.emailError,
+    });
+  } catch (err: any) {
+    console.error("Błąd przyznawania rabatu indywidualnego:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const isAuth = await verifyAdminSession();
+  if (!isAuth) {
+    return NextResponse.json({ error: "Brak autoryzacji sesji właścicielki." }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const { discountId, reason } = body;
+
+    if (!discountId) {
+      return NextResponse.json({ error: "Wymagane discountId do unieważnienia." }, { status: 400 });
+    }
+
+    const result = await revokeIndividualDiscount(discountId, reason);
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Rabat został pomyślnie unieważniony.",
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

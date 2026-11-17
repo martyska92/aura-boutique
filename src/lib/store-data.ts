@@ -1231,6 +1231,7 @@ function mapPrismaOrder(dbOrder: any): Order {
   return {
     id: dbOrder.id,
     orderNumber: dbOrder.orderNumber,
+    isTest: Boolean(dbOrder.isTest),
     customerFirstName: dbOrder.customerFirstName,
     customerLastName: dbOrder.customerLastName,
     customerEmail: dbOrder.customerEmail,
@@ -1325,6 +1326,7 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
       where: { id: order.id },
       update: {
         orderNumber: order.orderNumber,
+        isTest: Boolean(order.isTest),
         customerFirstName: order.customerFirstName,
         customerLastName: order.customerLastName,
         customerEmail: order.customerEmail,
@@ -1349,6 +1351,7 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
       create: {
         id: order.id,
         orderNumber: order.orderNumber,
+        isTest: Boolean(order.isTest),
         customerFirstName: order.customerFirstName,
         customerLastName: order.customerLastName,
         customerEmail: order.customerEmail,
@@ -1488,27 +1491,29 @@ export async function createOrder(
   const now = new Date().toISOString();
   const newId = `ord-${Date.now()}`;
 
-  // Weryfikacja i obniżenie stanu magazynowego na serwerze
-  for (const item of orderInput.items) {
-    if (item.variantId) {
-      for (const prod of store.products) {
-        const variant = prod.variants?.find((v) => v.id === item.variantId);
-        if (variant) {
-          if (variant.stockQuantity < item.quantity) {
-            throw new Error(
-              `Brak wystarczającej ilości towaru: ${prod.name} (${variant.size}, ${variant.color}). Dostępne: ${variant.stockQuantity} szt.`
-            );
+  // Weryfikacja i obniżenie stanu magazynowego na serwerze (wyłącznie dla rzeczywistej sprzedaży produkcyjnej)
+  if (!orderInput.isTest) {
+    for (const item of orderInput.items) {
+      if (item.variantId) {
+        for (const prod of store.products) {
+          const variant = prod.variants?.find((v) => v.id === item.variantId);
+          if (variant) {
+            if (variant.stockQuantity < item.quantity) {
+              throw new Error(
+                `Brak wystarczającej ilości towaru: ${prod.name} (${variant.size}, ${variant.color}). Dostępne: ${variant.stockQuantity} szt.`
+              );
+            }
+            variant.stockQuantity -= item.quantity;
           }
-          variant.stockQuantity -= item.quantity;
         }
-      }
-      if (await isDatabaseConnected()) {
-        try {
-          await prisma.productVariant.update({
-            where: { id: item.variantId },
-            data: { stockQuantity: { decrement: item.quantity } },
-          });
-        } catch (_) { }
+        if (await isDatabaseConnected()) {
+          try {
+            await prisma.productVariant.update({
+              where: { id: item.variantId },
+              data: { stockQuantity: { decrement: item.quantity } },
+            });
+          } catch (_) { }
+        }
       }
     }
   }
@@ -1520,6 +1525,51 @@ export async function createOrder(
     createdAt: now,
     updatedAt: now,
   };
+
+  // Rezerwacja/wykorzystanie kodu rabatowego
+  const appliedCode = orderInput.couponCode?.trim().toUpperCase();
+  if (appliedCode) {
+    // 1. Sprawdzenie kodu powitalnego
+    for (const cust of store.customers || []) {
+      if (cust.welcomeDiscountCode?.trim().toUpperCase() === appliedCode) {
+        cust.welcomeDiscountUsed = true;
+        cust.welcomeDiscountUsedAt = now;
+        cust.welcomeDiscountUsedInOrderId = newId;
+        if (await isDatabaseConnected()) {
+          try {
+            await prisma.customerAccount.update({
+              where: { id: cust.id },
+              data: {
+                welcomeDiscountUsed: true,
+                welcomeDiscountUsedAt: new Date(),
+                welcomeDiscountUsedInOrderId: newId,
+              },
+            });
+          } catch (_) {}
+        }
+      }
+    }
+    // 2. Sprawdzenie kodu indywidualnego jednorazowego
+    for (const d of (store as any).individualDiscountsList || []) {
+      if (d.code?.trim().toUpperCase() === appliedCode && !d.isPermanent) {
+        d.isUsed = true;
+        d.usedAt = now;
+        d.usedInOrderId = newId;
+        if (await isDatabaseConnected()) {
+          try {
+            await prisma.individualDiscount.update({
+              where: { id: d.id },
+              data: {
+                isUsed: true,
+                usedAt: new Date(),
+                usedInOrderId: newId,
+              },
+            });
+          } catch (_) {}
+        }
+      }
+    }
+  }
 
   store.orders.unshift(newOrder);
   saveLocalStore(store);
@@ -1573,8 +1623,8 @@ export async function updateOrderAdmin(
   const newPaymentStatus = updates.paymentStatus || prevPaymentStatus;
 
   // 2. Obsługa stanów magazynowych:
-  // Anulowanie zamówienia: przywróć stany magazynowe w bazie i w pamięci (tylko raz)
-  if (newFulfillmentStatus === "CANCELLED" && prevFulfillmentStatus !== "CANCELLED") {
+  // Anulowanie zamówienia: przywróć stany magazynowe w bazie i w pamięci (tylko raz, dla rzeczywistych zamówień produkcyjnych)
+  if (newFulfillmentStatus === "CANCELLED" && prevFulfillmentStatus !== "CANCELLED" && !existingOrder.isTest) {
     for (const item of existingOrder.items) {
       if (item.variantId) {
         for (const prod of store.products) {
@@ -1591,6 +1641,56 @@ export async function updateOrderAdmin(
             });
           } catch (e) {
             console.warn("Błąd przywracania stanu magazynowego po anulowaniu:", e);
+          }
+        }
+      }
+    }
+
+    // Zwolnienie kodu rabatowego, by klientka nie utraciła zniżki po anulowanym/nieopłaconym zamówieniu
+    const cancelledCode = existingOrder.couponCode?.trim().toUpperCase();
+    if (cancelledCode) {
+      for (const cust of store.customers || []) {
+        if (
+          cust.welcomeDiscountCode?.trim().toUpperCase() === cancelledCode &&
+          cust.welcomeDiscountUsedInOrderId === existingOrder.id
+        ) {
+          cust.welcomeDiscountUsed = false;
+          cust.welcomeDiscountUsedAt = undefined;
+          cust.welcomeDiscountUsedInOrderId = undefined;
+          if (await isDatabaseConnected()) {
+            try {
+              await prisma.customerAccount.update({
+                where: { id: cust.id },
+                data: {
+                  welcomeDiscountUsed: false,
+                  welcomeDiscountUsedAt: null,
+                  welcomeDiscountUsedInOrderId: null,
+                },
+              });
+            } catch (_) {}
+          }
+        }
+      }
+      for (const d of (store as any).individualDiscountsList || []) {
+        if (
+          d.code?.trim().toUpperCase() === cancelledCode &&
+          d.usedInOrderId === existingOrder.id &&
+          !d.isPermanent
+        ) {
+          d.isUsed = false;
+          d.usedAt = undefined;
+          d.usedInOrderId = undefined;
+          if (await isDatabaseConnected()) {
+            try {
+              await prisma.individualDiscount.update({
+                where: { id: d.id },
+                data: {
+                  isUsed: false,
+                  usedAt: null,
+                  usedInOrderId: null,
+                },
+              });
+            } catch (_) {}
           }
         }
       }
@@ -1742,6 +1842,42 @@ export async function bulkUpdateOrders(
     }
   }
   return updatedOrders;
+}
+
+/**
+ * Zwalnianie rezerwacji produktów i kodu rabatowego po wygaśnięciu nieopłaconego zamówienia.
+ * Wywoływane dla konkretnego zamówienia lub wszystkich przeterminowanych zamówień w statusie PENDING/FAILED.
+ */
+export async function releaseExpiredOrderReservations(targetOrderId?: string): Promise<{
+  releasedCount: number;
+  releasedOrders: string[];
+}> {
+  const store = loadLocalStore();
+  const now = new Date();
+  const releasedOrders: string[] = [];
+
+  const candidates = store.orders.filter((o) => {
+    if (o.fulfillmentStatus === "CANCELLED" || o.paymentStatus === "PAID") return false;
+    if (targetOrderId) return o.id === targetOrderId || o.orderNumber === targetOrderId;
+    if (o.reservedUntil) {
+      const exp = new Date(o.reservedUntil);
+      return !isNaN(exp.getTime()) && exp < now;
+    }
+    return false;
+  });
+
+  for (const order of candidates) {
+    await updateOrderAdmin(order.id, {
+      fulfillmentStatus: "CANCELLED",
+      adminNotes: `${order.adminNotes ? order.adminNotes + " | " : ""}Rezerwacja wygasła — automatycznie przywrócono stany magazynowe i zwolniono kod rabatowy.`,
+    });
+    releasedOrders.push(order.orderNumber);
+  }
+
+  return {
+    releasedCount: releasedOrders.length,
+    releasedOrders,
+  };
 }
 
 // Klientka edytuje zamówienie (dokupuje lub zmienia pozycje przed akceptacją butiku)

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { AnnouncementBar } from "./AnnouncementBar";
+import { CustomerGreetingBar } from "./CustomerGreetingBar";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
@@ -372,6 +373,9 @@ function HeaderInner() {
             </Link>
           </div>
         </nav>
+
+        {/* 🌟 CIEPŁE POWITANIE DLA ZALOGOWANEJ KLIENTKI (POD MENU KATEGORII) 🌟 */}
+        <CustomerGreetingBar />
 
         {/* 🌟 MENU MOBILNE OTWIERANE POD NAGŁÓWKIEM 🌟
             Nigdy nie zasłania nagłówka z logo i przyciskiem zamknięcia (X) */}

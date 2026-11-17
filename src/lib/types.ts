@@ -135,6 +135,7 @@ export type AppliedPromotionSummary = {
 export type Order = {
   id: string;
   orderNumber: string;
+  isTest?: boolean;
   accessKey?: string; // bezpieczny unikalny token dostępu dla klientki (np. gościa)
   customerId?: string; // powiązanie z kontem zarejestrowanej klientki
   customerFirstName: string;
@@ -385,6 +386,32 @@ export type IndividualCustomerDiscount = {
   updatedAt: string;
 };
 
+// Indywidualne rabaty przypisane do konkretnej klientki
+export type IndividualDiscountRecord = {
+  id: string;
+  code: string;
+  customerId?: string;
+  customerEmail: string;
+  discountPercent: number;
+  isPermanent: boolean;
+  validUntil?: string;
+  minCartValue?: number;
+  canCombine: boolean;
+  adminNote?: string;
+  grantedBy: string;
+  isUsed: boolean;
+  usedAt?: string;
+  usedInOrderId?: string;
+  isRevoked: boolean;
+  revokedAt?: string;
+  revokedReason?: string;
+  emailSentAt?: string;
+  emailSendStatus?: "SENT" | "FAILED" | "NOT_SENT";
+  emailSendError?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 // Program poleceń
 export type ReferralParticipant = {
   id: string;
@@ -483,6 +510,13 @@ export type CustomerAccount = {
   lastName: string;
   phone?: string;
   passwordHash?: string;
+  googleId?: string;
+  emailVerified?: boolean;
+  emailVerificationToken?: string;
+  verificationExpiresAt?: string;
+  resendCooldownUntil?: string;
+  resendAttemptsCount?: number;
+  welcomeDiscountUsed?: boolean;
   referralCode: string; // Stały, unikalny kod polecający np. AURA-7K9P2X8M (UNIQUE)
   createdAt: string;
   welcomeDiscountCode?: string;
@@ -600,6 +634,141 @@ export interface VisualBannerConfig {
   updatedAt: string;
   publishedAt?: string;
 }
+
+// Notatki własne właścicielki
+export type OwnerNote = {
+  id: string;
+  title: string;
+  content: string;
+  isPinned: boolean;
+  isCompleted: boolean;
+  targetDate?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Terminarz i kalendarz zadań butiku
+export type CalendarEvent = {
+  id: string;
+  title: string;
+  description?: string;
+  eventDate: string; // YYYY-MM-DD
+  eventTime?: string; // HH:MM
+  category: "TAXES" | "DELIVERIES" | "BOUTIQUE" | "OTHER";
+  priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+  isCompleted: boolean;
+  recurrenceRule?: "NONE" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  recurringId?: string;
+  isException?: boolean;
+  completedDates?: string[]; // Array stringów dat wystąpień (YYYY-MM-DD)
+  reminderDays?: number; // 0, 1, 3
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ==========================================
+// SYSTEM KOPII ZAPASOWYCH I DISASTER RECOVERY
+// ==========================================
+export type BackupTrigger =
+  | "MANUAL"
+  | "DAILY_SCHEDULED"
+  | "MONTHLY"
+  | "PRE_MIGRATION"
+  | "PRE_RESTORE";
+
+export interface BackupMetadata {
+  id: string; // np. "backup-2026-11-18-003015-manual"
+  filename: string;
+  createdAt: string;
+  trigger: BackupTrigger;
+  label: string;
+  sizeBytes: number;
+  sizeFormatted: string;
+  recordCounts: {
+    customers: number;
+    orders: number;
+    products: number;
+    variants: number;
+    discounts: number;
+    newsletter: number;
+    notes: number;
+    calendar: number;
+    mediaAssets: number;
+    settingsIncluded: boolean;
+    bannersIncluded: boolean;
+  };
+  sha256Checksum: string;
+  encryptionAlgorithm: "AES-256-GCM";
+  isEncrypted: boolean;
+  storageLocation: "OFFSITE_LOCAL_SECURE" | "NEON_STANDALONE";
+  retentionDays: number;
+}
+
+export interface BackupSystemStatus {
+  lastBackupDate: string | null;
+  lastBackupStatus: "SUCCESS" | "FAILED" | "IDLE";
+  lastBackupError?: string;
+  lastBackupSize: string;
+  totalBackupsCount: number;
+  lastRestoreTestDate: string | null;
+  lastRestoreTestResult: {
+    success: boolean;
+    timestamp: string;
+    durationMs: number;
+    checkedItemsCount: number;
+    warnings: string[];
+    details: string;
+  } | null;
+  storageInfo: {
+    retentionDailyDays: number; // 30 dni
+    retentionMonthlyMonths: number; // 6 miesięcy
+    encryption: string;
+    offsiteProtected: boolean;
+  };
+  neonPlanAudit: {
+    planType: "Neon Free Tier (Aktualny)" | "Neon Pro / Launch (Rekomendowane dla PITR 30 dni)";
+    pitrSupportedHours: number; // 24h w Free Tier
+    pitrProSupportedDays: number; // 30 dni w Pro
+    rpoDescription: string; // "Do 24 godzin przy awarii bazy; ~0 min w ramach okna PITR Neon"
+    rtoDescription: string; // "2 - 5 minut przy procedurze awaryjnej z pliku snapshotu"
+    photoStorage: string; // "Cloudinary CDN (chmura ze stałym URL) + lokalna kopia zapasowa manifestu"
+    recommendedUpgradeCost: string; // "Opcjonalnie: Neon Launch (~19 USD/miesięcznie) dla 30 dni PITR"
+  };
+  activeAlert?: {
+    level: "WARNING" | "CRITICAL";
+    message: string;
+    createdAt: string;
+  } | null;
+}
+
+export interface RestoreTestResult {
+  success: boolean;
+  backupId: string;
+  testedAt: string;
+  durationMs: number;
+  verifiedCounts: {
+    customers: number;
+    orders: number;
+    products: number;
+    newsletter: number;
+    notes: number;
+    calendar: number;
+  };
+  sideEffectsPrevented: {
+    emailsSuppressed: boolean;
+    paymentWebhooksDisabled: boolean;
+    oldSessionsInvalidated: boolean;
+    resetTokensPurged: boolean;
+  };
+  reconciliationAudit: {
+    ordersCreatedAfterBackup: number;
+    paymentsToReconcile: number;
+    postBackupNewsletterUnsubscribes: number;
+  };
+  details: string;
+  warnings: string[];
+}
+
 
 
 

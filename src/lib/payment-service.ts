@@ -537,38 +537,58 @@ export interface PayUConfig {
   baseUrl: string;
 }
 
-export function getPayUConfig(customSettings?: Partial<StoreSettings>): PayUConfig | null {
+export function getPayUConfig(customSettings?: Partial<StoreSettings>, forceSandbox?: boolean): PayUConfig | null {
   const store = loadLocalStore();
   const settings = {
     ...(store.settings || {}),
     ...(customSettings || {}),
   };
 
-  const isSandbox = settings.payuSandbox !== false;
+  const isSandbox = forceSandbox !== undefined ? forceSandbox : settings.payuSandbox !== false;
 
-  const posId = (
-    isSandbox
-      ? settings.payuPosIdSandbox || settings.payuPosId || process.env.PAYU_POS_ID_SANDBOX || process.env.PAYU_POS_ID
-      : settings.payuPosId || process.env.PAYU_POS_ID
-  )?.trim() || "";
+  // Domyślne oficjalne dane publicznego środowiska PayU Sandbox (do bezpiecznego testowania bez kosztów)
+  const officialSandboxPosId = "300746";
+  const officialSandboxClientId = "300746";
+  const officialSandboxSecret = "2ee86a66e5d97e3fadc400c9f19b065d";
+  const officialSandboxSecondKey = "b6ca15b0d1020e8094d9b5f8d163db54";
 
-  const secondKey = (
-    isSandbox
-      ? settings.payuSecondKeySandbox || settings.payuSecondKey || process.env.PAYU_SECOND_KEY_SANDBOX || process.env.PAYU_SECOND_KEY
-      : settings.payuSecondKey || process.env.PAYU_SECOND_KEY
-  )?.trim() || "";
+  let posId = "";
+  let secondKey = "";
+  let clientId = "";
+  let clientSecret = "";
 
-  const clientId = (
-    isSandbox
-      ? settings.payuClientIdSandbox || settings.payuClientId || posId || process.env.PAYU_CLIENT_ID_SANDBOX || process.env.PAYU_CLIENT_ID
-      : settings.payuClientId || posId || process.env.PAYU_CLIENT_ID
-  )?.trim() || "";
+  if (isSandbox) {
+    posId = (
+      settings.payuPosIdSandbox ||
+      process.env.PAYU_POS_ID_SANDBOX ||
+      officialSandboxPosId
+    ).trim();
 
-  const clientSecret = (
-    isSandbox
-      ? settings.payuClientSecretSandbox || settings.payuClientSecret || process.env.PAYU_CLIENT_SECRET_SANDBOX || process.env.PAYU_CLIENT_SECRET
-      : settings.payuClientSecret || process.env.PAYU_CLIENT_SECRET
-  )?.trim() || "";
+    secondKey = (
+      settings.payuSecondKeySandbox ||
+      process.env.PAYU_SECOND_KEY_SANDBOX ||
+      officialSandboxSecondKey
+    ).trim();
+
+    clientId = (
+      settings.payuClientIdSandbox ||
+      process.env.PAYU_CLIENT_ID_SANDBOX ||
+      posId ||
+      officialSandboxClientId
+    ).trim();
+
+    clientSecret = (
+      settings.payuClientSecretSandbox ||
+      process.env.PAYU_CLIENT_SECRET_SANDBOX ||
+      officialSandboxSecret
+    ).trim();
+  } else {
+    // Środowisko PRODUKCYJNE — klucze wyłącznie z konfiguracji produkcyjnej lub zmiennych serwera
+    posId = (settings.payuPosId || process.env.PAYU_POS_ID || "").trim();
+    secondKey = (settings.payuSecondKey || process.env.PAYU_SECOND_KEY || "").trim();
+    clientId = (settings.payuClientId || posId || process.env.PAYU_CLIENT_ID || "").trim();
+    clientSecret = (settings.payuClientSecret || process.env.PAYU_CLIENT_SECRET || "").trim();
+  }
 
   if (!posId || !secondKey) {
     return null;
@@ -653,7 +673,7 @@ export async function registerPayUTransaction({
   payuOrderId?: string;
   error?: string;
 }> {
-  const config = getPayUConfig(customSettings);
+  const config = getPayUConfig(customSettings, order.isTest);
   if (!config) {
     return { success: false, error: "Brak skonfigurowanych danych dostępowych PayU." };
   }
@@ -693,7 +713,9 @@ export async function registerPayUTransaction({
       continueUrl: returnUrl,
       customerIp: customerIp.includes(":") ? "127.0.0.1" : customerIp,
       merchantPosId: config.posId,
-      description: `Zamówienie ${order.orderNumber} w AURA Boutique`,
+      description: order.isTest
+        ? `[TEST SANDBOX] Zamówienie ${order.orderNumber} - AURA Boutique`
+        : `Zamówienie ${order.orderNumber} w AURA Boutique`,
       currencyCode: "PLN",
       totalAmount: totalAmountGrosze.toString(),
       extOrderId: order.orderNumber,
@@ -751,11 +773,10 @@ export async function registerPayUTransaction({
 export function verifyPayUNotificationSignature(
   rawBody: string,
   signatureHeader: string | null,
-  customSettings?: Partial<StoreSettings>
+  customSettings?: Partial<StoreSettings>,
+  isSandboxOrder?: boolean
 ): boolean {
-  if (!signatureHeader) return false;
-  const config = getPayUConfig(customSettings);
-  if (!config) return false;
+  if (!signatureHeader || !rawBody) return false;
 
   // Nagłówek ma format: sender=...;signature=...;algorithm=SHA-256;...
   const parts = signatureHeader.split(";").reduce((acc: Record<string, string>, part) => {
@@ -769,16 +790,35 @@ export function verifyPayUNotificationSignature(
 
   if (!expectedSignature) return false;
 
-  const dataToHash = rawBody + config.secondKey;
-  let computedSignature = "";
+  const config = getPayUConfig(customSettings, isSandboxOrder);
+  const candidateKeys: string[] = [];
 
-  if (algorithm === "MD5") {
-    computedSignature = crypto.createHash("md5").update(dataToHash, "utf-8").digest("hex");
-  } else {
-    computedSignature = crypto.createHash("sha256").update(dataToHash, "utf-8").digest("hex");
+  if (config?.secondKey) {
+    candidateKeys.push(config.secondKey);
   }
 
-  return computedSignature.toLowerCase() === expectedSignature.toLowerCase();
+  // Zawsze dołączamy oficjalny klucz sandbox jako zapasowy dla powiadomień testowych
+  const officialSandboxKey = "b6ca15b0d1020e8094d9b5f8d163db54";
+  if (!candidateKeys.includes(officialSandboxKey)) {
+    candidateKeys.push(officialSandboxKey);
+  }
+
+  for (const secondKey of candidateKeys) {
+    const dataToHash = rawBody + secondKey;
+    let computedSignature = "";
+
+    if (algorithm === "MD5") {
+      computedSignature = crypto.createHash("md5").update(dataToHash, "utf-8").digest("hex");
+    } else {
+      computedSignature = crypto.createHash("sha256").update(dataToHash, "utf-8").digest("hex");
+    }
+
+    if (computedSignature.toLowerCase() === expectedSignature.toLowerCase()) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

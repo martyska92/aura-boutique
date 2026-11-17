@@ -26,8 +26,9 @@ export async function GET() {
       isAdmin: session.isAdmin,
       mustChangePassword: !!session.mustChangePassword,
       customerName: session.customerName,
+      emailVerified: customer?.emailVerified ?? true,
       welcomeDiscountCode: customer?.welcomeDiscountCode,
-      welcomeDiscountUsed: Boolean(customer?.welcomeDiscountUsedAt),
+      welcomeDiscountUsed: customer?.welcomeDiscountUsed || Boolean(customer?.welcomeDiscountUsedAt),
       welcomeDiscountUsedAt: customer?.welcomeDiscountUsedAt,
     });
   } catch (err: any) {
