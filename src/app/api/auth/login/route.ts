@@ -183,8 +183,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: GENERIC_AUTH_ERROR }, { status: 401 });
     }
 
-    // Weryfikacja hasła klientki
-    const isCustomerPassValid = existingCustomer.passwordHash.trim() === trimmedPassword;
+    // Weryfikacja hasła klientki - bezpieczny PBKDF2 z obsługą migracji starszych kont
+    let isCustomerPassValid = false;
+    if (existingCustomer.passwordHash.includes(":")) {
+      isCustomerPassValid = verifyPassword(trimmedPassword, existingCustomer.passwordHash);
+    } else {
+      // Starszy zapis w postaci czystego tekstu - porównanie i natychmiastowa automatyczna migracja do bezpiecznego PBKDF2
+      isCustomerPassValid = existingCustomer.passwordHash.trim() === trimmedPassword;
+      if (isCustomerPassValid) {
+        try {
+          const { prisma } = await import("@/lib/prisma");
+          const { hashPassword } = await import("@/lib/store-data");
+          if (prisma) {
+            await prisma.customerAccount.update({
+              where: { email: normalizedEmail },
+              data: { passwordHash: hashPassword(trimmedPassword) },
+            });
+          }
+        } catch (migrationErr) {
+          console.error("Błąd migracji hasła do PBKDF2:", migrationErr);
+        }
+      }
+    }
+
     if (!isCustomerPassValid) {
       const lockStatus = recordFailedAttempt(rateLimitKey);
       if (lockStatus.isNowLocked) {

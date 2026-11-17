@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
-import { loadLocalStore, saveLocalStore } from "@/lib/store-data";
+import { loadLocalStore, saveLocalStore, getCustomers } from "@/lib/store-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   const store = loadLocalStore();
-  const customers = store.customers || [];
+  const customers = await getCustomers();
   const orders = store.orders || [];
   const individualDiscounts = store.individualDiscounts || [];
 

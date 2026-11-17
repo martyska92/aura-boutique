@@ -58,20 +58,20 @@ export async function POST(req: NextRequest) {
 
     // 2. Wysłanie powiadomienia do właścicielki przez skonfigurowany kanał e-mail (SMTP / Resend)
     try {
-      const { dispatchEmail } = await import("@/lib/email-service");
+      const { dispatchEmail, wrapBoutiqueEmailTemplate } = await import("@/lib/email-service");
+      const content = `
+        <h2 style="font-family: Georgia, serif; font-size: 18px; margin-top: 0; color: #241D1B;">Wiadomość z formularza kontaktowego</h2>
+        <p style="font-size: 14px; color: #554D47;"><strong>Klientka:</strong> ${newMessage.name}</p>
+        <p style="font-size: 14px; color: #554D47;"><strong>E-mail:</strong> <a href="mailto:${newMessage.email}" style="color: #9E8359;">${newMessage.email}</a></p>
+        <p style="font-size: 14px; color: #554D47;"><strong>Data:</strong> ${newMessage.createdAt}</p>
+        <hr style="border: 0; border-top: 1px solid #EADFD5; margin: 20px 0;" />
+        <p style="font-size: 14px; color: #241D1B; white-space: pre-line; line-height: 1.6;">${newMessage.message}</p>
+      `;
+      const html = wrapBoutiqueEmailTemplate("Nowa wiadomość od klientki | AURA Boutique", content);
       await dispatchEmail({
         to: OWNER_EMAIL,
         subject: `Nowa wiadomość od klientki: ${newMessage.name}`,
-        html: `
-          <div style="font-family: Georgia, serif; max-width: 500px; margin: 0 auto; padding: 20px; color: #241D1B; line-height: 1.6;">
-            <h2 style="font-size: 18px; margin-top: 0;">Wiadomość z formularza kontaktowego</h2>
-            <p><strong>Klientka:</strong> ${newMessage.name}</p>
-            <p><strong>E-mail:</strong> <a href="mailto:${newMessage.email}">${newMessage.email}</a></p>
-            <p><strong>Data:</strong> ${newMessage.createdAt}</p>
-            <hr style="border: 0; border-top: 1px solid #EADFD5; margin: 20px 0;" />
-            <p style="white-space: pre-line;">${newMessage.message}</p>
-          </div>
-        `,
+        html,
         type: "CONTACT_MESSAGE" as any,
       });
     } catch (mailErr) {

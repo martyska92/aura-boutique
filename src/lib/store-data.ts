@@ -3194,31 +3194,39 @@ export async function resetUserPassword(
     return { success: true, role: "ADMIN" };
   }
 
-  // 2. Sprawdzamy czy to zarejestrowana klientka
-  const customer = (store.customers || []).find((c) => c.email.toLowerCase() === normalized);
+  // 2. Sprawdzamy czy to zarejestrowana klientka (Neon PostgreSQL + magazyn lokalny)
+  const customer = await getCustomerByEmail(normalized);
   if (customer) {
-    customer.passwordHash = cleanPassword;
-
-    if (store.passwordResetTokens) {
-      store.passwordResetTokens = store.passwordResetTokens.filter(
-        (t) => t.email.toLowerCase() !== normalized
-      );
-    }
-
-    saveLocalStore(store);
+    const hashedPassword = hashPassword(cleanPassword);
+    customer.passwordHash = hashedPassword;
 
     if (isNeonConfigured()) {
       try {
         await prisma.customerAccount.update({
           where: { email: customer.email },
-          data: { passwordHash: cleanPassword },
+          data: { passwordHash: hashedPassword },
         });
-        // Unieważnienie wszystkich dotychczasowych aktywnych sesji administratora
-        await prisma.adminSession.deleteMany({});
+        await prisma.passwordResetToken.deleteMany({
+          where: { email: normalized },
+        });
       } catch (e) {
         console.warn("Neon customer password reset sync error:", e);
       }
     }
+
+    const store = loadLocalStore();
+    if (store.customers) {
+      const localCust = store.customers.find((c) => c.email.toLowerCase() === normalized);
+      if (localCust) {
+        localCust.passwordHash = hashedPassword;
+      }
+    }
+    if (store.passwordResetTokens) {
+      store.passwordResetTokens = store.passwordResetTokens.filter(
+        (t) => t.email.toLowerCase() !== normalized
+      );
+    }
+    saveLocalStore(store);
 
     return { success: true, role: "CUSTOMER" };
   }
@@ -3271,13 +3279,95 @@ export async function updateAdminPassword(newPassword: string): Promise<AdminAcc
 // ==========================================
 // KLIENCI BUTIKU (REJESTRACJA I LOGOWANIE)
 // ==========================================
+export function normalizeEmail(email: string): string {
+  if (!email || typeof email !== "string") return "";
+  return email.trim().toLowerCase();
+}
+
 export async function getCustomers(): Promise<CustomerAccount[]> {
   const store = loadLocalStore();
-  return store.customers || [];
+  let customers: CustomerAccount[] = [...(store.customers || [])];
+
+  if (isNeonConfigured()) {
+    try {
+      const dbCusts = await prisma.customerAccount.findMany({
+        orderBy: { createdAt: "desc" },
+      });
+      if (dbCusts && dbCusts.length > 0) {
+        const dbMapped: CustomerAccount[] = dbCusts.map((d) => ({
+          id: d.id,
+          email: d.email,
+          firstName: d.firstName,
+          lastName: d.lastName,
+          phone: d.phone || "",
+          passwordHash: d.passwordHash || undefined,
+          referralCode: d.referralCode || "",
+          defaultStreet: d.defaultStreet || undefined,
+          defaultCity: d.defaultCity || undefined,
+          defaultPostalCode: d.defaultPostalCode || undefined,
+          lastParcelLocker: d.lastParcelLocker || undefined,
+          lastParcelLockerAddress: d.lastParcelLockerAddress || undefined,
+          invoiceType: (d.invoiceType as any) || undefined,
+          invoiceCompanyName: d.invoiceCompanyName || undefined,
+          invoiceNip: d.invoiceNip || undefined,
+          invoiceStreet: d.invoiceStreet || undefined,
+          invoiceCity: d.invoiceCity || undefined,
+          invoicePostalCode: d.invoicePostalCode || undefined,
+          createdAt: d.createdAt.toISOString(),
+        }));
+
+        const existingEmails = new Set(dbMapped.map((c) => c.email.toLowerCase()));
+        customers = [...dbMapped, ...customers.filter((c) => !existingEmails.has(c.email.toLowerCase()))];
+      }
+    } catch (e) {
+      console.warn("Neon getCustomers error, fallback to local:", e);
+    }
+  }
+
+  return customers;
+}
+
+export async function getCustomerById(id: string): Promise<CustomerAccount | null> {
+  if (isNeonConfigured()) {
+    try {
+      const dbCust = await prisma.customerAccount.findUnique({
+        where: { id },
+      });
+      if (dbCust) {
+        return {
+          id: dbCust.id,
+          email: dbCust.email,
+          firstName: dbCust.firstName,
+          lastName: dbCust.lastName,
+          phone: dbCust.phone || "",
+          passwordHash: dbCust.passwordHash || undefined,
+          referralCode: dbCust.referralCode || "",
+          defaultStreet: dbCust.defaultStreet || undefined,
+          defaultCity: dbCust.defaultCity || undefined,
+          defaultPostalCode: dbCust.defaultPostalCode || undefined,
+          lastParcelLocker: dbCust.lastParcelLocker || undefined,
+          lastParcelLockerAddress: dbCust.lastParcelLockerAddress || undefined,
+          invoiceType: (dbCust.invoiceType as any) || undefined,
+          invoiceCompanyName: dbCust.invoiceCompanyName || undefined,
+          invoiceNip: dbCust.invoiceNip || undefined,
+          invoiceStreet: dbCust.invoiceStreet || undefined,
+          invoiceCity: dbCust.invoiceCity || undefined,
+          invoicePostalCode: dbCust.invoicePostalCode || undefined,
+          createdAt: dbCust.createdAt.toISOString(),
+        };
+      }
+    } catch (e) {
+      console.warn("Neon getCustomerById error:", e);
+    }
+  }
+
+  const store = loadLocalStore();
+  return (store.customers || []).find((c) => c.id === id) || null;
 }
 
 export async function getCustomerByEmail(email: string): Promise<CustomerAccount | null> {
-  const normalized = email.trim().toLowerCase();
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
 
   if (isNeonConfigured()) {
     try {
@@ -3319,6 +3409,74 @@ export async function getCustomerByEmail(email: string): Promise<CustomerAccount
   return customer || null;
 }
 
+export async function updateCustomerProfile(
+  idOrEmail: string,
+  data: Partial<CustomerAccount>
+): Promise<CustomerAccount> {
+  const norm = normalizeEmail(idOrEmail);
+  const customer = (await getCustomerByEmail(norm)) || (await getCustomerById(idOrEmail));
+  if (!customer) {
+    throw new Error("Nie znaleziono konta klientki.");
+  }
+
+  const updated: CustomerAccount = {
+    ...customer,
+    firstName: data.firstName !== undefined ? data.firstName.trim() : customer.firstName,
+    lastName: data.lastName !== undefined ? data.lastName.trim() : customer.lastName,
+    phone: data.phone !== undefined ? data.phone.trim() : customer.phone,
+    defaultStreet: data.defaultStreet !== undefined ? data.defaultStreet.trim() : customer.defaultStreet,
+    defaultCity: data.defaultCity !== undefined ? data.defaultCity.trim() : customer.defaultCity,
+    defaultPostalCode: data.defaultPostalCode !== undefined ? data.defaultPostalCode.trim() : customer.defaultPostalCode,
+    lastParcelLocker: data.lastParcelLocker !== undefined ? data.lastParcelLocker.trim() : customer.lastParcelLocker,
+    lastParcelLockerAddress: data.lastParcelLockerAddress !== undefined ? data.lastParcelLockerAddress.trim() : customer.lastParcelLockerAddress,
+    invoiceType: data.invoiceType !== undefined ? data.invoiceType : customer.invoiceType,
+    invoiceCompanyName: data.invoiceCompanyName !== undefined ? data.invoiceCompanyName.trim() : customer.invoiceCompanyName,
+    invoiceNip: data.invoiceNip !== undefined ? data.invoiceNip.trim() : customer.invoiceNip,
+    invoiceStreet: data.invoiceStreet !== undefined ? data.invoiceStreet.trim() : customer.invoiceStreet,
+    invoiceCity: data.invoiceCity !== undefined ? data.invoiceCity.trim() : customer.invoiceCity,
+    invoicePostalCode: data.invoicePostalCode !== undefined ? data.invoicePostalCode.trim() : customer.invoicePostalCode,
+  };
+
+  if (isNeonConfigured()) {
+    try {
+      await prisma.customerAccount.update({
+        where: { id: customer.id },
+        data: {
+          firstName: updated.firstName,
+          lastName: updated.lastName,
+          phone: updated.phone,
+          defaultStreet: updated.defaultStreet,
+          defaultCity: updated.defaultCity,
+          defaultPostalCode: updated.defaultPostalCode,
+          lastParcelLocker: updated.lastParcelLocker,
+          lastParcelLockerAddress: updated.lastParcelLockerAddress,
+          invoiceType: updated.invoiceType,
+          invoiceCompanyName: updated.invoiceCompanyName,
+          invoiceNip: updated.invoiceNip,
+          invoiceStreet: updated.invoiceStreet,
+          invoiceCity: updated.invoiceCity,
+          invoicePostalCode: updated.invoicePostalCode,
+        },
+      });
+    } catch (e) {
+      console.warn("Neon updateCustomerProfile error:", e);
+    }
+  }
+
+  const store = loadLocalStore();
+  if (store.customers) {
+    const idx = store.customers.findIndex((c) => c.id === customer.id || c.email.toLowerCase() === customer.email.toLowerCase());
+    if (idx !== -1) {
+      store.customers[idx] = updated;
+    } else {
+      store.customers.push(updated);
+    }
+    saveLocalStore(store);
+  }
+
+  return updated;
+}
+
 export async function createCustomerAccount(data: {
   email: string;
   firstName: string;
@@ -3326,30 +3484,54 @@ export async function createCustomerAccount(data: {
   phone?: string;
   password?: string;
 }): Promise<CustomerAccount> {
+  const normalizedEmail = normalizeEmail(data.email);
+  if (!normalizedEmail || !normalizedEmail.includes("@")) {
+    throw new Error("Podaj prawidłowy adres e-mail.");
+  }
+
+  // Sprawdzamy czy konto już istnieje w Neon lub w magazynie lokalnym
+  const existing = await getCustomerByEmail(normalizedEmail);
+  if (existing) {
+    // Jeśli konto ma już hasło -> jest w pełni zarejestrowane
+    if (existing.passwordHash) {
+      throw new Error("Konto z tym adresem e-mail już istnieje. Przejdź do logowania.");
+    }
+    // Jeśli konto istniało bez hasła (np. po zakupie gościnnym lub newsletterze), aktywujemy je:
+    const hashedPassword = data.password ? hashPassword(data.password.trim()) : undefined;
+    const updated = await updateCustomerProfile(existing.id, {
+      firstName: data.firstName.trim(),
+      lastName: data.lastName.trim(),
+      phone: data.phone?.trim() || existing.phone,
+    });
+    if (hashedPassword && isNeonConfigured()) {
+      try {
+        await prisma.customerAccount.update({
+          where: { id: existing.id },
+          data: { passwordHash: hashedPassword },
+        });
+        updated.passwordHash = hashedPassword;
+      } catch (_) {}
+    }
+    return updated;
+  }
+
   const store = loadLocalStore();
   if (!store.customers) store.customers = [];
   if (!store.referralParticipants) store.referralParticipants = [];
 
-  const normalizedEmail = data.email.trim().toLowerCase();
-  const existing = store.customers.find((c) => c.email.toLowerCase() === normalizedEmail);
-  if (existing) {
-    throw new Error("Konto z tym adresem e-mail już istnieje. Zaloguj się.");
-  }
-
-  // Zbierz istniejące kody, by zagwarantować unikalność (UNIQUE)
+  // Zbierz istniejące kody, by zagwarantować unikalność
+  const allCustomers = await getCustomers();
   const existingCodes = new Set<string>();
-  for (const c of store.customers) {
+  for (const c of allCustomers) {
     if (c.referralCode) existingCodes.add(c.referralCode.toUpperCase());
   }
   for (const p of store.referralParticipants) {
     if (p.referralCode) existingCodes.add(p.referralCode.toUpperCase());
   }
 
-  // Generuj losowy, stały i unikalny kod polecający bez danych osobowych (np. AURA-7K9P2X8M)
   const permanentReferralCode = generateUniqueReferralCode(existingCodes);
-  existingCodes.add(permanentReferralCode.toUpperCase());
-
   const welcomeCode = `WITAJ15-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+  const hashedPassword = data.password ? hashPassword(data.password.trim()) : undefined;
 
   const newCustomer: CustomerAccount = {
     id: `cust-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -3357,44 +3539,14 @@ export async function createCustomerAccount(data: {
     firstName: data.firstName.trim(),
     lastName: data.lastName.trim(),
     phone: data.phone?.trim() || "",
-    passwordHash: data.password ? data.password.trim() : undefined,
+    passwordHash: hashedPassword,
     referralCode: permanentReferralCode,
     createdAt: new Date().toISOString(),
     welcomeDiscountCode: welcomeCode,
     welcomeEmailStatus: "PENDING",
   };
 
-  store.customers.push(newCustomer);
-
-  // Dodaj odpowiadający stały rekord uczestniczki programu poleceń
-  store.referralParticipants.unshift({
-    id: `ref-p-${Date.now()}`,
-    customerId: newCustomer.id,
-    email: normalizedEmail,
-    customerName: `${newCustomer.firstName} ${newCustomer.lastName}`.trim(),
-    referralCode: permanentReferralCode,
-    totalReferralsCount: 0,
-    isActive: true,
-    createdAt: newCustomer.createdAt,
-  });
-
-  saveLocalStore(store);
-
-  // Dodajemy też kod powitalny –15% jako indywidualny rabat
-  try {
-    await saveIndividualDiscount({
-      email: normalizedEmail,
-      discountPercent: 15,
-      scope: "ALL",
-      isIndefinite: true,
-      isActive: true,
-      isEmailVerified: true,
-      adminNote: `Rabat powitalny –15% dla nowej klientki: ${data.firstName} ${data.lastName}`,
-    });
-  } catch (err) {
-    console.error("Błąd zapisu rabatu powitalnego:", err);
-  }
-
+  // 1. Zapis transakcyjny do PostgreSQL Neon
   if (isNeonConfigured()) {
     try {
       await prisma.customerAccount.create({
@@ -3417,9 +3569,39 @@ export async function createCustomerAccount(data: {
           referralCode: newCustomer.referralCode,
         },
       });
-    } catch (e) {
-      console.warn("Neon create customer error:", e);
+    } catch (e: any) {
+      console.error("Neon create customer error:", e);
+      throw new Error("Wystąpił błąd podczas trwałego tworzenia konta w bazie danych.");
     }
+  }
+
+  // 2. Magazyn lokalny
+  store.customers.push(newCustomer);
+  store.referralParticipants.unshift({
+    id: `ref-p-${newCustomer.id}`,
+    customerId: newCustomer.id,
+    email: normalizedEmail,
+    customerName: `${newCustomer.firstName} ${newCustomer.lastName}`.trim(),
+    referralCode: permanentReferralCode,
+    totalReferralsCount: 0,
+    isActive: true,
+    createdAt: newCustomer.createdAt,
+  });
+  saveLocalStore(store);
+
+  // 3. Dodaj kod powitalny –15%
+  try {
+    await saveIndividualDiscount({
+      email: normalizedEmail,
+      discountPercent: 15,
+      scope: "ALL",
+      isIndefinite: true,
+      isActive: true,
+      isEmailVerified: true,
+      adminNote: `Rabat powitalny –15% dla nowej klientki: ${data.firstName} ${data.lastName}`,
+    });
+  } catch (err) {
+    console.error("Błąd zapisu rabatu powitalnego:", err);
   }
 
   return newCustomer;

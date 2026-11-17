@@ -39,7 +39,7 @@ export interface OutboxEmail {
 /**
  * Szablon e-mail w luksusowej stylistyce butiku AURA
  */
-function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
+export function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
   const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
   return `
 <!DOCTYPE html>
@@ -49,21 +49,18 @@ function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #FAF6F1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #241D1B;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #FAF6F1; padding: 30px 10px;">
+<body style="margin: 0; padding: 0; background-color: #BCAB9B; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #241D1B;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #BCAB9B; padding: 36px 12px;">
     <tr>
       <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #EADFD5; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 16px rgba(197, 160, 105, 0.08);">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #968372; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 24px rgba(36, 29, 27, 0.20);">
           
-          <!-- Nagłówek beżowo-kaszmirowy z czystym logo AURA (bez złotej poświaty) -->
+          <!-- Nagłówek beżowo-kaszmirowy z czystym logo AURA -->
           <tr>
-            <td align="center" style="background-color: #FAF6F1; padding: 28px 20px 22px; border-bottom: 2px solid #C5A069;">
+            <td align="center" style="background-color: #FAF6F1; padding: 32px 20px; border-bottom: 2px solid #C5A069;">
               <a href="${storeUrl}" target="_blank" style="text-decoration: none; display: inline-block;">
-                <img src="${storeUrl}/images/brand/aura-logo.png" alt="AURA Boutique K.B." width="200" style="display: block; max-width: 200px; width: 100%; height: auto; border: 0; margin: 0 auto;" />
+                <img src="${storeUrl}/images/brand/aura-logo.png" alt="AURA Boutique" width="220" style="display: block; max-width: 220px; width: 100%; height: auto; border: 0; margin: 0 auto;" />
               </a>
-              <p style="margin: 8px 0 0 0; font-size: 11px; letter-spacing: 0.22em; color: #857670; text-transform: uppercase;">
-                Kobiecość • Klasa • Ponadczasowa Jakość
-              </p>
             </td>
           </tr>
 
@@ -77,7 +74,7 @@ function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): string {
           <!-- Stopka wiadomości -->
           <tr>
             <td align="center" style="background-color: #FAF6F1; padding: 24px 20px; border-top: 1px solid #EADFD5; font-size: 11px; color: #857670;">
-              <p style="margin: 0 0 6px 0; font-weight: bold; color: #241D1B;">AURA Boutique K.B.</p>
+              <p style="margin: 0 0 6px 0; font-weight: bold; color: #241D1B;">AURA Boutique</p>
               <p style="margin: 0 0 6px 0;">Żmigród, ul. Poprzeczna 3/1A • Butik stacjonarny & Sklep online</p>
               <p style="margin: 0;">W razie pytań napisz do nas: <a href="mailto:aurazmigrod@wp.pl" style="color: #C5A069; text-decoration: none;">aurazmigrod@wp.pl</a></p>
             </td>

@@ -131,6 +131,25 @@ async function run() {
           console.log("[db-migrate] Zsynchronizowano bezpieczny hash konta wlascicielki.");
         }
 
+        // Migracja starszych haseł klientek do solonego formatu PBKDF2
+        try {
+          const crypto = require("crypto");
+          const customers = await prisma.customerAccount.findMany();
+          for (const c of customers) {
+            if (c.passwordHash && !c.passwordHash.includes(":")) {
+              const salt = crypto.randomBytes(16).toString("hex");
+              const hash = crypto.pbkdf2Sync(c.passwordHash.trim(), salt, 100000, 64, "sha512").toString("hex");
+              await prisma.customerAccount.update({
+                where: { id: c.id },
+                data: { passwordHash: `${salt}:${hash}` },
+              });
+              console.log(`[db-migrate] Zmigrowano haslo klientki ${c.email} do formatu PBKDF2.`);
+            }
+          }
+        } catch (custErr) {
+          console.warn("[db-migrate] Ostrzezenie migracji hasel klientek:", custErr.message);
+        }
+
         // Unieważnienie starych sesji administratora
         try {
           await prisma.adminSession.deleteMany({});

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserSession } from "@/lib/admin-auth";
-import { loadLocalStore, saveLocalStore } from "@/lib/store-data";
+import { getCustomerByEmail, updateCustomerProfile, normalizeEmail } from "@/lib/store-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,9 +12,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Wymagane logowanie." }, { status: 401 });
     }
 
-    const emailNorm = session.email.trim().toLowerCase();
-    const store = loadLocalStore();
-    const customer = (store.customers || []).find((c) => c.email.toLowerCase() === emailNorm);
+    const emailNorm = normalizeEmail(session.email);
+    const customer = await getCustomerByEmail(emailNorm);
 
     if (!customer) {
       return NextResponse.json({
@@ -31,6 +30,17 @@ export async function GET(req: NextRequest) {
       firstName: customer.firstName,
       lastName: customer.lastName,
       phone: customer.phone || "",
+      defaultStreet: customer.defaultStreet || "",
+      defaultCity: customer.defaultCity || "",
+      defaultPostalCode: customer.defaultPostalCode || "",
+      lastParcelLocker: customer.lastParcelLocker || "",
+      lastParcelLockerAddress: customer.lastParcelLockerAddress || "",
+      invoiceType: customer.invoiceType || null,
+      invoiceCompanyName: customer.invoiceCompanyName || "",
+      invoiceNip: customer.invoiceNip || "",
+      invoiceStreet: customer.invoiceStreet || "",
+      invoiceCity: customer.invoiceCity || "",
+      invoicePostalCode: customer.invoicePostalCode || "",
       createdAt: customer.createdAt,
       marketingConsent: Boolean((customer as any).marketingConsent),
       marketingConsentDate: (customer as any).marketingConsentDate || customer.createdAt,
@@ -47,22 +57,30 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Wymagane logowanie." }, { status: 401 });
     }
 
-    const { firstName, lastName, phone } = await req.json();
+    const body = await req.json();
+    const emailNorm = normalizeEmail(session.email);
 
-    const emailNorm = session.email.trim().toLowerCase();
-    const store = loadLocalStore();
-    const customer = (store.customers || []).find((c) => c.email.toLowerCase() === emailNorm);
-
-    if (customer) {
-      if (firstName) customer.firstName = firstName.trim();
-      if (lastName) customer.lastName = lastName.trim();
-      if (phone !== undefined) customer.phone = phone.trim();
-      saveLocalStore(store);
-    }
+    const updated = await updateCustomerProfile(emailNorm, {
+      firstName: body.firstName,
+      lastName: body.lastName,
+      phone: body.phone,
+      defaultStreet: body.defaultStreet,
+      defaultCity: body.defaultCity,
+      defaultPostalCode: body.defaultPostalCode,
+      lastParcelLocker: body.lastParcelLocker,
+      lastParcelLockerAddress: body.lastParcelLockerAddress,
+      invoiceType: body.invoiceType,
+      invoiceCompanyName: body.invoiceCompanyName,
+      invoiceNip: body.invoiceNip,
+      invoiceStreet: body.invoiceStreet,
+      invoiceCity: body.invoiceCity,
+      invoicePostalCode: body.invoicePostalCode,
+    });
 
     return NextResponse.json({
       success: true,
       message: "Dane zostały zaktualizowane.",
+      customer: updated,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

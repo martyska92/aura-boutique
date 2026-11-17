@@ -1,0 +1,706 @@
+{
+  "categories": [
+    {
+      "id": "cat-sukienki",
+      "name": "Sukienki",
+      "slug": "sukienki",
+      "description": "Kobiece sukienki na co dzień, do pracy i na wyjątkowe okazje.",
+      "imageUrl": "/images/categories/cat-sukienki.jpg",
+      "orderIndex": 1,
+      "isActive": true
+    },
+    {
+      "id": "cat-swetry",
+      "name": "Swetry",
+      "slug": "swetry",
+      "description": "Ciepłe i otulające swetry z dodatkiem wełny, alpaki i kaszmiru.",
+      "imageUrl": "/images/categories/cat-swetry.jpg",
+      "orderIndex": 2,
+      "isActive": true
+    },
+    {
+      "id": "cat-bluzy",
+      "name": "Bluzy",
+      "slug": "bluzy",
+      "description": "Wygodne, miękkie i stylowe bluzy damskie z wysokogatunkowych tkanin.",
+      "imageUrl": "/images/categories/cat-bluzy.jpg",
+      "orderIndex": 3,
+      "isActive": true
+    },
+    {
+      "id": "cat-koszule",
+      "name": "Koszule",
+      "slug": "koszule",
+      "description": "Eleganckie koszule satynowe, bawełniane i wiskozowe na każdą okazję.",
+      "imageUrl": "/images/categories/cat-koszule.jpg",
+      "orderIndex": 4,
+      "isActive": true
+    },
+    {
+      "id": "cat-topy",
+      "name": "Topy",
+      "slug": "topy",
+      "description": "Kobiece topy na ramiączkach, satynowe bazy i minimalistyczne fasony.",
+      "imageUrl": "/images/categories/cat-topy.jpg",
+      "orderIndex": 5,
+      "isActive": true
+    },
+    {
+      "id": "cat-t-shirty",
+      "name": "T-shirty",
+      "slug": "t-shirty",
+      "description": "Klasyczne t-shirty z bawełny organicznej w odcieniach nude, bieli i czerni.",
+      "imageUrl": "/images/categories/cat-t-shirty.jpg",
+      "orderIndex": 6,
+      "isActive": true
+    },
+    {
+      "id": "cat-marynarki",
+      "name": "Marynarki",
+      "slug": "marynarki",
+      "description": "Dopasowane i oversize'owe marynarki dodające klasy każdej stylizacji.",
+      "imageUrl": "/images/categories/cat-marynarki.jpg",
+      "orderIndex": 7,
+      "isActive": true
+    },
+    {
+      "id": "cat-legginsy",
+      "name": "Legginsy",
+      "slug": "legginsy",
+      "description": "Stylowe, wygodne i modelujące legginsy damskie na każdą okazję.",
+      "imageUrl": "/images/categories/cat-t-shirty.jpg",
+      "orderIndex": 8,
+      "isActive": true
+    }
+  ],
+  "products": [
+    {
+      "id": "prod-1794347829372",
+      "name": "Nowa Sukienka Letnia",
+      "slug": "nowa-sukienka-letnia",
+      "description": "Piekna sukienka",
+      "composition": "",
+      "careGuide": "",
+      "sizeGuide": "",
+      "basePrice": 249,
+      "isPromoted": false,
+      "isNew": false,
+      "isBestseller": false,
+      "isPublished": true,
+      "isArchived": false,
+      "isDemo": false,
+      "categoryId": "cat-sukienki",
+      "images": [],
+      "variants": [],
+      "createdAt": "2026-11-10T21:57:09.372Z",
+      "updatedAt": "2026-11-10T21:57:09.372Z"
+    },
+    {
+      "id": "prod-1",
+      "name": "Satynowa Sukienka Midi z Wiązaniem",
+      "slug": "satynowa-sukienka-midi-z-wiazaniem",
+      "description": "Zmysłowa i niezwykle kobieca sukienka midi wykonana z lejącej, najwyższej próby satyny jedwabistej. Regulowane ramiączka, subtelny dekolt woda oraz pasek podkreślający talię sprawiają, że leży nienagannie na każdej sylwetce. Idealna na wyjątkowe okazje, wieczorne wyjścia i eleganckie spotkania.",
+      "composition": "75% wiskoza wysokogatunkowa, 25% jedwab naturalny",
+      "careGuide": "Pranie delikatne ręczne w temperaturze max 30°C z użyciem płynów do tkanin delikatnych. Prasować po lewej stronie chłodnym żelazkiem (max 110°C). Nie wirować.",
+      "sizeGuide": "XS: Biust 82-86 cm, Talia 62-66 cm, Długość 122 cm\nS: Biust 86-90 cm, Talia 66-70 cm, Długość 123 cm\nM: Biust 90-95 cm, Talia 70-75 cm, Długość 124 cm\nL: Biust 95-100 cm, Talia 75-80 cm, Długość 125 cm",
+      "basePrice": 349,
+      "promotionalPrice": 299,
+      "isPromoted": true,
+      "isNew": true,
+      "isBestseller": true,
+      "isPublished": true,
+      "isArchived": false,
+      "isDemo": false,
+      "categoryId": "cat-sukienki",
+      "images": [
+        {
+          "id": "img-1-1",
+          "productId": "prod-1",
+          "url": "/images/products/sukienka-satynowa-ivory.jpg",
+          "altText": "Satynowa Sukienka Midi Ivory AURA Boutique",
+          "orderIndex": 1,
+          "isPrimary": true
+        }
+      ],
+      "variants": [
+        {
+          "id": "var-1-xs-ivory",
+          "productId": "prod-1",
+          "size": "XS",
+          "color": "Kość Słoniowa (Ivory)",
+          "colorHex": "#FAF4EC",
+          "sku": "AURA-SUK-01-XS-IVR",
+          "stockQuantity": 4,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-1-s-ivory",
+          "productId": "prod-1",
+          "size": "S",
+          "color": "Kość Słoniowa (Ivory)",
+          "colorHex": "#FAF4EC",
+          "sku": "AURA-SUK-01-S-IVR",
+          "stockQuantity": 5,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-1-m-ivory",
+          "productId": "prod-1",
+          "size": "M",
+          "color": "Kość Słoniowa (Ivory)",
+          "colorHex": "#FAF4EC",
+          "sku": "AURA-SUK-01-M-IVR",
+          "stockQuantity": 3,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-1-l-ivory",
+          "productId": "prod-1",
+          "size": "L",
+          "color": "Kość Słoniowa (Ivory)",
+          "colorHex": "#FAF4EC",
+          "sku": "AURA-SUK-01-L-IVR",
+          "stockQuantity": 2,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-1-s-black",
+          "productId": "prod-1",
+          "size": "S",
+          "color": "Głęboka Czerń",
+          "colorHex": "#141414",
+          "sku": "AURA-SUK-01-S-BLK",
+          "stockQuantity": 5,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-1-m-black",
+          "productId": "prod-1",
+          "size": "M",
+          "color": "Głęboka Czerń",
+          "colorHex": "#141414",
+          "sku": "AURA-SUK-01-M-BLK",
+          "stockQuantity": 4,
+          "reservedQuantity": 0
+        }
+      ],
+      "createdAt": "2026-10-26T16:38:58.519Z",
+      "updatedAt": "2026-10-26T16:38:58.519Z"
+    },
+    {
+      "id": "prod-2",
+      "name": "Sweter ze Splotem Wełniano-Kaszmirowym",
+      "slug": "sweter-ze-splotem-welniano-kaszmirowym",
+      "description": "Niezwykle miękki i ciepły sweter ze stójką, uszyty z luksusowej mieszanki wełny merino i kaszmiru. Delikatny prążkowany splot, obniżona linia ramion oraz klasyczny fason gwarantują swobodę i ponadczasowy styl.",
+      "composition": "70% wełna merynosowa (Merino Wool), 30% kaszmir",
+      "careGuide": "Pranie chemiczne lub pranie ręczne w chłodnej wodzie w płynie do wełny. Suszyć wyłącznie rozłożony na płasko na ręczniku. Nie wykręcać.",
+      "sizeGuide": "S: Biust 96-104 cm, Długość całkowita 60 cm, Rękaw 62 cm\nM: Biust 102-110 cm, Długość całkowita 62 cm, Rękaw 63 cm\nL: Biust 108-116 cm, Długość całkowita 64 cm, Rękaw 64 cm",
+      "basePrice": 389,
+      "isPromoted": false,
+      "isNew": true,
+      "isBestseller": true,
+      "isPublished": true,
+      "isArchived": false,
+      "isDemo": false,
+      "categoryId": "cat-swetry",
+      "images": [
+        {
+          "id": "img-2-1",
+          "productId": "prod-2",
+          "url": "/images/products/sweter-kaszmirowy-sand.jpg",
+          "altText": "Sweter z Wełną Merino i Kaszmirem Piaskowy Beż AURA",
+          "orderIndex": 1,
+          "isPrimary": true
+        }
+      ],
+      "variants": [
+        {
+          "id": "var-2-s-sand",
+          "productId": "prod-2",
+          "size": "S",
+          "color": "Piaskowy Beż (Sand)",
+          "colorHex": "#D8C7B5",
+          "sku": "AURA-SWE-02-S-SND",
+          "stockQuantity": 5,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-2-m-sand",
+          "productId": "prod-2",
+          "size": "M",
+          "color": "Piaskowy Beż (Sand)",
+          "colorHex": "#D8C7B5",
+          "sku": "AURA-SWE-02-M-SND",
+          "stockQuantity": 7,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-2-l-sand",
+          "productId": "prod-2",
+          "size": "L",
+          "color": "Piaskowy Beż (Sand)",
+          "colorHex": "#D8C7B5",
+          "sku": "AURA-SWE-02-L-SND",
+          "stockQuantity": 3,
+          "reservedQuantity": 0
+        }
+      ],
+      "createdAt": "2026-10-26T16:38:58.519Z",
+      "updatedAt": "2026-10-26T16:38:58.519Z"
+    },
+    {
+      "id": "prod-3",
+      "name": "Elegancki Garnitur Damski Blush Rose",
+      "slug": "elegancki-garnitur-damski-blush-rose",
+      "description": "Damski garnitur w odcieniu przydymionego pudrowego różu. Zestaw składa się z jednorzędowej marynarki o nowoczesnej, lekko luźniejszej linii oraz spodni z wysokim stanem i eleganckim kantem. Perfekcyjne krawiectwo i wykończenie.",
+      "composition": "68% poliester szlachetny, 28% wiskoza, 4% elastan. Podszewka: 100% acetat oddychający.",
+      "careGuide": "Zalecane profesjonalne czyszczenie chemiczne.",
+      "sizeGuide": "36 (S): Marynarka biust 92 cm, talia spodni 68 cm, biodra 94 cm\n38 (M): Marynarka biust 96 cm, talia spodni 72 cm, biodra 98 cm\n40 (L): Marynarka biust 100 cm, talia spodni 76 cm, biodra 102 cm",
+      "basePrice": 549,
+      "promotionalPrice": 469,
+      "isPromoted": true,
+      "isNew": false,
+      "isBestseller": true,
+      "isPublished": true,
+      "isArchived": false,
+      "isDemo": true,
+      "categoryId": "cat-marynarki",
+      "images": [
+        {
+          "id": "img-3-1",
+          "productId": "prod-3",
+          "url": "/images/products/garnitur-blush-rose.jpg",
+          "altText": "Komplet Garniturowy Pudrowy Róż AURA Boutique",
+          "orderIndex": 1,
+          "isPrimary": true
+        }
+      ],
+      "variants": [
+        {
+          "id": "var-3-s-blush",
+          "productId": "prod-3",
+          "size": "S (36)",
+          "color": "Pudrowy Róż (Blush)",
+          "colorHex": "#E5BEB8",
+          "sku": "AURA-KOM-03-S-BLS",
+          "stockQuantity": 3,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-3-m-blush",
+          "productId": "prod-3",
+          "size": "M (38)",
+          "color": "Pudrowy Róż (Blush)",
+          "colorHex": "#E5BEB8",
+          "sku": "AURA-KOM-03-M-BLS",
+          "stockQuantity": 4,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-3-l-blush",
+          "productId": "prod-3",
+          "size": "L (40)",
+          "color": "Pudrowy Róż (Blush)",
+          "colorHex": "#E5BEB8",
+          "sku": "AURA-KOM-03-L-BLS",
+          "stockQuantity": 2,
+          "reservedQuantity": 0
+        }
+      ],
+      "createdAt": "2026-10-26T16:38:58.519Z",
+      "updatedAt": "2026-10-26T16:38:58.519Z"
+    },
+    {
+      "id": "prod-4",
+      "name": "Dwurzędowy Płaszcz Wełniany Camel",
+      "slug": "dwurzedowy-plaszcz-welniany-camel",
+      "description": "Kultowy płaszcz w odcieniu ciepłego camel. Uszyty z gęstej wełny owczej z dodatkiem kaszmiru. Posiada pasek z klamrą do wiązania w talii, szerokie klapy i rozcięcie z tyłu zapewniające komfort ruchu. Prawdziwa inwestycja na lata w garderobie eleganckiej kobiety.",
+      "composition": "80% wełna jagnięca, 20% poliamid zapewniający trwałość formy. Podszewka: 100% wiskoza.",
+      "careGuide": "Wyłącznie czyszczenie chemiczne.",
+      "sizeGuide": "S/M: Biust do 102 cm, Biodra do 106 cm, Długość 118 cm\nM/L: Biust do 110 cm, Biodra do 114 cm, Długość 120 cm",
+      "basePrice": 799,
+      "isPromoted": false,
+      "isNew": true,
+      "isBestseller": false,
+      "isPublished": true,
+      "isArchived": false,
+      "isDemo": true,
+      "categoryId": "cat-marynarki",
+      "images": [
+        {
+          "id": "img-4-1",
+          "productId": "prod-4",
+          "url": "/images/products/plaszcz-welna-camel.jpg",
+          "altText": "Wełniany Płaszcz Camel AURA Boutique K.B.",
+          "orderIndex": 1,
+          "isPrimary": true
+        }
+      ],
+      "variants": [
+        {
+          "id": "var-4-sm-camel",
+          "productId": "prod-4",
+          "size": "S/M",
+          "color": "Ciepły Camel",
+          "colorHex": "#B8874E",
+          "sku": "AURA-PLA-04-SM-CML",
+          "stockQuantity": 4,
+          "reservedQuantity": 0
+        },
+        {
+          "id": "var-4-ml-camel",
+          "productId": "prod-4",
+          "size": "M/L",
+          "color": "Ciepły Camel",
+          "colorHex": "#B8874E",
+          "sku": "AURA-PLA-04-ML-CML",
+          "stockQuantity": 3,
+          "reservedQuantity": 0
+        }
+      ],
+      "createdAt": "2026-10-26T16:38:58.519Z",
+      "updatedAt": "2026-10-26T16:38:58.519Z"
+    }
+  ],
+  "orders": [
+    {
+      "customerFirstName": "Karolina",
+      "customerLastName": "Borkowska",
+      "customerEmail": "karolina@auraboutique.pl",
+      "customerPhone": "+48600123456",
+      "shippingMethod": "INPOST_LOCKER",
+      "parcelLockerCode": "ZMI01M",
+      "paymentMethod": "BLIK",
+      "paymentStatus": "PENDING",
+      "fulfillmentStatus": "SHIPPED",
+      "subtotalAmount": 299,
+      "shippingCost": 13,
+      "totalAmount": 312,
+      "customerNotes": "Test zamówienia",
+      "reservedUntil": "2026-10-26T17:41:00.028Z",
+      "items": [
+        {
+          "id": "oi-1793032860028-ul1ddg",
+          "orderId": "",
+          "variantId": "var-1-s-ivory",
+          "productNameSnapshot": "Satynowa Sukienka Midi z Wiązaniem",
+          "variantSnapshot": "Rozmiar: S, Kolor: Kość Słoniowa (Ivory), SKU: AURA-SUK-01-S-IVR",
+          "unitPriceSnapshot": 299,
+          "quantity": 1,
+          "totalSnapshot": 299,
+          "productImageUrl": "/images/products/sukienka-satynowa-ivory.jpg"
+        }
+      ],
+      "id": "ord-1793032860029",
+      "orderNumber": "AURA-20261026-9407",
+      "createdAt": "2026-10-26T16:41:00.029Z",
+      "updatedAt": "2026-10-26T16:41:46.845Z",
+      "trackingNumber": "624000111222333444555666"
+    },
+    {
+      "id": "ord-demo-1",
+      "orderNumber": "AURA-2026-0001",
+      "customerFirstName": "Anna",
+      "customerLastName": "Kowalska",
+      "customerEmail": "anna.kowalska@example.pl",
+      "customerPhone": "+48 501 234 567",
+      "shippingMethod": "INPOST_LOCKER",
+      "parcelLockerCode": "ZMI01M",
+      "paymentMethod": "BLIK",
+      "paymentStatus": "PENDING",
+      "fulfillmentStatus": "NEW",
+      "subtotalAmount": 299,
+      "shippingCost": 13,
+      "totalAmount": 312,
+      "customerNotes": "Proszę o staranne zapakowanie na prezent.",
+      "items": [
+        {
+          "id": "item-1-1",
+          "orderId": "ord-demo-1",
+          "variantId": "var-1-s-ivory",
+          "productNameSnapshot": "Satynowa Sukienka Midi z Wiązaniem",
+          "variantSnapshot": "Rozmiar: S, Kolor: Kość Słoniowa (Ivory), SKU: AURA-SUK-01-S-IVR",
+          "unitPriceSnapshot": 299,
+          "quantity": 1,
+          "totalSnapshot": 299,
+          "productImageUrl": "/images/products/sukienka-satynowa-ivory.jpg"
+        }
+      ],
+      "createdAt": "2026-10-26T14:38:58.519Z",
+      "updatedAt": "2026-10-26T14:38:58.519Z"
+    },
+    {
+      "id": "ord-demo-2",
+      "orderNumber": "AURA-2026-0002",
+      "customerFirstName": "Magdalena",
+      "customerLastName": "Nowak",
+      "customerEmail": "magda.nowak@example.pl",
+      "customerPhone": "+48 602 345 678",
+      "shippingMethod": "LOCAL_PICKUP",
+      "paymentMethod": "TRADITIONAL_TRANSFER",
+      "paymentStatus": "PENDING",
+      "fulfillmentStatus": "PROCESSING",
+      "subtotalAmount": 389,
+      "shippingCost": 0,
+      "totalAmount": 389,
+      "customerNotes": "Odbiorę osobiście w butiku w Żmigrodzie w czwartek po 14:00.",
+      "items": [
+        {
+          "id": "item-2-1",
+          "orderId": "ord-demo-2",
+          "variantId": "var-2-m-sand",
+          "productNameSnapshot": "Sweter ze Splotem Wełniano-Kaszmirowym",
+          "variantSnapshot": "Rozmiar: M, Kolor: Piaskowy Beż (Sand), SKU: AURA-SWE-02-M-SND",
+          "unitPriceSnapshot": 389,
+          "quantity": 1,
+          "totalSnapshot": 389,
+          "productImageUrl": "/images/products/sweter-kaszmirowy-sand.jpg"
+        }
+      ],
+      "createdAt": "2026-10-25T16:38:58.519Z",
+      "updatedAt": "2026-10-25T20:38:58.519Z"
+    }
+  ],
+  "settings": {
+    "id": "default",
+    "boutiqueName": "AURA Boutique K.B.",
+    "companyName": "AURA BOUTIQUE K.B. [do uzupełnienia pełna nazwa rejestrowa]",
+    "nip": "6131569301",
+    "regon": "[do uzupełnienia]",
+    "address": "ul. Poprzeczna 3/1A, 55-140 Żmigród",
+    "phone": "+48 789 999 888",
+    "email": "kontakt@auraboutique.pl",
+    "openingHours": "Pon - Pt: 10:00 - 17:00 | Sob: 9:00 - 13:00",
+    "announcementBarText": "Darmowa dostawa od 300 PLN | Odbiór osobisty w butiku w Żmigrodzie",
+    "heroHeadline": "Elegancja w każdym detalu",
+    "heroSubheadline": "Odkryj kolekcję stworzoną dla kobiet ceniących klasę, subtelność i najwyższą jakość kroju.",
+    "heroImageUrl": "/images/hero/aura-hero-motto.png",
+    "heroButtonText": "Odkryj kolekcję",
+    "heroButtonLink": "/katalog",
+    "announcementBarLeft": "AURA Boutique • Nowa Kolekcja",
+    "announcementBarRight": "Wysyłka w 24h • Płatność BLIK",
+    "payuSandbox": true,
+    "payuEnabled": false,
+    "defaultPaymentGateway": "P24",
+    "freeShippingFrom": 300,
+    "courierCost": 15,
+    "inpostLockerCost": 13,
+    "localPickupCost": 0,
+    "emailProvider": "smtp",
+    "smtpHost": "smtp.wp.pl",
+    "smtpPort": 465,
+    "smtpUser": "aurazmigrod@wp.pl",
+    "smtpSecure": true,
+    "emailSenderName": "AURA Boutique K.B.",
+    "emailSenderAddress": "aurazmigrod@wp.pl",
+    "bankAccountNumber": "52 1090 2398 0000 0001 5482 9102",
+    "bankName": "Santander Bank Polska S.A.",
+    "bankAccountRecipient": "AURA BOUTIQUE KLAUDIA BIAŁEK",
+    "traditionalTransferEnabled": true,
+    "codEnabled": false,
+    "termsAndConditions": "§ 1. Postanowienia ogólne i dane Sprzedawcy\n1. Niniejszy Regulamin określa zasady korzystania ze sklepu internetowego AURA Boutique K.B. oraz warunki składania zamówień i zawierania umów sprzedaży na odległość.\n2. Sprzedawcą i właścicielem sklepu internetowego AURA BOUTIQUE K.B. jest:\nFirma / Sprzedawca: AURA BOUTIQUE K.B. [do uzupełnienia pełna nazwa rejestrowa]\nNIP: 6131569301\nREGON: [do uzupełnienia]\nAdres siedziby rejestrowej: [do uzupełnienia]\nAdres butiku stacjonarnego i odbiorów osobistych: ul. Poprzeczna 3/1A, 55-140 Żmigród\nAdres do zwrotów i reklamacji: AURA Boutique K.B. - ZWROTY, ul. Poprzeczna 3/1A, 55-140 Żmigród\nAdres poczty elektronicznej: kontakt@auraboutique.pl | Telefon: +48 789 123 456\n\n§ 2. Zasady składania zamówień i zakupy bez rejestracji\n1. Sklep umożliwia składanie zamówień zarówno z rejestracją konta, jak i bez rejestracji (zakupy jako gość).\n2. Wszystkie ceny produktów podawane są w polskich złotych (PLN) i stanowią całkowitą kwotę do zapłaty (sprzedawca zwolniony podmiotowo z VAT).\n3. Do momentu zaakceptowania zamówienia przez butik i zmiany statusu na \"W realizacji\", klientka ma możliwość dokupienia kolejnych ubrań bez dodatkowych kosztów przesyłki. Po przejściu w status \"W realizacji\" edycja zamówienia zostaje zablokowana.\n\n§ 3. Dostawa i Płatności\n1. Dostępne metody dostawy: Paczkomaty InPost (13,00 zł), Kurier (15,00 zł), Odbiór osobisty w butiku stacjonarnym w Żmigrodzie (0,00 zł).\n2. Standardowa dostawa jest bezpłatna dla zamówień o wartości produktów co najmniej 300,00 zł po uwzględnieniu rabatów.\n3. Dostępne metody płatności: Płatność online BLIK, szybkie przelewy Przelewy24 oraz tradycyjny przelew bankowy.\n\n§ 4. Odstąpienie od umowy i zwroty (14 dni)\n1. Każda klientka będąca konsumentem ma prawo odstąpić od umowy w terminie 14 dni od dnia odebrania przesyłki bez podawania przyczyny.\n2. Zgłoszenie zwrotu można wyklikać bezpośrednio na stronie ze statusem zamówienia lub drogą mailową.\n3. Adres do doręczenia przesyłki ze zwracanym towarem: AURA Boutique K.B. - ZWROTY, ul. Poprzeczna 3/1A, 55-140 Żmigród.\n\n§ 5. Postanowienia końcowe\n1. Umowy zawierane poprzez sklep internetowy zawierane są w języku polskim i podlegają prawu polskiemu.",
+    "privacyPolicy": "POLITYKA PRYWATNOŚCI I KLAUZULA INFORMACYJNA RODO\nAURA Boutique K.B.\n\n1. Administrator Danych Osobowych\nAdministratorem danych osobowych klientek sklepu internetowego oraz butiku stacjonarnego jest AURA Boutique K.B. Karolina Borkowska, ul. Poprzeczna 3/1A, 55-140 Żmigród, NIP: 6131569301, e-mail: kontakt@auraboutique.pl, telefon: +48 789 123 456.\n\n2. Cele i podstawy przetwarzania danych\nDane osobowe przetwarzane są w celu:\na) realizacji złożonych zamówień i umów sprzedaży (art. 6 ust. 1 lit. b RODO),\nb) obsługi zwrotów, reklamacji i wystawiania dokumentów księgowych (art. 6 ust. 1 lit. c RODO),\nc) udziału w programie poleceń oraz systemie rabatowym i opiniach (art. 6 ust. 1 lit. b i f RODO),\nd) kontaktu telefonicznego lub mailowego w sprawach doręczenia przesyłki i statusu zamówienia.\n\n3. Odbiorcy danych\nDane mogą być przekazywane wyłącznie podmiotom niezbędnym do realizacji zamówienia: operatorom pocztowym i kurierskim (InPost, firmy kurierskie) oraz operatorom płatności online (Przelewy24).\n\n4. Prawa osoby, której dane dotyczą\nKażda klientka ma prawo dostępu do swoich danych, ich sprostowania, usunięcia (\"prawo do bycia zapomnianym\"), ograniczenia przetwarzania oraz wniesienia sprzeciwu. W celu realizacji praw prosimy o kontakt na adres kontakt@auraboutique.pl.\n\n5. Bezpieczeństwo\nSklep stosuje szyfrowanie SSL, a dane przechowywane są zgodnie z najwyższymi standardami bezpieczeństwa teleinformatycznego.",
+    "inpostApiKey": "",
+    "inpostOrganizationId": "",
+    "inpostEnvironment": "production",
+    "inpostSenderLocker": "ZMI01M",
+    "inpostSenderName": "AURA Boutique K.B.",
+    "inpostSenderEmail": "kontakt@auraboutique.pl",
+    "inpostSenderPhone": "+48 572 268 005",
+    "p24MerchantId": "",
+    "p24PosId": "",
+    "p24CrcKey": "",
+    "p24ApiKey": "",
+    "p24Sandbox": true,
+    "registeredAddress": "[do uzupełnienia]",
+    "returnAddress": "AURA Boutique K.B. - ZWROTY, ul. Poprzeczna 3/1A, 55-140 Żmigród",
+    "smtpPassword": "TajemneHasloWP_2026!#"
+  },
+  "promotions": [
+    {
+      "id": "promo-weekend-15",
+      "name": "Weekendowa Promocja –15% na wybraną kategorię",
+      "publicTitle": "Weekendowa Promocja –15% na Marynarki!",
+      "type": "CATEGORY_WEEKEND",
+      "discountValue": 15,
+      "isAutomatic": true,
+      "targetScope": "CATEGORIES",
+      "categoryIds": [
+        "cat-marynarki"
+      ],
+      "excludeDiscounted": true,
+      "noEndDate": true,
+      "isRecurringWeekend": true,
+      "targetAudience": "ALL",
+      "currentUsageCount": 0,
+      "canCombineWithOtherPromotions": false,
+      "bannerEnabled": true,
+      "bannerText": "✨ Weekend z AURA Boutique (od piątku 18:00 do niedzieli 23:59): –15% na Marynarki! Rabat nalicza się automatycznie w koszyku.",
+      "bannerButtonText": "Zobacz Marynarki",
+      "bannerButtonUrl": "/katalog?kategoria=marynarki",
+      "isActive": true,
+      "createdAt": "2026-11-10T11:09:25.208Z",
+      "updatedAt": "2026-11-10T11:09:25.209Z"
+    },
+    {
+      "id": "promo-first-order-15",
+      "name": "–15% na pierwsze zamówienie",
+      "publicTitle": "Rabat –15% na Twoje pierwsze zakupy",
+      "type": "FIRST_ORDER",
+      "discountValue": 15,
+      "isAutomatic": false,
+      "targetScope": "ALL",
+      "excludeDiscounted": false,
+      "noEndDate": true,
+      "targetAudience": "NEW_CUSTOMERS",
+      "currentUsageCount": 0,
+      "canCombineWithOtherPromotions": false,
+      "bannerEnabled": false,
+      "isActive": true,
+      "createdAt": "2026-11-10T11:09:25.209Z",
+      "updatedAt": "2026-11-10T11:09:25.209Z"
+    },
+    {
+      "id": "promo-socks-gift",
+      "name": "Promocja na start — Skarpetki w prezencie",
+      "publicTitle": "Prezent na otwarcie! Skarpetki w losowym kolorze gratis",
+      "type": "FREE_GIFT",
+      "discountValue": 0,
+      "minOrderValue": 100,
+      "isAutomatic": true,
+      "targetScope": "ALL",
+      "excludeDiscounted": false,
+      "noEndDate": true,
+      "targetAudience": "ALL",
+      "currentUsageCount": 0,
+      "canCombineWithOtherPromotions": true,
+      "bannerEnabled": true,
+      "bannerText": "🎁 Prezent na otwarcie! Przy zakupach powyżej 100 zł otrzymasz skarpetki w losowym kolorze gratis. Do wyczerpania zapasów.",
+      "bannerButtonText": "Zrób zakupy",
+      "bannerButtonUrl": "/katalog",
+      "giftProductId": "prod-socks-gift",
+      "giftAvailableColors": [
+        "Cielisty Nude",
+        "Kremowy Ecru",
+        "Czarne Classic",
+        "Pudrowy Róż"
+      ],
+      "giftStockQuantity": 50,
+      "giftReservedQuantity": 0,
+      "isActive": true,
+      "createdAt": "2026-11-10T11:09:25.209Z",
+      "updatedAt": "2026-11-10T11:09:25.209Z"
+    },
+    {
+      "id": "promo-free-shipping-300",
+      "name": "Darmowa dostawa od 300 zł",
+      "publicTitle": "Darmowa dostawa od 300 PLN",
+      "type": "FREE_SHIPPING",
+      "discountValue": 0,
+      "minOrderValue": 300,
+      "isAutomatic": true,
+      "targetScope": "ALL",
+      "excludeDiscounted": false,
+      "noEndDate": true,
+      "targetAudience": "ALL",
+      "currentUsageCount": 0,
+      "canCombineWithOtherPromotions": true,
+      "bannerEnabled": true,
+      "bannerText": "Darmowa dostawa od 300 PLN dla zamówień kurierem i do paczkomatu InPost.",
+      "isActive": true,
+      "createdAt": "2026-11-10T11:09:25.209Z",
+      "updatedAt": "2026-11-10T11:09:25.209Z"
+    }
+  ],
+  "individualDiscounts": [
+    {
+      "id": "ind-1794316986768",
+      "email": "klientka_b_1794316986765@aura-test.pl",
+      "discountPercent": 15,
+      "scope": "ALL",
+      "categoryIds": [],
+      "productIds": [],
+      "isIndefinite": true,
+      "isActive": true,
+      "adminNote": "Rabat powitalny –15% dla nowej klientki: Beata Nowak",
+      "isEmailVerified": true,
+      "verificationToken": "RAC3QO",
+      "createdAt": "2026-11-10T13:23:06.767Z",
+      "updatedAt": "2026-11-10T13:23:06.767Z"
+    },
+    {
+      "id": "ind-1794316986763",
+      "email": "klientka_a_1794316986759@aura-test.pl",
+      "discountPercent": 15,
+      "scope": "ALL",
+      "categoryIds": [],
+      "productIds": [],
+      "isIndefinite": true,
+      "isActive": true,
+      "adminNote": "Rabat powitalny –15% dla nowej klientki: Anna Kowalska",
+      "isEmailVerified": true,
+      "verificationToken": "NHS9UL",
+      "createdAt": "2026-11-10T13:23:06.763Z",
+      "updatedAt": "2026-11-10T13:23:06.763Z"
+    }
+  ],
+  "referralParticipants": [],
+  "referralRewardCodes": [],
+  "productReviews": [],
+  "promotionAuditLogs": [
+    {
+      "id": "log-1794323445260-itxakm",
+      "timestamp": "2026-11-10T15:10:45.260Z",
+      "adminUser": "System resetowania hasła",
+      "action": "RESET_HASŁA_ADMINA",
+      "details": "Pomyślnie zresetowano hasło dla konta właścicielki butiku (aurazmigrod@wp.pl)."
+    },
+    {
+      "id": "log-1794323445257-8j6f",
+      "timestamp": "2026-11-10T15:10:45.257Z",
+      "adminUser": "System resetowania hasła",
+      "action": "RESET_HASŁA_ADMINA",
+      "details": "Pomyślnie zresetowano hasło dla konta właścicielki butiku (aurazmigrod@wp.pl)."
+    },
+    {
+      "id": "log-1794316986801-aju5t",
+      "timestamp": "2026-11-10T13:23:06.801Z",
+      "adminUser": "Właścicielka",
+      "action": "Przyznano nagrodę polecającej: klientka_a_1794316986759@aura-test.pl",
+      "details": "Kod 15%: POLECAM-K5UK5G za zrealizowane zamówienie TEST-001"
+    },
+    {
+      "id": "log-1794316986769-pfbm6",
+      "timestamp": "2026-11-10T13:23:06.769Z",
+      "adminUser": "Właścicielka",
+      "action": "Przyznano indywidualny rabat dla: klientka_b_1794316986765@aura-test.pl",
+      "details": "Rabat: 15%"
+    },
+    {
+      "id": "log-1794316986764-20zaij",
+      "timestamp": "2026-11-10T13:23:06.764Z",
+      "adminUser": "Właścicielka",
+      "action": "Przyznano indywidualny rabat dla: klientka_a_1794316986759@aura-test.pl",
+      "details": "Rabat: 15%"
+    }
+  ],
+  "contactMessages": [],
+  "adminAccount": {
+    "email": "aurazmigrod@wp.pl",
+    "passwordHash": "bf90b090afd2fa8bc8bf5919b88bc4fc:ccea2edaea38700fa7cac83c8d2ce0ce4a8f9e41d419c53333226a5f8d7a66a7f2e39060aa6c759046a5122ef64d1406a41b7b506ce390348a68cc17f29b04ae",
+    "mustChangePassword": true,
+    "lastPasswordChangedAt": "2026-11-17T16:55:28.733Z"
+  },
+  "customers": [],
+  "passwordResetTokens": [
+    {
+      "email": "aurazmigrod@wp.pl",
+      "codeHash": "80a04eea50902a7833ef34437604a8024529fbb26c1f5ef3a20ca24adbd01331",
+      "expiresAt": 1795012868870,
+      "attempts": 0,
+      "createdAt": 1794926468870
+    }
+  ],
+  "priceHistory": [],
+  "emailOutbox": []
+}

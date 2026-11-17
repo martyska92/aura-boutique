@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Sprawdzenie czy użytkownik już istnieje
+    // Sprawdzenie czy zarejestrowane konto z hasłem już istnieje
     const existing = await getCustomerByEmail(normalizedEmail);
-    if (existing) {
+    if (existing && existing.passwordHash) {
       return NextResponse.json(
         { error: "Konto z tym adresem e-mail już istnieje. Przejdź do logowania." },
         { status: 400 }

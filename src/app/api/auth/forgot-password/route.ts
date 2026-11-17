@@ -53,20 +53,20 @@ export async function POST(req: NextRequest) {
     // Wysłanie kodu resetującego przez wspólny moduł dispatchEmail (używający getResolvedEmailConfig)
     let sendResult: any = { success: false };
     try {
-      const { dispatchEmail } = await import("@/lib/email-service");
+      const { dispatchEmail, wrapBoutiqueEmailTemplate } = await import("@/lib/email-service");
+      const content = `
+        <h2 style="font-family: Georgia, serif; font-size: 20px; font-weight: normal; margin-top: 0; color: #241D1B;">Zresetuj hasło do konta AURA</h2>
+        <p style="font-size: 14px; color: #554D47;">Otrzymaliśmy prośbę o zmianę hasła do Twojego konta w butiku AURA. Twój jednorazowy kod weryfikacyjny to:</p>
+        <div style="background-color: #FAF6F1; border: 1px solid #DFCA9B; border-radius: 4px; padding: 18px; text-align: center; margin: 24px 0;">
+          <span style="font-size: 30px; font-family: monospace; letter-spacing: 6px; font-weight: bold; color: #8F6B38;">${resetCode}</span>
+        </div>
+        <p style="font-size: 12px; color: #7A6458;">Kod jest ważny przez 15 minut i może być użyty tylko raz. Jeśli to nie Ty prosiłaś o zmianę hasła, zignoruj tę wiadomość – Twoje dotychczasowe hasło pozostaje bezpieczne.</p>
+      `;
+      const html = wrapBoutiqueEmailTemplate("Twój kod do resetowania hasła | AURA Boutique", content);
       sendResult = await dispatchEmail({
         to: normalizedEmail,
         subject: "Twój kod do resetowania hasła | AURA Boutique",
-        html: `
-          <div style="font-family: Georgia, serif; max-width: 500px; margin: 0 auto; padding: 24px; color: #241D1B; line-height: 1.6;">
-            <h2 style="font-size: 20px; font-weight: normal; margin-top: 0; color: #241D1B;">Zresetuj hasło do konta AURA</h2>
-            <p style="font-size: 14px; color: #554D47;">Otrzymaliśmy prośbę o zmianę hasła do Twojego konta w butiku AURA. Twój jednorazowy kod weryfikacyjny to:</p>
-            <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 16px; text-align: center; margin: 24px 0;">
-              <span style="font-size: 28px; font-family: monospace; letter-spacing: 6px; font-weight: bold; color: #8F6B38;">${resetCode}</span>
-            </div>
-            <p style="font-size: 12px; color: #7A6458;">Kod jest ważny przez 15 minut i może być użyty tylko raz. Jeśli to nie Ty prosiłaś o zmianę hasła, zignoruj tę wiadomość – Twoje dotychczasowe hasło pozostaje bezpieczne.</p>
-          </div>
-        `,
+        html,
         type: "PASSWORD_RESET",
       });
 

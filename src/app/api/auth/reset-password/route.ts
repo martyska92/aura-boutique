@@ -44,17 +44,17 @@ export async function POST(req: NextRequest) {
 
     // Wysłanie powiadomienia o zmianie hasła
     try {
-      const { dispatchEmail } = await import("@/lib/email-service");
+      const { dispatchEmail, wrapBoutiqueEmailTemplate } = await import("@/lib/email-service");
+      const content = `
+        <h2 style="font-family: Georgia, serif; font-size: 20px; font-weight: normal; margin-top: 0; color: #241D1B;">Hasło zostało zmienione</h2>
+        <p style="font-size: 14px; color: #554D47;">Informujemy, że hasło do Twojego konta w butiku AURA zostało pomyślnie zmienione w dniu ${new Date().toLocaleString("pl-PL")}.</p>
+        <p style="font-size: 12px; color: #7A6458;">Jeśli to nie Ty dokonałaś tej zmiany, skontaktuj się niezwłocznie z obsługą butiku.</p>
+      `;
+      const html = wrapBoutiqueEmailTemplate("Twoje hasło w AURA zostało zmienione", content);
       await dispatchEmail({
         to: normalizedEmail,
         subject: "Twoje hasło w AURA Boutique zostało zmienione",
-        html: `
-          <div style="font-family: Georgia, serif; max-width: 500px; margin: 0 auto; padding: 24px; color: #241D1B; line-height: 1.6;">
-            <h2 style="font-size: 20px; font-weight: normal; margin-top: 0; color: #241D1B;">Hasło zostało zmienione</h2>
-            <p style="font-size: 14px; color: #554D47;">Informujemy, że hasło do Twojego konta w butiku AURA zostało pomyślnie zmienione w dniu ${new Date().toLocaleString("pl-PL")}.</p>
-            <p style="font-size: 12px; color: #7A6458;">Jeśli to nie Ty dokonałaś tej zmiany, skontaktuj się niezwłocznie z obsługą butiku.</p>
-          </div>
-        `,
+        html,
         type: "PASSWORD_CHANGED" as any,
       });
     } catch (notifyErr) {
