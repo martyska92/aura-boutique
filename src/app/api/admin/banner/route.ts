@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { getStoreSettings, updateStoreSettings } from "@/lib/store-data";
 import { getDefaultBannerConfig } from "@/lib/banner-defaults";
@@ -186,14 +187,31 @@ export async function POST(req: NextRequest) {
     const cleanConfig = sanitizeBannerConfig(body.config);
 
     if (action === "publish") {
-      cleanConfig.publishedAt = new Date().toISOString();
+      const publishedAt = new Date().toISOString();
+      cleanConfig.publishedAt = publishedAt;
+      const nextVersion = (settings.bannerVersion || 1) + 1;
+
       const updatedSettings = await updateStoreSettings({
         visualBannerPublished: cleanConfig,
         visualBannerDraft: cleanConfig,
+        bannerVersion: nextVersion,
+        bannerPublishedAt: publishedAt,
       });
+
+      // Natychmiastowe unieważnienie pamięci podręcznej strony głównej
+      try {
+        revalidatePath("/");
+        revalidatePath("/admin/baner");
+        revalidatePath("/", "layout");
+      } catch (cacheErr) {
+        console.warn("Ostrzeżenie: Błąd unieważniania cache:", cacheErr);
+      }
+
       return NextResponse.json({
         success: true,
-        message: "Baner został pomyślnie opublikowany na stronie głównej!",
+        message: `Baner został pomyślnie opublikowany na stronie głównej (wersja v${nextVersion})!`,
+        version: nextVersion,
+        publishedAt,
         draft: updatedSettings.visualBannerDraft,
         published: updatedSettings.visualBannerPublished,
       });

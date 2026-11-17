@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -29,12 +29,32 @@ function AuthForms() {
 
   const [activeTab, setActiveTab] = useState<"login" | "register" | "forgot">("login");
 
+  // Aktywna sesja
+  const [currentSessionEmail, setCurrentSessionEmail] = useState<string | null>(null);
+
   // Logowanie
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
+  const [passwordFieldError, setPasswordFieldError] = useState<string | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+
+  // Sprawdź czy użytkownik ma już aktywną sesję
+  useEffect(() => {
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.isLoggedIn && data.email) {
+          setCurrentSessionEmail(data.email);
+        } else {
+          setCurrentSessionEmail(null);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Przypomnienie / Reset hasła (dla klientek i właścicielki)
   const [forgotEmail, setForgotEmail] = useState("");
@@ -132,18 +152,84 @@ function AuthForms() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+    setEmailFieldError(null);
+    setPasswordFieldError(null);
+
+    const emailTrimmed = loginEmail.trim();
+    const passwordTrimmed = loginPassword.trim();
+
+    // 1. Walidacja po stronie klienta
+    let hasValidationError = false;
+
+    if (!emailTrimmed) {
+      setEmailFieldError("Podaj adres e-mail.");
+      hasValidationError = true;
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailTrimmed)) {
+        setEmailFieldError("Wpisz poprawny adres e-mail (np. twoj-email@domena.pl).");
+        hasValidationError = true;
+      }
+    }
+
+    if (!passwordTrimmed) {
+      setPasswordFieldError("Podaj hasło dostępowe.");
+      hasValidationError = true;
+    }
+
+    if (hasValidationError) {
+      return;
+    }
+
     setIsLoginLoading(true);
 
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail.trim(), password: loginPassword.trim() }),
+        body: JSON.stringify({ email: emailTrimmed, password: passwordTrimmed }),
       });
 
-      const data = await res.json();
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("NETWORK_OR_SERVER_ERROR");
+      }
+
       if (!res.ok) {
-        throw new Error(data.error || "Błąd podczas logowania.");
+        if (res.status === 429) {
+          setLoginError(data?.error || "Zbyt wiele nieudanych prób logowania. Odczekaj chwilę przed kolejną próbą.");
+        } else if (res.status === 400 && data?.field) {
+          if (data.field === "email") {
+            setEmailFieldError(data.error);
+          } else if (data.field === "password") {
+            setPasswordFieldError(data.error);
+          } else {
+            setLoginError(data.error);
+          }
+        } else if (res.status === 401) {
+          // Dla błędnego hasła lub nieistniejącego konta ten sam komunikat
+          setLoginError("Nieprawidłowy adres e-mail lub hasło. Spróbuj ponownie.");
+          // Zachowujemy e-mail, czyścimy tylko hasło i przenosimy fokus
+          setLoginPassword("");
+          setTimeout(() => passwordInputRef.current?.focus(), 50);
+        } else if (res.status >= 500) {
+          setLoginError("Nie udało się połączyć. Spróbuj ponownie za chwilę.");
+        } else {
+          setLoginError(data?.error || "Nieprawidłowy adres e-mail lub hasło. Spróbuj ponownie.");
+        }
+        return;
+      }
+
+      if (!data || !data.success) {
+        setLoginError("Nieprawidłowy adres e-mail lub hasło. Spróbuj ponownie.");
+        return;
+      }
+
+      // Powiadomienie nagłówka i innych komponentów o zmianie sesji
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("auth-change"));
       }
 
       if (data.mustChangePassword) {
@@ -155,7 +241,7 @@ function AuthForms() {
       }
       router.refresh();
     } catch (err: any) {
-      setLoginError(err.message || "Wystąpił problem z połączeniem.");
+      setLoginError("Nie udało się połączyć. Spróbuj ponownie za chwilę.");
     } finally {
       setIsLoginLoading(false);
     }
@@ -228,6 +314,24 @@ function AuthForms() {
         </p>
       </div>
 
+      {/* Informacja o istniejącej sesji, jeśli użytkownik jest już zalogowany */}
+      {currentSessionEmail && (
+        <div className="mb-4 p-3 bg-amber-50/90 border border-amber-200/80 rounded-xs text-xs text-amber-900 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-[#C5A069] shrink-0" />
+            <span>
+              Jesteś już zalogowana jako <strong>{currentSessionEmail}</strong>.
+            </span>
+          </div>
+          <Link
+            href="/konto"
+            className="text-[#8C6B38] font-semibold hover:underline shrink-0"
+          >
+            Przejdź do konta &rarr;
+          </Link>
+        </div>
+      )}
+
       {/* Przełącznik zakładek (Zaloguj się / Zarejestruj się) */}
       <div className="flex bg-[#EFE6DC] p-1 rounded-md mb-4 border border-[#E0D3C3]">
         <button
@@ -266,13 +370,17 @@ function AuthForms() {
         {activeTab === "login" && (
           <>
             {loginError && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{loginError}</span>
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="p-3.5 bg-red-50 border border-red-200 text-red-900 text-xs rounded-xs flex items-start gap-2.5 animate-in fade-in duration-200 shadow-xs"
+              >
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span className="font-medium leading-relaxed">{loginError}</span>
               </div>
             )}
 
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} noValidate className="space-y-4">
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
                   Adres E-mail
@@ -280,14 +388,27 @@ function AuthForms() {
                 <div className="relative">
                   <input
                     type="email"
-                    required
+                    name="email"
+                    autoComplete="email"
                     placeholder="twoj-email@domena.pl"
                     value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                    onChange={(e) => {
+                      setLoginEmail(e.target.value);
+                      if (emailFieldError) setEmailFieldError(null);
+                      if (loginError) setLoginError(null);
+                    }}
+                    aria-invalid={Boolean(emailFieldError)}
+                    className={`w-full bg-[#FAF6F1] border ${
+                      emailFieldError ? "border-red-400 focus:border-red-500" : "border-[#EADFD5] focus:border-[#C5A069]"
+                    } p-3 text-xs text-[#241D1B] pl-9 focus:outline-none rounded-xs font-medium transition-colors`}
                   />
-                  <Mail className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
+                {emailFieldError && (
+                  <p role="alert" className="mt-1 text-[11px] text-red-600 font-medium">
+                    {emailFieldError}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -296,21 +417,38 @@ function AuthForms() {
                 </label>
                 <div className="relative">
                   <input
+                    ref={passwordInputRef}
                     type={showLoginPassword ? "text" : "password"}
+                    name="password"
+                    autoComplete="current-password"
                     placeholder="Wpisz swoje hasło..."
                     value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                    onChange={(e) => {
+                      setLoginPassword(e.target.value);
+                      if (passwordFieldError) setPasswordFieldError(null);
+                      if (loginError) setLoginError(null);
+                    }}
+                    aria-invalid={Boolean(passwordFieldError)}
+                    className={`w-full bg-[#FAF6F1] border ${
+                      passwordFieldError ? "border-red-400 focus:border-red-500" : "border-[#EADFD5] focus:border-[#C5A069]"
+                    } p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none rounded-xs font-medium transition-colors`}
                   />
-                  <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B] p-1"
+                    aria-label={showLoginPassword ? "Ukryj hasło" : "Pokaż hasło"}
                   >
                     {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                {passwordFieldError && (
+                  <p role="alert" className="mt-1 text-[11px] text-red-600 font-medium">
+                    {passwordFieldError}
+                  </p>
+                )}
                 <div className="flex justify-end pt-1.5">
                   <button
                     type="button"
@@ -329,17 +467,20 @@ function AuthForms() {
                 <button
                   type="submit"
                   disabled={isLoginLoading}
-                  className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded-xs shadow-md"
+                  className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded-xs shadow-md cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isLoginLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Logowanie…</span>
+                    </>
                   ) : (
-                    <User className="w-4 h-4 text-white" />
+                    <>
+                      <User className="w-4 h-4 text-white" />
+                      <span>Zaloguj się do Konta</span>
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </>
                   )}
-                  <span>
-                    {isLoginLoading ? "Weryfikacja..." : "Zaloguj się do Konta"}
-                  </span>
-                  {!isLoginLoading && <ArrowRight className="w-4 h-4 ml-1" />}
                 </button>
               </div>
             </form>

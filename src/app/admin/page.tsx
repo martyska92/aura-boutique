@@ -77,7 +77,7 @@ export default async function AdminDashboardPage() {
       )}
 
       {/* Nagłówek pulpitu */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#EADFD5]">
         <div>
           <h1 className="font-serif text-2xl sm:text-3xl text-[#241D1B]">
             Pulpit Zarządzania Butikiem
@@ -87,31 +87,13 @@ export default async function AdminDashboardPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href="/admin/produkty/nowy"
-            className="px-4 py-2.5 bg-[#C5A069] text-white text-xs uppercase tracking-wider font-medium rounded hover:bg-[#AF884F] transition-all flex items-center gap-2 shadow-sm"
-          >
-            <PlusCircle className="w-4 h-4 text-white" />
-            <span>Dodaj Nowe Ubranie</span>
-          </Link>
-
-          <Link
-            href="/admin/zamowienia"
-            className="px-4 py-2.5 bg-white border border-[#EADFD5] text-[#241D1B] text-xs uppercase tracking-wider font-medium rounded hover:border-[#C5A069] transition-colors flex items-center gap-2"
-          >
-            <ShoppingBag className="w-4 h-4 text-[#C5A069]" />
-            <span>Wszystkie Zamówienia ({orders.length})</span>
-          </Link>
-
-          <Link
-            href="/admin/promocje"
-            className="px-4 py-2.5 bg-[#FAF6F1] border border-[#BCAB9B] text-[#241D1B] text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#F3ECE2] transition-colors flex items-center gap-2"
-          >
-            <Tag className="w-4 h-4 text-[#9E8359]" />
-            <span>Promocje i Rabaty</span>
-          </Link>
-        </div>
+        <Link
+          href="/admin/produkty/nowy"
+          className="px-4 py-2.5 bg-[#C5A069] text-white text-xs uppercase tracking-wider font-semibold rounded hover:bg-[#AF884F] transition-all flex items-center gap-2 shadow-sm self-start sm:self-auto shrink-0"
+        >
+          <PlusCircle className="w-4 h-4 text-white" />
+          <span>Dodaj Nowe Ubranie</span>
+        </Link>
       </div>
 
       {/* Karty KPI */}

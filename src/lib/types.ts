@@ -182,6 +182,17 @@ export type Order = {
     title: string;
     deadlineHours: number;
   };
+  // Dane do faktury
+  wantsInvoice?: boolean;
+  invoiceType?: "COMPANY" | "PRIVATE";
+  invoiceCompanyName?: string;
+  invoiceNip?: string;
+  invoiceStreet?: string;
+  invoiceCity?: string;
+  invoicePostalCode?: string;
+  invoicePdfUrl?: string;
+  invoiceNumber?: string;
+  invoiceIssuedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -257,6 +268,8 @@ export type StoreSettings = {
   // Wizualny edytor banera głównego (szkic roboczy i opublikowana wersja)
   visualBannerDraft?: VisualBannerConfig;
   visualBannerPublished?: VisualBannerConfig;
+  bannerVersion?: number;
+  bannerPublishedAt?: string;
   // Flagi bezpieczeństwa sekretów serwerowych
   smtpPasswordConfigured?: boolean;
   resendApiKeyConfigured?: boolean;
@@ -479,6 +492,19 @@ export type CustomerAccount = {
   welcomeEmailError?: string;
   welcomeEmailSentAt?: string;
   wishlistProductIds?: string[];
+  // Domyślny adres dostawy i ostatni Paczkomat
+  defaultStreet?: string;
+  defaultCity?: string;
+  defaultPostalCode?: string;
+  lastParcelLocker?: string;
+  lastParcelLockerAddress?: string;
+  // Dane do faktury
+  invoiceType?: "COMPANY" | "PRIVATE";
+  invoiceCompanyName?: string;
+  invoiceNip?: string;
+  invoiceStreet?: string;
+  invoiceCity?: string;
+  invoicePostalCode?: string;
 };
 
 // ==========================================

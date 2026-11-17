@@ -1894,7 +1894,70 @@ export async function createReturnRequest(
 // ==========================================
 export async function getStoreSettings(options?: { forAdminClient?: boolean }): Promise<StoreSettings> {
   const store = loadLocalStore();
-  const settings: StoreSettings = { ...store.settings };
+  let settings: StoreSettings = { ...store.settings };
+
+  // Sprawdzamy trwały zapis w bazie danych PostgreSQL / Neon
+  if (await isDatabaseConnected()) {
+    try {
+      const dbSettings = await prisma.storeSettings.findUnique({
+        where: { id: "default" },
+      });
+      if (dbSettings) {
+        let visualBannerDraft = settings.visualBannerDraft;
+        let visualBannerPublished = settings.visualBannerPublished;
+
+        if (dbSettings.visualBannerDraft) {
+          try {
+            visualBannerDraft = typeof dbSettings.visualBannerDraft === "string"
+              ? JSON.parse(dbSettings.visualBannerDraft)
+              : dbSettings.visualBannerDraft;
+          } catch (e) {
+            console.warn("Błąd parsowania visualBannerDraft z bazy:", e);
+          }
+        }
+
+        if (dbSettings.visualBannerPublished) {
+          try {
+            visualBannerPublished = typeof dbSettings.visualBannerPublished === "string"
+              ? JSON.parse(dbSettings.visualBannerPublished)
+              : dbSettings.visualBannerPublished;
+          } catch (e) {
+            console.warn("Błąd parsowania visualBannerPublished z bazy:", e);
+          }
+        }
+
+        settings = {
+          ...settings,
+          boutiqueName: dbSettings.boutiqueName || settings.boutiqueName,
+          companyName: dbSettings.companyName || settings.companyName,
+          nip: dbSettings.nip || settings.nip,
+          regon: dbSettings.regon || settings.regon,
+          registeredAddress: dbSettings.registeredAddress || settings.registeredAddress,
+          returnAddress: dbSettings.returnAddress || settings.returnAddress,
+          address: dbSettings.address || settings.address,
+          phone: dbSettings.phone || settings.phone,
+          email: dbSettings.email || settings.email,
+          openingHours: dbSettings.openingHours || settings.openingHours,
+          announcementBarText: dbSettings.announcementBarText || settings.announcementBarText,
+          heroHeadline: dbSettings.heroHeadline || settings.heroHeadline,
+          heroSubheadline: dbSettings.heroSubheadline || settings.heroSubheadline,
+          heroImageUrl: dbSettings.heroImageUrl || settings.heroImageUrl,
+          freeShippingFrom: Number(dbSettings.freeShippingFrom) || settings.freeShippingFrom,
+          courierCost: Number(dbSettings.courierCost) || settings.courierCost,
+          inpostLockerCost: Number(dbSettings.inpostLockerCost) || settings.inpostLockerCost,
+          localPickupCost: Number(dbSettings.localPickupCost) || settings.localPickupCost,
+          termsAndConditions: dbSettings.termsAndConditions || settings.termsAndConditions,
+          privacyPolicy: dbSettings.privacyPolicy || settings.privacyPolicy,
+          visualBannerDraft,
+          visualBannerPublished,
+          bannerVersion: dbSettings.bannerVersion || settings.bannerVersion || 1,
+          bannerPublishedAt: dbSettings.bannerPublishedAt ? dbSettings.bannerPublishedAt.toISOString() : settings.bannerPublishedAt,
+        };
+      }
+    } catch (dbErr) {
+      console.warn("Ostrzeżenie: Błąd pobierania ustawień z bazy Prisma:", dbErr);
+    }
+  }
 
   // Sprawdzamy stan konfiguracji sekretów
   settings.smtpPasswordConfigured = Boolean(
@@ -1978,6 +2041,64 @@ export async function updateStoreSettings(
 
   store.settings = { ...store.settings, ...cleanSettings };
   saveLocalStore(store);
+
+  // Trwały zapis w bazie danych Neon PostgreSQL
+  if (await isDatabaseConnected()) {
+    try {
+      const dataToSave: any = {
+        boutiqueName: cleanSettings.boutiqueName,
+        companyName: cleanSettings.companyName,
+        nip: cleanSettings.nip,
+        regon: cleanSettings.regon,
+        registeredAddress: cleanSettings.registeredAddress,
+        returnAddress: cleanSettings.returnAddress,
+        address: cleanSettings.address,
+        phone: cleanSettings.phone,
+        email: cleanSettings.email,
+        openingHours: cleanSettings.openingHours,
+        announcementBarText: cleanSettings.announcementBarText,
+        heroHeadline: cleanSettings.heroHeadline,
+        heroSubheadline: cleanSettings.heroSubheadline,
+        heroImageUrl: cleanSettings.heroImageUrl,
+        termsAndConditions: cleanSettings.termsAndConditions,
+        privacyPolicy: cleanSettings.privacyPolicy,
+      };
+
+      if (cleanSettings.freeShippingFrom !== undefined) dataToSave.freeShippingFrom = cleanSettings.freeShippingFrom;
+      if (cleanSettings.courierCost !== undefined) dataToSave.courierCost = cleanSettings.courierCost;
+      if (cleanSettings.inpostLockerCost !== undefined) dataToSave.inpostLockerCost = cleanSettings.inpostLockerCost;
+      if (cleanSettings.localPickupCost !== undefined) dataToSave.localPickupCost = cleanSettings.localPickupCost;
+
+      if (cleanSettings.visualBannerDraft !== undefined) {
+        dataToSave.visualBannerDraft = JSON.stringify(cleanSettings.visualBannerDraft);
+      }
+      if (cleanSettings.visualBannerPublished !== undefined) {
+        dataToSave.visualBannerPublished = JSON.stringify(cleanSettings.visualBannerPublished);
+      }
+      if (cleanSettings.bannerVersion !== undefined) {
+        dataToSave.bannerVersion = cleanSettings.bannerVersion;
+      }
+      if (cleanSettings.bannerPublishedAt !== undefined) {
+        dataToSave.bannerPublishedAt = new Date(cleanSettings.bannerPublishedAt);
+      }
+
+      // Usuwamy klucze z wartościami undefined
+      Object.keys(dataToSave).forEach((k) => {
+        if (dataToSave[k] === undefined) delete dataToSave[k];
+      });
+
+      await prisma.storeSettings.upsert({
+        where: { id: "default" },
+        update: dataToSave,
+        create: {
+          id: "default",
+          ...dataToSave,
+        },
+      });
+    } catch (dbErr) {
+      console.error("Błąd trwałego zapisu ustawień w bazie Prisma:", dbErr);
+    }
+  }
 
   // Przygotuj odpowiedź z poprawnymi flagami statusu
   const result: StoreSettings = { ...store.settings };
@@ -2886,8 +3007,44 @@ export async function getCustomers(): Promise<CustomerAccount[]> {
 }
 
 export async function getCustomerByEmail(email: string): Promise<CustomerAccount | null> {
-  const store = loadLocalStore();
   const normalized = email.trim().toLowerCase();
+
+  if (isNeonConfigured()) {
+    try {
+      const dbCust = await prisma.customerAccount.findUnique({
+        where: { email: normalized },
+      });
+      if (dbCust) {
+        return {
+          id: dbCust.id,
+          email: dbCust.email,
+          firstName: dbCust.firstName,
+          lastName: dbCust.lastName,
+          phone: dbCust.phone || "",
+          passwordHash: dbCust.passwordHash || undefined,
+          referralCode: dbCust.referralCode || "",
+          defaultStreet: dbCust.defaultStreet || undefined,
+          defaultCity: dbCust.defaultCity || undefined,
+          defaultPostalCode: dbCust.defaultPostalCode || undefined,
+          lastParcelLocker: dbCust.lastParcelLocker || undefined,
+          lastParcelLockerAddress: dbCust.lastParcelLockerAddress || undefined,
+          invoiceType: (dbCust.invoiceType as any) || undefined,
+          invoiceCompanyName: dbCust.invoiceCompanyName || undefined,
+          invoiceNip: dbCust.invoiceNip || undefined,
+          invoiceStreet: dbCust.invoiceStreet || undefined,
+          invoiceCity: dbCust.invoiceCity || undefined,
+          invoicePostalCode: dbCust.invoicePostalCode || undefined,
+          createdAt: dbCust.createdAt.toISOString(),
+          welcomeDiscountCode: undefined,
+          welcomeEmailStatus: undefined,
+        };
+      }
+    } catch (e) {
+      console.warn("Neon getCustomerByEmail error, fallback to local:", e);
+    }
+  }
+
+  const store = loadLocalStore();
   const customer = (store.customers || []).find((c) => c.email.toLowerCase() === normalized);
   return customer || null;
 }

@@ -152,6 +152,18 @@ model Order {
   customerNotes      String?
   adminNotes         String?
   reservedUntil      DateTime?         // Czas wygaśnięcia rezerwacji towaru
+  customerId         String?
+  customer           CustomerAccount?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  wantsInvoice       Boolean           @default(false)
+  invoiceType        String?           // "COMPANY" | "PRIVATE"
+  invoiceCompanyName String?
+  invoiceNip         String?
+  invoiceStreet      String?
+  invoiceCity        String?
+  invoicePostalCode  String?
+  invoicePdfUrl      String?
+  invoiceNumber      String?
+  invoiceIssuedAt    DateTime?
   items              OrderItem[]
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
@@ -180,26 +192,70 @@ model OrderItem {
 }
 
 model StoreSettings {
-  id                   String   @id @default("default")
-  boutiqueName         String   @default("AURA Boutique K.B.")
-  address              String   @default("Żmigród | ul. Poprzeczna 3/1A")
-  phone                String   @default("+48 600 000 000")
-  email                String   @default("kontakt@auraboutique.pl")
-  openingHours         String   @default("Pon - Pt: 10:00 - 18:00 | Sob: 10:00 - 14:00")
-  announcementBarText  String   @default("Darmowa dostawa od 300 PLN | Odbiór osobisty w Żmigrodzie")
-  heroHeadline         String   @default("Elegancja w każdym detalu")
-  heroSubheadline      String   @default("Odkryj kolekcję stworzoną dla kobiet ceniących klasę, subtelność i najwyższą jakość kroju.")
-  heroImageUrl         String?
-  freeShippingFrom     Decimal  @default(300.00) @db.Decimal(10, 2)
-  courierCost          Decimal  @default(15.00) @db.Decimal(10, 2)
-  inpostLockerCost     Decimal  @default(13.00) @db.Decimal(10, 2)
-  localPickupCost      Decimal  @default(0.00) @db.Decimal(10, 2)
-  p24MerchantId        String?
-  p24PosId             String?
-  p24CrcKey            String?
-  p24ApiKey            String?
-  p24Sandbox           Boolean  @default(true)
-  updatedAt            DateTime @updatedAt
+  id                    String    @id @default("default")
+  boutiqueName          String    @default("AURA Boutique K.B.")
+  companyName           String?
+  nip                   String?
+  regon                 String?
+  registeredAddress     String?
+  returnAddress         String?
+  address               String    @default("Żmigród | ul. Poprzeczna 3/1A")
+  phone                 String    @default("+48 600 000 000")
+  email                 String    @default("kontakt@auraboutique.pl")
+  openingHours          String    @default("Pon - Pt: 10:00 - 18:00 | Sob: 10:00 - 14:00")
+  announcementBarText   String    @default("Darmowa dostawa od 300 PLN | Odbiór osobisty w Żmigrodzie")
+  heroHeadline          String    @default("Elegancja w każdym detalu")
+  heroSubheadline       String    @default("Odkryj kolekcję stworzoną dla kobiet ceniących klasę, subtelność i najwyższą jakość kroju.")
+  heroImageUrl          String?
+  freeShippingFrom      Decimal   @default(300.00) @db.Decimal(10, 2)
+  courierCost           Decimal   @default(15.00) @db.Decimal(10, 2)
+  inpostLockerCost      Decimal   @default(13.00) @db.Decimal(10, 2)
+  localPickupCost       Decimal   @default(0.00) @db.Decimal(10, 2)
+  p24MerchantId         String?
+  p24PosId              String?
+  p24CrcKey             String?
+  p24ApiKey             String?
+  p24Sandbox            Boolean   @default(true)
+  termsAndConditions    String?   @db.Text
+  privacyPolicy         String?   @db.Text
+  visualBannerDraft     String?   @db.Text
+  visualBannerPublished String?   @db.Text
+  bannerVersion         Int       @default(1)
+  bannerPublishedAt     DateTime?
+  // SMTP & Email configuration
+  smtpHost              String?
+  smtpPort              Int?
+  smtpUser              String?
+  smtpPassword          String?   @db.Text
+  smtpSecure            Boolean   @default(false)
+  emailSenderName       String?
+  emailSenderAddress    String?
+  emailProvider         String?   @default("smtp") // "smtp" | "resend"
+  resendApiKey          String?
+  // PayU configuration
+  payuPosId             String?
+  payuSecondKey         String?
+  payuClientId          String?
+  payuClientSecret      String?
+  payuSandbox           Boolean   @default(true)
+  updatedAt             DateTime  @updatedAt
+}
+
+model EmailOutbox {
+  id        String    @id @default(cuid())
+  recipient String
+  subject   String
+  type      String    // "ORDER_CONFIRMATION" | "STATUS_UPDATE" | "INVOICE" | "TEST"
+  status    String    // "QUEUED" | "SENT" | "FAILED"
+  error     String?   @db.Text
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  orderId   String?
+  metadata  String?   @db.Text
+
+  @@index([recipient])
+  @@index([orderId])
+  @@index([createdAt])
 }
 
 model AdminSession {
@@ -210,16 +266,28 @@ model AdminSession {
 }
 
 model CustomerAccount {
-  id                  String               @id @default(cuid())
-  email               String               @unique
-  firstName           String
-  lastName            String
-  phone               String?
-  passwordHash        String?
-  referralCode        String?              @unique
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  referralParticipant ReferralParticipant?
+  id                     String               @id @default(cuid())
+  email                  String               @unique
+  firstName              String
+  lastName               String
+  phone                  String?
+  passwordHash           String?
+  referralCode           String?              @unique
+  defaultStreet          String?
+  defaultCity            String?
+  defaultPostalCode      String?
+  lastParcelLocker       String?
+  lastParcelLockerAddress String?
+  invoiceType            String?
+  invoiceCompanyName     String?
+  invoiceNip             String?
+  invoiceStreet          String?
+  invoiceCity            String?
+  invoicePostalCode      String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  referralParticipant    ReferralParticipant?
+  orders                 Order[]
 }
 
 model ReferralParticipant {

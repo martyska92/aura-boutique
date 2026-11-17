@@ -88,21 +88,45 @@ function HeaderInner() {
     };
   }, [mobileMenuOpen]);
 
-  // Pobranie stanu logowania
+  // Pobranie stanu logowania z bezpiecznym no-store i nasłuchem na zmiany
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) {
-          setAuth({
-            isLoggedIn: Boolean(data.isLoggedIn),
-            isAdmin: Boolean(data.isAdmin),
-            email: data.email,
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
+    let isMounted = true;
+
+    const checkAuth = () => {
+      fetch("/api/auth/me", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (isMounted) {
+            if (data && data.isLoggedIn) {
+              setAuth({
+                isLoggedIn: true,
+                isAdmin: Boolean(data.isAdmin),
+                email: data.email,
+              });
+            } else {
+              setAuth({
+                isLoggedIn: false,
+                isAdmin: false,
+                email: undefined,
+              });
+            }
+          }
+        })
+        .catch(() => {
+          if (isMounted) {
+            setAuth({ isLoggedIn: false, isAdmin: false, email: undefined });
+          }
+        });
+    };
+
+    checkAuth();
+    window.addEventListener("auth-change", checkAuth);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("auth-change", checkAuth);
+    };
+  }, [pathname]);
 
   // Focus na pole wyszukiwania po otwarciu
   useEffect(() => {
