@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -12,19 +12,69 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { AnnouncementBar } from "@/components/layout/AnnouncementBar";
+import { resolveKasiaGreeting, clearGreetingSession } from "@/lib/admin-greetings";
 
 export function AdminNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [greeting, setGreeting] = useState<string | null>(null);
+  const [isOwnerAdmin, setIsOwnerAdmin] = useState<boolean>(true);
 
   // Ukryj menu na stronie logowania administratora
   if (pathname === "/admin/login") {
     return null;
   }
 
+  // Wczytanie i zachowanie powitania dla Kasi w ramach aktywnej sesji
+  useEffect(() => {
+    let isMounted = true;
+    const checkIdentityAndGreeting = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (!isMounted) return;
+          if (data.isLoggedIn && data.isAdmin) {
+            const emailLower = (data.email || "").toLowerCase();
+            const nameLower = (data.customerName || "").toLowerCase();
+
+            // Powitania dla Kasi kierujemy do właścicielki (konto butiku aurazmigrod@wp.pl / Kasia / Karolina)
+            const isKasia =
+              emailLower === "aurazmigrod@wp.pl" ||
+              emailLower.includes("kasia") ||
+              emailLower.includes("aura") ||
+              nameLower.includes("kasia") ||
+              nameLower.includes("właścicielka") ||
+              nameLower.includes("karolina");
+
+            setIsOwnerAdmin(isKasia);
+
+            if (isKasia) {
+              setGreeting(resolveKasiaGreeting());
+            } else {
+              // Inny administrator - nie nazywamy go Kasią, lecz witamy neutralnie / imieniem
+              const displayName = data.customerName || data.email?.split("@")[0] || "Administrator";
+              setGreeting(`Witaj, ${displayName}! Dobrego dnia ✨`);
+            }
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setGreeting(resolveKasiaGreeting());
+        }
+      }
+    };
+
+    checkIdentityAndGreeting();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleLogout = async () => {
     try {
+      clearGreetingSession();
       await fetch("/api/admin/logout", { method: "POST" });
       router.push("/admin/login");
       router.refresh();
@@ -66,26 +116,41 @@ export function AdminNav() {
 
       {/* 2. Główny pas nagłówka z dużym centralnym logo (układ 3-kolumnowy 1fr - auto - 1fr) */}
       <div className="border-t border-[#968372]/30 border-b border-[#968372]">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 lg:h-20 grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-3">
-          {/* ─── LEWA KOLUMNA (1fr, justify-self-start): Przycisk menu mobilnego + subtelne oznaczenie Panelu ─── */}
-          <div className="flex items-center gap-2 justify-self-start min-w-0">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 lg:h-20 grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-3">
+          {/* ─── LEWA KOLUMNA (1fr, justify-self-start): Menu mobilne + Plakietka + Powitanie ─── */}
+          <div className="flex items-center gap-2 sm:gap-3 justify-self-start min-w-0 max-w-full">
             {/* Przycisk menu rozwijanego na mniejszych ekranach */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden w-10 h-10 flex items-center justify-center text-[#241D1B] hover:text-[#542823] active:scale-95 transition-transform rounded-md hover:bg-white/30 focus:outline-none"
+              className="lg:hidden w-9 h-9 sm:w-10 sm:h-10 shrink-0 flex items-center justify-center text-[#241D1B] hover:text-[#542823] active:scale-95 transition-transform rounded-md hover:bg-white/30 focus:outline-none"
               aria-label={mobileMenuOpen ? "Zamknij menu panelu" : "Otwórz menu panelu"}
               aria-expanded={mobileMenuOpen}
             >
-              {mobileMenuOpen ? <X className="w-6 h-6 text-[#241D1B]" /> : <Menu className="w-6 h-6 text-[#241D1B]" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 sm:w-6 sm:h-6 text-[#241D1B]" /> : <Menu className="w-5 h-5 sm:w-6 sm:h-6 text-[#241D1B]" />}
             </button>
 
-            {/* Subtelna plakietka "Panel właścicielki" */}
-            <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs text-[#241D1B] font-medium bg-[#DDD0C4]/70 border border-[#968372] rounded-md shadow-2xs">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#8C7248] shrink-0" />
-              <span className="font-serif tracking-normal text-[11px] sm:text-xs font-semibold whitespace-nowrap">
-                Panel właścicielki
-              </span>
+            <div className="flex flex-col justify-center min-w-0">
+              <div className="flex items-center gap-2">
+                {/* Subtelna plakietka "Panel właścicielki" */}
+                <div className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs text-[#241D1B] font-medium bg-[#DDD0C4]/80 border border-[#968372] rounded-md shadow-2xs shrink-0">
+                  <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#8C7248] shrink-0" />
+                  <span className="font-serif tracking-normal text-[10px] sm:text-[11px] font-semibold whitespace-nowrap">
+                    {isOwnerAdmin ? "Panel właścicielki" : "Panel administratora"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Krótkie, ciepłe i eleganckie powitanie dla Kasi */}
+              {greeting && (
+                <div
+                  className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-[#2A1E19] font-medium tracking-tight line-clamp-2 max-w-[200px] sm:max-w-[340px] md:max-w-[420px] leading-snug"
+                  title={greeting}
+                >
+                  <span className="text-[#8F6F32] font-semibold mr-1">✦</span>
+                  <span className="text-[#2A1E19] font-medium">{greeting}</span>
+                </div>
+              )}
             </div>
           </div>
 

@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
             firstName: customer.firstName,
             force: true,
           },
-          customSettings
+          effectiveSettings
         );
 
         if (res.success) {
@@ -239,10 +239,10 @@ export async function POST(req: NextRequest) {
           firstName: body.firstName || "Martyna",
           force: true,
         },
-        customSettings
+        effectiveSettings
       );
     } else {
-      result = await sendTestEmail(targetEmail, customSettings);
+      result = await sendTestEmail(targetEmail, effectiveSettings);
     }
 
     if (!result.success) {
