@@ -4,29 +4,21 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
-  Package,
-  PlusCircle,
-  ShoppingBag,
-  Settings,
-  Layers,
   ExternalLink,
   LogOut,
   Menu,
   X,
   ShieldCheck,
-  Tag,
-  Users,
-  Sparkles,
 } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
+import { AnnouncementBar } from "@/components/layout/AnnouncementBar";
 
 export function AdminNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Ukryj menu na stronie logowania
+  // Ukryj menu na stronie logowania administratora
   if (pathname === "/admin/login") {
     return null;
   }
@@ -41,80 +33,84 @@ export function AdminNav() {
     }
   };
 
+  // Dokładnie 8 pozycji menu panelu (zgodnie z wymaganiami bez "Dodaj produkt", który jest przyciskiem na pulpicie i liście produktów)
   const navItems = [
-    { label: "Pulpit", href: "/admin", icon: LayoutDashboard, exact: true },
-    {
-      label: "Produkty",
-      href: "/admin/produkty",
-      icon: Package,
-      exact: false,
-      excludePrefix: "/admin/produkty/nowy",
-    },
-    { label: "Dodaj produkt", href: "/admin/produkty/nowy", icon: PlusCircle, exact: true },
-    { label: "Kategorie", href: "/admin/kategorie", icon: Layers, exact: false },
-    { label: "Zamówienia", href: "/admin/zamowienia", icon: ShoppingBag, exact: false },
-    { label: "Klientki", href: "/admin/klientki", icon: Users, exact: false },
-    { label: "Promocje & Rabaty", href: "/admin/promocje", icon: Tag, exact: false },
-    { label: "Edytor Banera", href: "/admin/baner", icon: Sparkles, exact: false },
-    { label: "Ustawienia Butiku", href: "/admin/ustawienia", icon: Settings, exact: false },
+    { label: "Pulpit", href: "/admin", exact: true },
+    { label: "Produkty", href: "/admin/produkty", exact: false },
+    { label: "Kategorie", href: "/admin/kategorie", exact: false },
+    { label: "Zamówienia", href: "/admin/zamowienia", exact: false },
+    { label: "Klientki", href: "/admin/klientki", exact: false },
+    { label: "Promocje i rabaty", href: "/admin/promocje", exact: false },
+    { label: "Edytor banera", href: "/admin/baner", exact: false },
+    { label: "Ustawienia", href: "/admin/ustawienia", exact: false },
   ];
 
   const isItemActive = (item: (typeof navItems)[number]) => {
     if (item.exact) {
       return pathname === item.href;
     }
-    if (item.excludePrefix && pathname.startsWith(item.excludePrefix)) {
-      return false;
-    }
     return pathname === item.href || pathname.startsWith(item.href + "/");
   };
 
   return (
     <header
-      className="sticky top-0 z-40 border-b border-[#968372] shadow-[0_4px_20px_rgba(36,29,27,0.18)] transition-all text-[#241D1B]"
+      className="sticky top-0 z-40 text-[#241D1B] shadow-[0_4px_16px_rgba(36,29,27,0.16)] transition-all"
       style={{
         backgroundColor: "#BCAB9B",
         backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
         backgroundRepeat: "repeat",
       }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* GÓRNY PASEK: Logo, Badge oraz Akcje (Zobacz sklep, Wyloguj) */}
-        <div className="h-14 sm:h-16 flex items-center justify-between gap-3">
-          {/* Lewa strona: Hamburger na telefonie + Logo + Oznaczenie Panelu */}
-          <div className="flex items-center gap-3 min-w-0">
+      {/* 1. Górny pasek ogłoszeń identyczny jak w sklepie */}
+      <AnnouncementBar />
+
+      {/* 2. Główny pas nagłówka z dużym centralnym logo (układ 3-kolumnowy 1fr - auto - 1fr) */}
+      <div className="border-t border-[#968372]/30 border-b border-[#968372]">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 lg:h-20 grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-3">
+          {/* ─── LEWA KOLUMNA (1fr, justify-self-start): Przycisk menu mobilnego + subtelne oznaczenie Panelu ─── */}
+          <div className="flex items-center gap-2 justify-self-start min-w-0">
+            {/* Przycisk menu rozwijanego na mniejszych ekranach */}
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-[#241D1B] hover:text-[#542823] transition-colors rounded-md hover:bg-black/5"
-              aria-label={mobileMenuOpen ? "Zamknij menu nawigacji" : "Otwórz menu nawigacji"}
+              className="lg:hidden w-10 h-10 flex items-center justify-center text-[#241D1B] hover:text-[#542823] active:scale-95 transition-transform rounded-md hover:bg-white/30 focus:outline-none"
+              aria-label={mobileMenuOpen ? "Zamknij menu panelu" : "Otwórz menu panelu"}
+              aria-expanded={mobileMenuOpen}
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-6 h-6 text-[#241D1B]" /> : <Menu className="w-6 h-6 text-[#241D1B]" />}
             </button>
 
-            <Link href="/admin" className="flex items-center gap-2.5 shrink-0">
-              <BrandLogo size="sm" variant="cashmere" />
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.2em] bg-[#9E8359] text-white rounded-full font-semibold border border-[#856D45] shadow-xs">
-                <ShieldCheck className="w-3 h-3 text-[#FFE5B4]" />
-                <span>Panel Właścicielki</span>
+            {/* Subtelna plakietka "Panel właścicielki" */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs text-[#241D1B] font-medium bg-[#DDD0C4]/70 border border-[#968372] rounded-md shadow-2xs">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#8C7248] shrink-0" />
+              <span className="font-serif tracking-normal text-[11px] sm:text-xs font-semibold whitespace-nowrap">
+                Panel właścicielki
               </span>
+            </div>
+          </div>
+
+          {/* ─── ŚRODKOWA KOLUMNA (auto, justify-self-center): Duże logo AURA idealnie na środku ─── */}
+          <div className="justify-self-center flex items-center justify-center px-1">
+            <Link href="/admin" className="flex items-center justify-center" title="Pulpit panelu AURA Boutique">
+              <BrandLogo size="md" variant="cashmere" />
             </Link>
           </div>
 
-          {/* Prawa strona: Podgląd sklepu i Wylogowanie - GWARANCJA WIDOCZNOŚCI NA KAŻDEJ ROZDZIELCZOŚCI */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* ─── PRAWA KOLUMNA (1fr, justify-self-end): Zobacz sklep i Wyloguj ─── */}
+          <div className="flex items-center gap-1.5 sm:gap-2 justify-self-end text-xs font-medium">
             <Link
               href="/"
               target="_blank"
-              className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-[#241D1B] hover:text-[#542823] border border-[#968372] bg-[#DDD0C4]/70 hover:bg-[#DDD0C4] px-3 py-1.5 rounded-full transition-all font-medium shadow-xs"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-all border border-[#968372] bg-white/70 hover:bg-white text-[#241D1B] shadow-2xs hover:shadow-xs whitespace-nowrap"
               title="Otwórz sklep w nowej karcie"
             >
               <span className="hidden sm:inline">Zobacz sklep</span>
-              <ExternalLink className="w-3.5 h-3.5 text-[#9E8359]" />
+              <ExternalLink className="w-3.5 h-3.5 text-[#8C7248]" />
             </Link>
 
             <button
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-[#6E2222] bg-[#F2DDD9]/90 hover:bg-[#F2DDD9] border border-[#D5B5AF] px-3 py-1.5 rounded-full transition-all font-semibold shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-all border border-[#D5B5AF] bg-[#F2DDD9]/80 hover:bg-[#F2DDD9] text-[#6E2222] shadow-2xs hover:shadow-xs cursor-pointer whitespace-nowrap"
               title="Wyloguj się z panelu"
             >
               <LogOut className="w-3.5 h-3.5 text-[#6E2222]" />
@@ -122,75 +118,85 @@ export function AdminNav() {
             </button>
           </div>
         </div>
+      </div>
 
-        {/* DOLNY PASEK NAWIGACJI (DESKTOP & TABLET): Stylizowane medaliony, zgrabnie mieszczące wszystkie 9 zakładek */}
-        <nav className="hidden lg:flex items-center gap-1.5 xl:gap-2 py-2 border-t border-[#968372]/30 overflow-x-auto scrollbar-none text-[11px] uppercase tracking-[0.14em]">
+      {/* 3. Pasek menu administracyjnego pod głównym pasem (na tle odpowiadającym paskowi kategorii sklepu) */}
+      <nav
+        aria-label="Menu nawigacyjne panelu"
+        className="w-full bg-[#B29F8E]/95 backdrop-blur-xs border-b border-[#968372] overflow-x-auto no-scrollbar shadow-inner hidden lg:flex justify-center"
+      >
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 h-9 sm:h-10 flex items-center justify-center gap-1 sm:gap-2 whitespace-nowrap min-w-max text-xs">
           {navItems.map((item) => {
-            const Icon = item.icon;
             const active = isItemActive(item);
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`px-3 py-1.5 rounded-full transition-all inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                className={`px-3 py-1 rounded text-xs transition-colors flex items-center gap-1.5 ${
                   active
-                    ? "text-white bg-[#9E8359] font-bold shadow-xs border border-[#856D45]"
-                    : "text-[#2E221E] font-medium hover:bg-[#A89686]/40 hover:text-[#18110D]"
+                    ? "bg-[#241D1B] text-[#F3E7D3] font-semibold shadow-xs"
+                    : "text-[#241D1B] hover:text-[#542823] hover:bg-[#A89686]/40 font-medium"
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${active ? "text-[#FFE5B4]" : "text-[#5C4D44]"}`} />
                 <span>{item.label}</span>
               </Link>
             );
           })}
-        </nav>
-      </div>
+        </div>
+      </nav>
 
-      {/* Menu Mobilne Drawer z tłem cashmere */}
+      {/* 4. Menu rozwijane na mniejszych ekranach (telefon / tablet) */}
       {mobileMenuOpen && (
         <div
-          className="lg:hidden border-t border-[#968372] p-4 space-y-2 shadow-inner"
+          className="lg:hidden border-t border-[#968372] p-4 space-y-1.5 shadow-inner animate-in slide-in-from-top-2 duration-150"
           style={{
             backgroundColor: "#B4A393",
             backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
             backgroundRepeat: "repeat",
           }}
         >
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isItemActive(item);
+          <div className="pb-2 border-b border-[#968372]/50 mb-2">
+            <span className="text-[11px] font-semibold text-[#3D2B23] uppercase tracking-wider">
+              Nawigacja Panelu Właścicielki
+            </span>
+          </div>
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-2.5 p-3 rounded-full text-xs uppercase tracking-wider transition-all ${
-                  active
-                    ? "bg-[#9E8359] text-white font-bold border border-[#856D45] shadow-sm"
-                    : "text-[#241D1B] bg-[#DDD0C4]/70 hover:bg-[#DDD0C4] border border-[#968372]"
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${active ? "text-[#FFE5B4]" : "text-[#735F50]"}`} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {navItems.map((item) => {
+              const active = isItemActive(item);
 
-          <div className="pt-2 border-t border-[#968372]/60 flex gap-2">
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between p-2.5 rounded-md text-xs transition-colors ${
+                    active
+                      ? "bg-[#241D1B] text-[#F3E7D3] font-semibold shadow-xs"
+                      : "text-[#241D1B] bg-white/40 hover:bg-white/70 font-medium"
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  {active && <span className="w-1.5 h-1.5 rounded-full bg-[#FFE5B4]" />}
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="pt-3 border-t border-[#968372]/50 flex gap-2">
             <Link
               href="/"
               target="_blank"
-              className="flex-1 py-2 text-center border border-[#968372] bg-[#DDD0C4]/80 text-xs uppercase tracking-wider font-semibold text-[#241D1B] rounded-full inline-flex items-center justify-center gap-1.5"
+              className="flex-1 py-2 text-center border border-[#968372] bg-white/70 hover:bg-white text-xs font-semibold text-[#241D1B] rounded-md inline-flex items-center justify-center gap-1.5 shadow-2xs"
             >
               <span>Zobacz sklep</span>
-              <ExternalLink className="w-3.5 h-3.5 text-[#9E8359]" />
+              <ExternalLink className="w-3.5 h-3.5 text-[#8C7248]" />
             </Link>
 
             <button
               onClick={handleLogout}
-              className="px-4 py-2 border border-[#D5B5AF] bg-[#F2DDD9] text-xs uppercase tracking-wider font-semibold text-[#6E2222] rounded-full inline-flex items-center justify-center gap-1.5"
+              className="px-4 py-2 border border-[#D5B5AF] bg-[#F2DDD9] hover:bg-[#F2DDD9]/80 text-xs font-semibold text-[#6E2222] rounded-md inline-flex items-center justify-center gap-1.5 shadow-2xs"
             >
               <LogOut className="w-3.5 h-3.5 text-[#6E2222]" />
               <span>Wyloguj</span>
