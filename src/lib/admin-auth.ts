@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getAdminAccount } from "./store-data";
+import { getAdminAccount, verifyPassword } from "./store-data";
 import { UserSession } from "./types";
 
 const SESSION_COOKIE_NAME = "aura_admin_session";
@@ -13,6 +13,17 @@ export async function getUserSession(): Promise<UserSession | null> {
   try {
     const data = JSON.parse(Buffer.from(session.value, "base64").toString("utf-8")) as UserSession;
     if (data && data.expiresAt > Date.now()) {
+      // Weryfikacja unieważnienia sesji: jeśli hasło administratora zostało zmienione po wydaniu sesji,
+      // unieważniamy sesję po stronie serwera
+      if (data.isAdmin) {
+        const account = await getAdminAccount();
+        if (account.lastPasswordChangedAt) {
+          const changedAt = new Date(account.lastPasswordChangedAt).getTime();
+          if (data.createdAt && data.createdAt < changedAt) {
+            return null;
+          }
+        }
+      }
       return data;
     }
   } catch (err) {
@@ -86,7 +97,11 @@ export async function checkAdminCredentials(
     return { valid: false, mustChangePassword: false, email: "" };
   }
 
-  const isValidPassword = enteredPassword.trim() === account.password.trim();
+  if (!account.passwordHash) {
+    return { valid: false, mustChangePassword: true, email: account.email };
+  }
+
+  const isValidPassword = verifyPassword(enteredPassword.trim(), account.passwordHash);
   return {
     valid: isValidPassword,
     mustChangePassword: account.mustChangePassword,
@@ -96,7 +111,8 @@ export async function checkAdminCredentials(
 
 export async function checkAdminPassword(enteredPassword: string): Promise<boolean> {
   const account = await getAdminAccount();
-  return enteredPassword.trim() === account.password.trim();
+  if (!account.passwordHash) return false;
+  return verifyPassword(enteredPassword.trim(), account.passwordHash);
 }
 
 export const ADMIN_COOKIE_NAME = SESSION_COOKIE_NAME;

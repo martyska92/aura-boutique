@@ -5,6 +5,8 @@ import { StoreSettings, Order } from "./types";
 
 export interface OutboxEmail {
   id: string;
+  attemptId: string;
+  configVersion: string;
   to: string;
   subject: string;
   html: string;
@@ -132,57 +134,68 @@ export function formatSmtpError(err: any, config: { smtpHost: string; smtpUser: 
 }
 
 /**
- * Pobiera aktualną konfigurację wysyłki poczty (z ustawień sklepu w panelu lub zmiennych środowiskowych)
+ * Pobiera i rozwiązuje aktualną, autorytatywną konfigurację wysyłki poczty z bazy i magazynu serwera.
+ * Puste wartości z formularza przeglądarki NIGDY nie nadpisują zapisanego sekretu.
  */
-export function getEmailConfig(customSettings?: Partial<StoreSettings>) {
-  const store = loadLocalStore();
-  const settings: Partial<StoreSettings> = {
-    ...(store.settings || {}),
-    ...(customSettings || {}),
-  };
-
-  // Określ providera poczty:
-  // Domyślnie zawsze SMTP (poczta WP.pl lub własny serwer).
-  // Resend jest używany TYLKO wtedy, gdy użytkowniczka jawnie wybierze providera "resend".
-  let emailProvider: "smtp" | "resend" = "smtp";
-  if (settings.emailProvider === "resend") {
-    emailProvider = "resend";
-  } else {
-    emailProvider = "smtp";
+export async function getResolvedEmailConfig(customSettings?: Partial<StoreSettings>) {
+  let freshSettings: Partial<StoreSettings> = {};
+  try {
+    const { getStoreSettings } = await import("./store-data");
+    freshSettings = await getStoreSettings();
+  } catch (_) {
+    const store = loadLocalStore();
+    freshSettings = store.settings || {};
   }
 
-  const resendApiKey = (settings.resendApiKey || process.env.RESEND_API_KEY || "").trim();
-  const smtpHost = (settings.smtpHost || process.env.SMTP_HOST || "smtp.wp.pl").trim();
+  const merged: StoreSettings = {
+    ...freshSettings,
+    ...(customSettings || {}),
+  } as StoreSettings;
 
-  // 1. Pełny adres skrzynki jako login (np. aurazmigrod@wp.pl dla serwera WP.pl)
-  let smtpUser = (settings.smtpUser || process.env.SMTP_USER || "aurazmigrod@wp.pl").trim();
+  // Bezpieczne zachowanie hasła SMTP: jeśli pole z formularza jest puste, pobierz zapisany sekret z serwera
+  if (!customSettings?.smtpPassword || !customSettings.smtpPassword.trim()) {
+    merged.smtpPassword =
+      freshSettings.smtpPassword ||
+      process.env.SMTP_PASSWORD ||
+      process.env.SMTP_PASS ||
+      process.env.WP_MAIL_PASSWORD ||
+      "";
+  }
+
+  // Bezpieczne zachowanie klucza Resend
+  if (!customSettings?.resendApiKey || !customSettings.resendApiKey.trim()) {
+    merged.resendApiKey = freshSettings.resendApiKey || process.env.RESEND_API_KEY || "";
+  }
+
+  const emailProvider: "smtp" | "resend" = merged.emailProvider === "resend" ? "resend" : "smtp";
+  const resendApiKey = (merged.resendApiKey || "").trim();
+  const smtpHost = (merged.smtpHost || "smtp.wp.pl").trim();
+
+  let smtpUser = (merged.smtpUser || "aurazmigrod@wp.pl").trim();
   if (smtpHost.toLowerCase().includes("wp.pl") && smtpUser && !smtpUser.includes("@")) {
     smtpUser = `${smtpUser}@wp.pl`;
   }
 
-  // 2. Wczytywanie hasła ze zmiennych środowiskowych oraz konfiguracji panelu
-  const smtpPassword = (
-    settings.smtpPassword ||
-    process.env.SMTP_PASSWORD ||
-    process.env.SMTP_PASS ||
-    process.env.WP_MAIL_PASSWORD ||
-    process.env.EMAIL_PASSWORD ||
-    ""
-  ).trim();
+  const smtpPassword = (merged.smtpPassword || "").trim();
+  const smtpPort = Number(merged.smtpPort || (merged.smtpSecure ? 465 : 587));
+  const smtpSecure = merged.smtpSecure !== undefined ? Boolean(merged.smtpSecure) : (smtpPort === 465);
 
-  const smtpPort = Number(settings.smtpPort || process.env.SMTP_PORT || (settings.smtpSecure ? 465 : 587));
-  const smtpSecure = settings.smtpSecure !== undefined ? Boolean(settings.smtpSecure) : (smtpPort === 465);
-
-  // 3. Zgodność nadawcy z kontem pocztowym (dla WP.pl adres nadawcy musi odpowiadać zalogowanemu użytkownikowi)
-  const senderName = settings.emailSenderName || "AURA Boutique K.B.";
-  const senderAddress = (smtpHost.toLowerCase().includes("wp.pl") || !settings.emailSenderAddress)
+  const senderName = merged.emailSenderName || "AURA Boutique K.B.";
+  const senderAddress = (smtpHost.toLowerCase().includes("wp.pl") || !merged.emailSenderAddress)
     ? smtpUser
-    : (settings.emailSenderAddress || smtpUser).trim();
+    : (merged.emailSenderAddress || smtpUser).trim();
   const from = `"${senderName}" <${senderAddress}>`;
 
   const isConfigured = emailProvider === "smtp"
     ? Boolean(smtpHost && smtpUser && smtpPassword)
     : Boolean(resendApiKey);
+
+  // Niesekretny identyfikator wersji konfiguracji (nigdy nie zawiera hasła, jego skrótu ani fragmentu)
+  const configVersion = `cfg-v${merged.bannerVersion || 1}-${
+    emailProvider === "smtp"
+      ? `${smtpHost}:${smtpPort}-${smtpUser}-${smtpSecure ? "ssl" : "tls"}`
+      : "resend"
+  }`;
 
   return {
     emailProvider,
@@ -196,6 +209,77 @@ export function getEmailConfig(customSettings?: Partial<StoreSettings>) {
     senderName,
     senderAddress,
     from,
+    configVersion,
+    rawSettings: merged,
+  };
+}
+
+/**
+ * Synchroniczny pomocnik konfiguracji (dla prostych odczytów w pamięci procesu)
+ */
+export function getEmailConfig(customSettings?: Partial<StoreSettings>) {
+  const store = loadLocalStore();
+  const settings: Partial<StoreSettings> = {
+    ...(store.settings || {}),
+    ...(customSettings || {}),
+  };
+
+  let emailProvider: "smtp" | "resend" = "smtp";
+  if (settings.emailProvider === "resend") {
+    emailProvider = "resend";
+  } else {
+    emailProvider = "smtp";
+  }
+
+  const resendApiKey = (settings.resendApiKey || process.env.RESEND_API_KEY || "").trim();
+  const smtpHost = (settings.smtpHost || process.env.SMTP_HOST || "smtp.wp.pl").trim();
+
+  let smtpUser = (settings.smtpUser || process.env.SMTP_USER || "aurazmigrod@wp.pl").trim();
+  if (smtpHost.toLowerCase().includes("wp.pl") && smtpUser && !smtpUser.includes("@")) {
+    smtpUser = `${smtpUser}@wp.pl`;
+  }
+
+  const smtpPassword = (
+    settings.smtpPassword ||
+    process.env.SMTP_PASSWORD ||
+    process.env.SMTP_PASS ||
+    process.env.WP_MAIL_PASSWORD ||
+    process.env.EMAIL_PASSWORD ||
+    ""
+  ).trim();
+
+  const smtpPort = Number(settings.smtpPort || process.env.SMTP_PORT || (settings.smtpSecure ? 465 : 587));
+  const smtpSecure = settings.smtpSecure !== undefined ? Boolean(settings.smtpSecure) : (smtpPort === 465);
+
+  const senderName = settings.emailSenderName || "AURA Boutique K.B.";
+  const senderAddress = (smtpHost.toLowerCase().includes("wp.pl") || !settings.emailSenderAddress)
+    ? smtpUser
+    : (settings.emailSenderAddress || smtpUser).trim();
+  const from = `"${senderName}" <${senderAddress}>`;
+
+  const isConfigured = emailProvider === "smtp"
+    ? Boolean(smtpHost && smtpUser && smtpPassword)
+    : Boolean(resendApiKey);
+
+  const configVersion = `cfg-v${settings.bannerVersion || 1}-${
+    emailProvider === "smtp"
+      ? `${smtpHost}:${smtpPort}-${smtpUser}-${smtpSecure ? "ssl" : "tls"}`
+      : "resend"
+  }`;
+
+  return {
+    emailProvider,
+    isConfigured,
+    resendApiKey,
+    smtpHost,
+    smtpPort,
+    smtpUser,
+    smtpPassword,
+    smtpSecure,
+    senderName,
+    senderAddress,
+    from,
+    configVersion,
   };
 }
 
@@ -208,6 +292,7 @@ export function isEmailConfigured(): boolean {
 
 /**
  * Uniwersalny wysyłacz e-maili (obsługuje SMTP WP.pl / Gmail / dowolne oraz Resend API)
+ * Do każdej próby dołącza unikalny attemptId, czas, typ wiadomości i niesekretny configVersion.
  */
 export async function dispatchEmail(
   options: {
@@ -225,29 +310,17 @@ export async function dispatchEmail(
   messageId?: string;
   accepted?: any[];
   alreadySent?: boolean;
+  attemptId: string;
+  configVersion: string;
+  timestamp: string;
 }> {
   const store = loadLocalStore();
   const outboxId = `eml-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  let effectiveSettings = customSettings;
-  let config = getEmailConfig(effectiveSettings);
+  const attemptId = `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const timestamp = new Date().toISOString();
 
-  if (!config.isConfigured) {
-    try {
-      const { getStoreSettings } = await import("./store-data");
-      const freshSettings = await getStoreSettings();
-      effectiveSettings = {
-        ...freshSettings,
-        ...(customSettings || {}),
-      };
-      if (!effectiveSettings.smtpPassword && freshSettings.smtpPassword) {
-        effectiveSettings.smtpPassword = freshSettings.smtpPassword;
-      }
-      if (!effectiveSettings.resendApiKey && freshSettings.resendApiKey) {
-        effectiveSettings.resendApiKey = freshSettings.resendApiKey;
-      }
-      config = getEmailConfig(effectiveSettings);
-    } catch (_) {}
-  }
+  // Pobieramy autorytatywną, w 100% zsynchronizowaną z bazą danych konfigurację
+  const config = await getResolvedEmailConfig(customSettings);
 
   if (!config.isConfigured) {
     const errorMsg = config.emailProvider === "smtp"
@@ -256,13 +329,15 @@ export async function dispatchEmail(
 
     const queuedEmail: OutboxEmail = {
       id: outboxId,
+      attemptId,
+      configVersion: config.configVersion,
       to: options.to,
       subject: options.subject,
       html: options.html,
       type: options.type,
       status: "NOT_CONFIGURED",
       errorMessage: errorMsg,
-      createdAt: new Date().toISOString(),
+      createdAt: timestamp,
     };
 
     if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
@@ -273,12 +348,16 @@ export async function dispatchEmail(
       success: false,
       notConfigured: true,
       error: errorMsg,
+      attemptId,
+      configVersion: config.configVersion,
+      timestamp,
     };
   }
 
   // 1. Jeśli wybrano SMTP (np. poczta WP.pl)
   if (config.emailProvider === "smtp") {
     try {
+      // Tworzymy świeży, dedykowany transporter bez współdzielenia starego socketu pool
       const transporter = nodemailer.createTransport({
         host: config.smtpHost,
         port: config.smtpPort,
@@ -287,9 +366,11 @@ export async function dispatchEmail(
           user: config.smtpUser,
           pass: config.smtpPassword,
         },
+        authMethod: "LOGIN",
         tls: {
           rejectUnauthorized: false,
         },
+        pool: false,
       });
 
       const sendInfo = await transporter.sendMail({
@@ -297,16 +378,22 @@ export async function dispatchEmail(
         to: options.to,
         subject: options.subject,
         html: options.html,
+        envelope: {
+          from: config.senderAddress,
+          to: options.to,
+        },
       });
 
       const successEmail: OutboxEmail = {
         id: outboxId,
+        attemptId,
+        configVersion: config.configVersion,
         to: options.to,
         subject: options.subject,
         html: options.html,
         type: options.type,
         status: "SENT",
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp,
         sentAt: new Date().toISOString(),
         smtpResponse: sendInfo.response,
         messageId: sendInfo.messageId,
@@ -315,31 +402,44 @@ export async function dispatchEmail(
       (store as any).emailOutbox.unshift(successEmail);
       saveLocalStore(store);
 
+      console.log(`[SMTP_ATTEMPT_SUCCESS] ID: ${attemptId} | Type: ${options.type} | Version: ${config.configVersion} | To: ${options.to} | Res: ${sendInfo.response}`);
+
       return {
         success: true,
         smtpResponse: sendInfo.response,
         messageId: sendInfo.messageId,
+        attemptId,
+        configVersion: config.configVersion,
+        timestamp,
       };
     } catch (err: any) {
-      // Bezpieczeństwo: logujemy jedynie treść błędu serwera, bez haseł
+      // Bezpieczeństwo: logujemy jedynie treść błędu serwera, bez haseł ani ich skrótów
       const formattedError = formatSmtpError(err, config);
-      console.error("Błąd wysyłki e-mail przez SMTP:", err?.message || err);
+      console.error(`[SMTP_ATTEMPT_FAILED] ID: ${attemptId} | Type: ${options.type} | Version: ${config.configVersion} | Code: ${err?.code || err?.responseCode || "UNKNOWN"} | Msg: ${err?.message}`);
 
       const failedEmail: OutboxEmail = {
         id: outboxId,
+        attemptId,
+        configVersion: config.configVersion,
         to: options.to,
         subject: options.subject,
         html: options.html,
         type: options.type,
         status: "FAILED",
         errorMessage: formattedError,
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp,
       };
       if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
       (store as any).emailOutbox.unshift(failedEmail);
       saveLocalStore(store);
 
-      return { success: false, error: formattedError };
+      return {
+        success: false,
+        error: formattedError,
+        attemptId,
+        configVersion: config.configVersion,
+        timestamp,
+      };
     }
   }
 
@@ -371,44 +471,65 @@ export async function dispatchEmail(
         throw new Error(rawMsg);
       }
 
+      const resData = await res.json().catch(() => ({}));
       const successEmail: OutboxEmail = {
         id: outboxId,
+        attemptId,
+        configVersion: config.configVersion,
         to: options.to,
         subject: options.subject,
         html: options.html,
         type: options.type,
         status: "SENT",
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp,
         sentAt: new Date().toISOString(),
+        messageId: resData?.id,
       };
       if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
       (store as any).emailOutbox.unshift(successEmail);
       saveLocalStore(store);
 
-      return { success: true };
+      return {
+        success: true,
+        messageId: resData?.id,
+        attemptId,
+        configVersion: config.configVersion,
+        timestamp,
+      };
     } catch (err: any) {
-      console.error("Błąd wysyłki e-mail przez Resend:", err?.message || err);
+      console.error(`[RESEND_ATTEMPT_FAILED] ID: ${attemptId} | Type: ${options.type} | Version: ${config.configVersion} | Msg: ${err?.message}`);
       const failedEmail: OutboxEmail = {
         id: outboxId,
+        attemptId,
+        configVersion: config.configVersion,
         to: options.to,
         subject: options.subject,
         html: options.html,
         type: options.type,
         status: "FAILED",
         errorMessage: err.message,
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp,
       };
       if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
       (store as any).emailOutbox.unshift(failedEmail);
       saveLocalStore(store);
 
-      return { success: false, error: err.message };
+      return {
+        success: false,
+        error: err.message,
+        attemptId,
+        configVersion: config.configVersion,
+        timestamp,
+      };
     }
   }
 
   return {
     success: false,
     error: "Nieznany lub nieobsługiwany dostawca e-mail.",
+    attemptId,
+    configVersion: config.configVersion,
+    timestamp,
   };
 }
 
@@ -630,7 +751,16 @@ export async function sendWelcomeCustomerEmail(
     force?: boolean;
   },
   customSettings?: Partial<StoreSettings>
-): Promise<{ success: boolean; notConfigured?: boolean; error?: string; alreadySent?: boolean }> {
+): Promise<{
+  success: boolean;
+  notConfigured?: boolean;
+  error?: string;
+  alreadySent?: boolean;
+  attemptId?: string;
+  configVersion?: string;
+  timestamp?: string;
+  smtpResponse?: string;
+}> {
   const store = loadLocalStore();
   const normalizedEmail = params.customerEmail.trim().toLowerCase();
 

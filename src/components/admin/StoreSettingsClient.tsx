@@ -45,7 +45,13 @@ export function StoreSettingsClient({
     settings.emailSenderAddress || settings.smtpUser || "aurazmigrod@wp.pl"
   );
   const [isSendingTest, setIsSendingTest] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+    attemptId?: string;
+    configVersion?: string;
+    timestamp?: string;
+  } | null>(null);
   const [outboxList, setOutboxList] = useState<any[]>([]);
   const [isRetryingOutboxId, setIsRetryingOutboxId] = useState<string | null>(null);
 
@@ -162,10 +168,23 @@ export function StoreSettingsClient({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setTestResult({ success: true, message: data.message || "Wiadomość testowa została wysłana!" });
+        setTestResult({
+          success: true,
+          message: data.message || "Wiadomość testowa została wysłana!",
+          attemptId: data.attemptId,
+          configVersion: data.configVersion,
+          timestamp: data.timestamp,
+        });
       } else {
-        setTestResult({ success: false, message: data.error || "Błąd wysyłki e-mail." });
+        setTestResult({
+          success: false,
+          message: data.error || "Błąd wysyłki e-mail.",
+          attemptId: data.attemptId,
+          configVersion: data.configVersion,
+          timestamp: data.timestamp,
+        });
       }
+      fetchOutbox();
     } catch (err: any) {
       setTestResult({ success: false, message: "Błąd połączenia: " + err.message });
     } finally {
@@ -187,10 +206,23 @@ export function StoreSettingsClient({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setTestResult({ success: true, message: data.message || "Ponowiono wysyłkę powitalnych e-maili!" });
+        setTestResult({
+          success: true,
+          message: data.message || "Ponowiono wysyłkę powitalnych e-maili!",
+          attemptId: data.attemptId,
+          configVersion: data.configVersion,
+          timestamp: data.timestamp,
+        });
       } else {
-        setTestResult({ success: false, message: data.error || "Nie udało się ponowić wysyłki." });
+        setTestResult({
+          success: false,
+          message: data.error || "Nie udało się ponowić wysyłki.",
+          attemptId: data.attemptId,
+          configVersion: data.configVersion,
+          timestamp: data.timestamp,
+        });
       }
+      fetchOutbox();
     } catch (err: any) {
       setTestResult({ success: false, message: "Błąd połączenia: " + err.message });
     } finally {
@@ -1248,13 +1280,38 @@ export function StoreSettingsClient({
 
               {testResult && (
                 <div
-                  className={`text-xs p-3.5 rounded border whitespace-pre-line leading-relaxed shadow-xs ${
+                  className={`text-xs p-3.5 rounded border leading-relaxed shadow-xs space-y-2 ${
                     testResult.success
                       ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      : "bg-red-50 text-red-900 border-red-200 font-mono text-[11px]"
+                      : "bg-red-50 text-red-900 border-red-200"
                   }`}
                 >
-                  {testResult.message}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-current/15 text-[11px] font-mono">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <span>{testResult.success ? "✓" : "✕"}</span>
+                      <span>Wynik bieżącej próby: {testResult.success ? "SUKCES (250 OK)" : "BŁĄD WYSYŁKI"}</span>
+                    </span>
+                    {testResult.attemptId && (
+                      <span className="opacity-80">
+                        ID: <strong className="font-semibold">{testResult.attemptId}</strong>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="whitespace-pre-line text-[11px]">
+                    {testResult.message}
+                  </div>
+
+                  {(testResult.timestamp || testResult.configVersion) && (
+                    <div className="pt-1.5 border-t border-current/10 flex flex-wrap items-center gap-x-4 text-[10px] font-mono opacity-80">
+                      {testResult.timestamp && (
+                        <span>Czas: {new Date(testResult.timestamp).toLocaleString("pl-PL")}</span>
+                      )}
+                      {testResult.configVersion && (
+                        <span>Wersja: {testResult.configVersion}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1282,9 +1339,11 @@ export function StoreSettingsClient({
                     <table className="w-full text-left text-[11px]">
                       <thead className="bg-[#FAF6F1] border-b border-[#EADFD5] text-[#7A6458]">
                         <tr>
+                          <th className="p-2">ID próby</th>
                           <th className="p-2">Typ zdarzenia</th>
                           <th className="p-2">Odbiorca</th>
                           <th className="p-2">Status</th>
+                          <th className="p-2">Wersja</th>
                           <th className="p-2">Data / Odpowiedź serwera</th>
                           <th className="p-2 text-right">Akcja</th>
                         </tr>
@@ -1292,6 +1351,9 @@ export function StoreSettingsClient({
                       <tbody className="divide-y divide-[#EADFD5]">
                         {outboxList.map((item) => (
                           <tr key={item.id} className="hover:bg-amber-50/30">
+                            <td className="p-2 font-mono text-[10px] text-[#7A6458]">
+                              {item.attemptId || item.id}
+                            </td>
                             <td className="p-2 font-mono font-semibold text-[#241D1B]">
                               {item.type}
                             </td>
@@ -1310,6 +1372,9 @@ export function StoreSettingsClient({
                               >
                                 {item.status === "SENT" ? "PRZYJĘTA (250 OK)" : item.status}
                               </span>
+                            </td>
+                            <td className="p-2 font-mono text-[9px] text-[#7A6458] truncate max-w-[120px]" title={item.configVersion}>
+                              {item.configVersion || "cfg-v1"}
                             </td>
                             <td className="p-2 text-[10px] text-[#6E6259]">
                               <div>{new Date(item.createdAt).toLocaleString("pl-PL")}</div>

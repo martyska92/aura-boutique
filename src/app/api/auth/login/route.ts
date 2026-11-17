@@ -5,7 +5,7 @@ import {
   ADMIN_COOKIE_NAME,
   ADMIN_DEFAULT_EMAIL,
 } from "@/lib/admin-auth";
-import { getAdminAccount, getCustomerByEmail } from "@/lib/store-data";
+import { getAdminAccount, getCustomerByEmail, verifyPassword } from "@/lib/store-data";
 
 // In-memory rate limiting na nieudane próby logowania (IP + e-mail)
 interface AttemptRecord {
@@ -122,7 +122,9 @@ export async function POST(req: NextRequest) {
     const adminEmailNormalized = (adminAccount.email || ADMIN_DEFAULT_EMAIL).trim().toLowerCase();
 
     if (normalizedEmail === adminEmailNormalized) {
-      const isPassCorrect = trimmedPassword === adminAccount.password.trim();
+      const isPassCorrect = adminAccount.passwordHash
+        ? verifyPassword(trimmedPassword, adminAccount.passwordHash)
+        : false;
       if (!isPassCorrect) {
         const lockStatus = recordFailedAttempt(rateLimitKey);
         if (lockStatus.isNowLocked) {

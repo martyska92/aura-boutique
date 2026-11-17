@@ -27,16 +27,9 @@ export async function POST(req: NextRequest) {
 
     const trimmedNew = newPassword.trim();
 
-    if (trimmedNew.length < 6) {
+    if (trimmedNew.length < 8) {
       return NextResponse.json(
-        { error: "Nowe hasło musi zawierać co najmniej 6 znaków." },
-        { status: 400 }
-      );
-    }
-
-    if (trimmedNew.toLowerCase() === "dupa") {
-      return NextResponse.json(
-        { error: "Nie możesz pozostawić hasła jednorazowego. Wybierz własne, bezpieczne hasło." },
+        { error: "Nowe hasło musi zawierać co najmniej 8 znaków dla zapewnienia bezpieczeństwa konta." },
         { status: 400 }
       );
     }

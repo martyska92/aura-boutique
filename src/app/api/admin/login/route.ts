@@ -10,21 +10,20 @@ import { getAdminAccount } from "@/lib/store-data";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const { email, password } = body;
 
-    const account = await getAdminAccount();
-
-    let isValid = false;
-    let mustChange = account.mustChangePassword;
-
-    if (email) {
-      const resAuth = await checkAdminCredentials(email, password);
-      isValid = resAuth.valid;
-      mustChange = resAuth.mustChangePassword;
-    } else if (password) {
-      isValid = await checkAdminPassword(password);
+    if (!email || typeof email !== "string" || !password || typeof password !== "string") {
+      return NextResponse.json(
+        { error: "Podaj adres e-mail oraz hasło dostępowe." },
+        { status: 400 }
+      );
     }
+
+    const account = await getAdminAccount();
+    const resAuth = await checkAdminCredentials(email, password);
+    const isValid = resAuth.valid;
+    const mustChange = resAuth.mustChangePassword;
 
     if (!isValid) {
       return NextResponse.json(

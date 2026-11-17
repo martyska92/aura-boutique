@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
     })),
     emailOutbox: emailOutbox.map((e: any) => ({
       id: e.id,
+      attemptId: e.attemptId || e.id,
+      configVersion: e.configVersion || "cfg-v1",
       to: e.to,
       subject: e.subject,
       type: e.type,
@@ -250,6 +252,9 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error: result.error || "Nie udało się wysłać testowej wiadomości.",
+          attemptId: result.attemptId,
+          configVersion: result.configVersion,
+          timestamp: result.timestamp,
         },
         { status: 400 }
       );
@@ -258,6 +263,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `Wiadomość została pomyślnie wysłana na adres ${targetEmail}!`,
+      attemptId: result.attemptId,
+      configVersion: result.configVersion,
+      timestamp: result.timestamp,
+      smtpResponse: result.smtpResponse,
     });
   } catch (err: any) {
     return NextResponse.json(

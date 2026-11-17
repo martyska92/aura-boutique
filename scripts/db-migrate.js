@@ -53,15 +53,15 @@ async function run() {
         datasources: { db: { url: process.env.DATABASE_URL || dbUrl } },
       });
 
-      // 1. Archiwizacja produktów testowych (ads, vfggh, dupa, niespodzianka)
+      // 1. Archiwizacja produktów testowych (ads, vfggh, test, niespodzianka)
       const archiveResult = await prisma.product.updateMany({
         where: {
           OR: [
             { name: { contains: "ads", mode: "insensitive" } },
             { name: { contains: "vfggh", mode: "insensitive" } },
-            { name: { contains: "dupa", mode: "insensitive" } },
+            { name: { contains: "test", mode: "insensitive" } },
             { name: { contains: "niespodzianka", mode: "insensitive" } },
-            { slug: { in: ["ads", "vfggh", "dupa", "niespodzianka"] } },
+            { slug: { in: ["ads", "vfggh", "test", "niespodzianka"] } },
           ],
         },
         data: {

@@ -27,7 +27,8 @@ function AuthForms() {
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get("redirect") || "/konto";
 
-  const [activeTab, setActiveTab] = useState<"login" | "register" | "forgot">("login");
+  const initialTab = searchParams.get("tab") === "forgot" ? "forgot" : searchParams.get("tab") === "register" ? "register" : "login";
+  const [activeTab, setActiveTab] = useState<"login" | "register" | "forgot">(initialTab);
 
   // Aktywna sesja
   const [currentSessionEmail, setCurrentSessionEmail] = useState<string | null>(null);
@@ -57,7 +58,7 @@ function AuthForms() {
   }, []);
 
   // Przypomnienie / Reset hasła (dla klientek i właścicielki)
-  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotEmail, setForgotEmail] = useState(searchParams.get("email") || "");
   const [forgotStep, setForgotStep] = useState<1 | 2>(1);
   const [forgotCode, setForgotCode] = useState("");
   const [forgotNewPassword, setForgotNewPassword] = useState("");

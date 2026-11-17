@@ -8,7 +8,7 @@ import { BrandLogo } from "@/components/ui/BrandLogo";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("aurazmigrod@wp.pl");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,7 +67,10 @@ export default function AdminLoginPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white/95 backdrop-blur-sm py-8 px-6 sm:px-10 border border-[#BCAB9B] rounded-lg shadow-xl space-y-6">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded flex items-center gap-2">
+            <div
+              role="alert"
+              className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded flex items-center gap-2"
+            >
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -82,6 +85,8 @@ export default function AdminLoginPage() {
                 <input
                   type="email"
                   required
+                  autoComplete="username"
+                  placeholder="twoj-email@auraboutique.pl"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-[#FAF6F1] border border-[#BCAB9B] p-3 pl-9 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded font-medium"
@@ -98,6 +103,7 @@ export default function AdminLoginPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   required
+                  autoComplete="current-password"
                   placeholder="Wpisz hasło..."
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -114,10 +120,10 @@ export default function AdminLoginPage() {
               </div>
               <div className="flex justify-end pt-1.5">
                 <Link
-                  href="/logowanie"
+                  href="/logowanie?tab=forgot"
                   className="text-[11px] text-[#8C7248] hover:text-[#241D1B] hover:underline"
                 >
-                  Zapomniałaś hasła? Zresetuj hasło
+                  Nie pamiętasz hasła? Zresetuj je bezpiecznie przez e-mail
                 </Link>
               </div>
             </div>
@@ -125,25 +131,12 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded shadow-md"
+              className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded shadow-md cursor-pointer"
             >
               <ShieldCheck className="w-4 h-4 text-white" />
               <span>{isLoading ? "Weryfikacja..." : "Zaloguj się do panelu"}</span>
             </button>
           </form>
-
-          {/* Dyskretna informacja o haśle dostępnym */}
-          <div className="p-4 bg-[#F5ECE1]/70 border border-[#E0D3C3] text-xs text-[#5A483D] rounded space-y-1">
-            <p className="font-semibold text-[#241D1B] flex items-center gap-1.5">
-              <span>🔑</span> Hasło dostępowe dla właścicielki:
-            </p>
-            <p className="font-mono bg-white px-2 py-1 border border-[#BCAB9B] text-center font-bold text-[#241D1B] rounded">
-              dupa
-            </p>
-            <p className="text-[11px] text-[#7A6458]">
-              Po zalogowaniu uzyskujesz natychmiastowy dostęp do panelu administracyjnego.
-            </p>
-          </div>
 
           <div className="pt-2 text-center border-t border-[#EADFD5]">
             <Link

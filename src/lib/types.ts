@@ -458,9 +458,9 @@ export type ContactMessage = {
 
 // Konto administratora / właścicielki
 export type AdminAccount = {
-  email: string; // aurazmigrod@wp.pl
-  password: string; // Początkowo "dupa"
-  mustChangePassword: boolean; // true na starcie, zmusza do natychmiastowej zmiany
+  email: string;
+  passwordHash?: string;
+  mustChangePassword: boolean;
   lastPasswordChangedAt?: string;
 };
 

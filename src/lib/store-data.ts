@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
+import crypto from "crypto";
 import {
   Category,
   Product,
@@ -65,10 +66,31 @@ export interface StoreFileState {
   emailOutbox?: any[];
 }
 
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password: string, storedHash?: string): boolean {
+  if (!storedHash || typeof storedHash !== "string" || !storedHash.includes(":")) {
+    return false;
+  }
+  try {
+    const [salt, originalHash] = storedHash.split(":");
+    if (!salt || !originalHash) return false;
+    const computedHash = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+    return crypto.timingSafeEqual(Buffer.from(computedHash, "hex"), Buffer.from(originalHash, "hex"));
+  } catch {
+    return false;
+  }
+}
+
 export const initialAdminAccount: AdminAccount = {
   email: "aurazmigrod@wp.pl",
-  password: "dupa",
-  mustChangePassword: false,
+  passwordHash: "",
+  mustChangePassword: true,
+  lastPasswordChangedAt: new Date(0).toISOString(),
 };
 
 declare global {
@@ -195,7 +217,7 @@ export function saveLocalStore(state: StoreFileState) {
       fs.mkdirSync(tmpDir, { recursive: true });
     }
     fs.writeFileSync(TMP_DATA_FILE, JSON.stringify(state, null, 2), "utf-8");
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // Sprawdzenie czy Neon / PostgreSQL jest poprawnie skonfigurowany
@@ -429,13 +451,13 @@ function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
   const priceHistory: PriceHistoryRecord[] =
     dbProd.priceHistory && dbProd.priceHistory.length > 0
       ? dbProd.priceHistory.map((ph: any) => ({
-          id: ph.id,
-          productId: ph.productId,
-          variantId: ph.variantId || undefined,
-          price: Number(ph.price),
-          isPromotion: Boolean(ph.isPromotion),
-          changedAt: ph.changedAt instanceof Date ? ph.changedAt.toISOString() : String(ph.changedAt),
-        }))
+        id: ph.id,
+        productId: ph.productId,
+        variantId: ph.variantId || undefined,
+        price: Number(ph.price),
+        isPromotion: Boolean(ph.isPromotion),
+        changedAt: ph.changedAt instanceof Date ? ph.changedAt.toISOString() : String(ph.changedAt),
+      }))
       : store.products.find((p) => p.id === dbProd.id)?.priceHistory || [];
 
   return {
@@ -459,41 +481,41 @@ function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
     categoryId: dbProd.categoryId,
     category: dbProd.category
       ? {
-          id: dbProd.category.id,
-          name: dbProd.category.name,
-          slug: dbProd.category.slug,
-          description: dbProd.category.description || undefined,
-          imageUrl: dbProd.category.imageUrl || undefined,
-          orderIndex: dbProd.category.orderIndex,
-          isActive: dbProd.category.isActive !== undefined ? Boolean(dbProd.category.isActive) : true,
-        }
+        id: dbProd.category.id,
+        name: dbProd.category.name,
+        slug: dbProd.category.slug,
+        description: dbProd.category.description || undefined,
+        imageUrl: dbProd.category.imageUrl || undefined,
+        orderIndex: dbProd.category.orderIndex,
+        isActive: dbProd.category.isActive !== undefined ? Boolean(dbProd.category.isActive) : true,
+      }
       : store.categories.find((c) => c.id === dbProd.categoryId),
     images:
       dbProd.images && dbProd.images.length > 0
         ? dbProd.images.map((im: any) => ({
-            id: im.id,
-            productId: im.productId,
-            url: im.url,
-            altText: im.altText || undefined,
-            orderIndex: im.orderIndex,
-            isPrimary: im.isPrimary,
-          }))
+          id: im.id,
+          productId: im.productId,
+          url: im.url,
+          altText: im.altText || undefined,
+          orderIndex: im.orderIndex,
+          isPrimary: im.isPrimary,
+        }))
         : store.products.find((p) => p.id === dbProd.id)?.images || [],
     variants:
       dbProd.variants && dbProd.variants.length > 0
         ? dbProd.variants.map((v: any) => ({
-            id: v.id,
-            productId: v.productId,
-            size: v.size,
-            color: v.color,
-            colorHex: v.colorHex || undefined,
-            sku: v.sku,
-            stockQuantity: v.stockQuantity,
-            reservedQuantity: v.reservedQuantity || 0,
-            price: v.price ? Number(v.price) : undefined,
-            promotionalPrice: v.promotionalPrice ? Number(v.promotionalPrice) : undefined,
-            lowestPrice30Days: v.lowestPrice30Days ? Number(v.lowestPrice30Days) : undefined,
-          }))
+          id: v.id,
+          productId: v.productId,
+          size: v.size,
+          color: v.color,
+          colorHex: v.colorHex || undefined,
+          sku: v.sku,
+          stockQuantity: v.stockQuantity,
+          reservedQuantity: v.reservedQuantity || 0,
+          price: v.price ? Number(v.price) : undefined,
+          promotionalPrice: v.promotionalPrice ? Number(v.promotionalPrice) : undefined,
+          lowestPrice30Days: v.lowestPrice30Days ? Number(v.lowestPrice30Days) : undefined,
+        }))
         : [],
     priceHistory,
     createdAt: dbProd.createdAt instanceof Date ? dbProd.createdAt.toISOString() : String(dbProd.createdAt),
@@ -563,8 +585,8 @@ export async function getProducts(options?: {
           options?.sortBy === "price_asc"
             ? { basePrice: "asc" }
             : options?.sortBy === "price_desc"
-            ? { basePrice: "desc" }
-            : { createdAt: "desc" },
+              ? { basePrice: "desc" }
+              : { createdAt: "desc" },
       });
 
       if (dbProducts && dbProducts.length > 0) {
@@ -944,7 +966,7 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
         if (dbProd) {
           existingProduct = mapPrismaProduct(dbProd, store);
         }
-      } catch (_) {}
+      } catch (_) { }
     }
   }
 
@@ -954,13 +976,13 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
     const finalImages =
       productData.images !== undefined
         ? productData.images.map((img, i) => ({
-            id: img.id || `img-${existingProduct!.id}-${i}`,
-            productId: existingProduct!.id,
-            url: img.url,
-            altText: img.altText || productData.name || existingProduct!.name,
-            orderIndex: img.orderIndex !== undefined ? img.orderIndex : i,
-            isPrimary: img.isPrimary !== undefined ? img.isPrimary : i === 0,
-          }))
+          id: img.id || `img-${existingProduct!.id}-${i}`,
+          productId: existingProduct!.id,
+          url: img.url,
+          altText: img.altText || productData.name || existingProduct!.name,
+          orderIndex: img.orderIndex !== undefined ? img.orderIndex : i,
+          isPrimary: img.isPrimary !== undefined ? img.isPrimary : i === 0,
+        }))
         : existingImages;
 
     // Obsługa historii cen i dyrektywy Omnibus
@@ -1068,14 +1090,14 @@ export async function saveProduct(productData: Partial<Product>): Promise<Produc
   const initialHistory: PriceHistoryRecord[] =
     basePrice > 0
       ? [
-          {
-            id: `ph-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            productId: newId,
-            price: basePrice,
-            isPromotion: false,
-            changedAt: now,
-          },
-        ]
+        {
+          id: `ph-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          productId: newId,
+          price: basePrice,
+          isPromotion: false,
+          changedAt: now,
+        },
+      ]
       : [];
 
   const isPromoted = Boolean(productData.isPromoted);
@@ -1283,7 +1305,7 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
             select: { id: true },
           });
           if (v) validVariantId = it.variantId;
-        } catch (_) {}
+        } catch (_) { }
       }
 
       safeItems.push({
@@ -1486,7 +1508,7 @@ export async function createOrder(
             where: { id: item.variantId },
             data: { stockQuantity: { decrement: item.quantity } },
           });
-        } catch (_) {}
+        } catch (_) { }
       }
     }
   }
@@ -1737,7 +1759,7 @@ export async function editOrderCustomer(
         include: { items: true },
       });
       if (dbOrder) order = mapPrismaOrder(dbOrder);
-    } catch (_) {}
+    } catch (_) { }
   }
 
   if (!order) {
@@ -1759,7 +1781,7 @@ export async function editOrderCustomer(
   // Przeliczanie sum
   const subtotal = newItems.reduce((acc, item) => acc + item.totalSnapshot, 0);
   const freeThreshold = store.settings.freeShippingFrom || 300;
-  
+
   // Jeśli kwota przekracza próg, darmowa dostawa
   let shippingCost = order.shippingCost;
   if (subtotal >= freeThreshold) {
@@ -1767,8 +1789,8 @@ export async function editOrderCustomer(
   } else if (order.shippingMethod === "LOCAL_PICKUP") {
     shippingCost = 0;
   } else if (shippingCost === 0) {
-    shippingCost = order.shippingMethod === "INPOST_LOCKER" 
-      ? (store.settings.inpostLockerCost || 13) 
+    shippingCost = order.shippingMethod === "INPOST_LOCKER"
+      ? (store.settings.inpostLockerCost || 13)
       : (store.settings.courierCost || 15);
   }
 
@@ -1857,8 +1879,8 @@ export async function createReturnRequest(
   const returnId = `ZWR-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
 
   // Generujemy zwrotny kod nadania InPost dla wygody klientki
-  const returnTrackingNumber = data.returnMethod === "INPOST_LOCKER" 
-    ? `ZWROT-${Math.floor(1000000000 + Math.random() * 9000000000)}` 
+  const returnTrackingNumber = data.returnMethod === "INPOST_LOCKER"
+    ? `ZWROT-${Math.floor(1000000000 + Math.random() * 9000000000)}`
     : undefined;
 
   const returnRequest: ReturnRequest = {
@@ -2901,6 +2923,11 @@ export async function getAdminAccount(): Promise<AdminAccount> {
     store.adminAccount = { ...initialAdminAccount };
     saveLocalStore(store);
   }
+  // Sanityzacja: usuwamy stare jawne pole hasła z pamięci i dysku jeśli występuje
+  if ("password" in (store.adminAccount as any)) {
+    delete (store.adminAccount as any).password;
+    saveLocalStore(store);
+  }
   return store.adminAccount;
 }
 
@@ -3001,7 +3028,8 @@ export async function resetUserPassword(
     if (!store.adminAccount) {
       store.adminAccount = { ...initialAdminAccount };
     }
-    store.adminAccount.password = cleanPassword;
+    store.adminAccount.passwordHash = hashPassword(cleanPassword);
+    delete (store.adminAccount as any).password;
     store.adminAccount.mustChangePassword = false;
     store.adminAccount.lastPasswordChangedAt = new Date().toISOString();
 
@@ -3015,7 +3043,7 @@ export async function resetUserPassword(
     saveLocalStore(store);
     await addPromotionAuditLog(
       "RESET_HASŁA_ADMINA",
-      "Pomyślnie zresetowano hasło dla konta właścicielki butiku (aurazmigrod@wp.pl).",
+      "Pomyślnie zresetowano hasło dla konta właścicielki butiku (aurazmigrod@wp.pl). Zapisano bezpieczny skrót PBKDF2.",
       "System resetowania hasła"
     );
     return { success: true, role: "ADMIN" };
@@ -3056,14 +3084,15 @@ export async function updateAdminPassword(newPassword: string): Promise<AdminAcc
   if (!store.adminAccount) {
     store.adminAccount = { ...initialAdminAccount };
   }
-  store.adminAccount.password = newPassword.trim();
+  store.adminAccount.passwordHash = hashPassword(newPassword.trim());
+  delete (store.adminAccount as any).password;
   store.adminAccount.mustChangePassword = false;
   store.adminAccount.lastPasswordChangedAt = new Date().toISOString();
   saveLocalStore(store);
 
   await addPromotionAuditLog(
     "ZMIANA_HASŁA_WŁAŚCICIELKI",
-    "Pomyślnie zmieniono hasło dla konta aurazmigrod@wp.pl. Hasło jednorazowe zostało wyłączone.",
+    "Pomyślnie zmieniono hasło dla konta aurazmigrod@wp.pl. Zapisano bezpieczny skrót PBKDF2.",
     "Właścicielka (aurazmigrod@wp.pl)"
   );
 
