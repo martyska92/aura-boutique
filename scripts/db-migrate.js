@@ -120,7 +120,7 @@ async function run() {
             },
           });
           console.log("[db-migrate] Zainicjalizowano konto wlascicielki w PostgreSQL.");
-        } else if (!existingAdmin.passwordHash && initialHash) {
+        } else if (initialHash) {
           await prisma.adminAccount.update({
             where: { id: "default" },
             data: {
@@ -130,6 +130,11 @@ async function run() {
           });
           console.log("[db-migrate] Zsynchronizowano bezpieczny hash konta wlascicielki.");
         }
+
+        // Unieważnienie starych sesji administratora
+        try {
+          await prisma.adminSession.deleteMany({});
+        } catch (_) {}
 
         // Synchronizacja aktywnych tokenów odzyskiwania dostępu z magazynu lokalnego
         if (localStore?.passwordResetTokens && Array.isArray(localStore.passwordResetTokens)) {

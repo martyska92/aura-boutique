@@ -687,9 +687,9 @@
   "contactMessages": [],
   "adminAccount": {
     "email": "aurazmigrod@wp.pl",
-    "passwordHash": "",
+    "passwordHash": "bf90b090afd2fa8bc8bf5919b88bc4fc:ccea2edaea38700fa7cac83c8d2ce0ce4a8f9e41d419c53333226a5f8d7a66a7f2e39060aa6c759046a5122ef64d1406a41b7b506ce390348a68cc17f29b04ae",
     "mustChangePassword": true,
-    "lastPasswordChangedAt": "1970-01-01T00:00:00.000Z"
+    "lastPasswordChangedAt": "2026-11-17T16:55:28.733Z"
   },
   "customers": [],
   "passwordResetTokens": [
