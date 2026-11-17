@@ -133,23 +133,90 @@ async function run() {
           console.log("[db-migrate] Uzupełniono początkowy hash konta właścicielki.");
         }
 
-        // Migracja starszych haseł klientek do solonego formatu PBKDF2
+        // Migracja starszych haseł klientek do solonego formatu PBKDF2 oraz uzupełnienie profili
         try {
           const crypto = require("crypto");
+          
+          // 1. Synchronizacja klientek z magazynu lokalnego do Neon (jeśli jakiejś brakuje w Neon)
+          if (localStore?.customers && Array.isArray(localStore.customers)) {
+            for (const lc of localStore.customers) {
+              if (lc.email) {
+                const normEmail = lc.email.trim().toLowerCase();
+                const exists = await prisma.customerAccount.findUnique({
+                  where: { email: normEmail },
+                });
+                if (!exists) {
+                  const refCode = lc.referralCode || `AURA-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+                  await prisma.customerAccount.create({
+                    data: {
+                      id: lc.id || undefined,
+                      email: normEmail,
+                      firstName: lc.firstName || "Klientka",
+                      lastName: lc.lastName || "AURA",
+                      phone: lc.phone || null,
+                      passwordHash: lc.passwordHash || null,
+                      referralCode: refCode,
+                      defaultStreet: lc.defaultStreet || null,
+                      defaultCity: lc.defaultCity || null,
+                      defaultPostalCode: lc.defaultPostalCode || null,
+                    },
+                  });
+                  console.log(`[db-migrate] Bezpiecznie zsynchronizowano konto klientki ${normEmail} do Neon.`);
+                }
+              }
+            }
+          }
+
+          // 2. Walidacja i uzupełnienie profili klientek w Neon
           const customers = await prisma.customerAccount.findMany();
           for (const c of customers) {
+            let needsUpdate = false;
+            let newHash = c.passwordHash;
+            let newRefCode = c.referralCode;
+
             if (c.passwordHash && !c.passwordHash.includes(":")) {
               const salt = crypto.randomBytes(16).toString("hex");
-              const hash = crypto.pbkdf2Sync(c.passwordHash.trim(), salt, 100000, 64, "sha512").toString("hex");
+              newHash = `${salt}:${crypto.pbkdf2Sync(c.passwordHash.trim(), salt, 100000, 64, "sha512").toString("hex")}`;
+              needsUpdate = true;
+            }
+
+            if (!c.referralCode) {
+              newRefCode = `AURA-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
               await prisma.customerAccount.update({
                 where: { id: c.id },
-                data: { passwordHash: `${salt}:${hash}` },
+                data: {
+                  passwordHash: newHash,
+                  referralCode: newRefCode,
+                },
               });
-              console.log(`[db-migrate] Zmigrowano haslo klientki ${c.email} do formatu PBKDF2.`);
+              console.log(`[db-migrate] Uzupełniono profil/hasło klientki ${c.email}.`);
+            }
+
+            // Upewnienie się, że klientka ma rekord uczestnika programu poleceń
+            if (newRefCode) {
+              const part = await prisma.referralParticipant.findUnique({
+                where: { email: c.email.toLowerCase() },
+              });
+              if (!part) {
+                try {
+                  await prisma.referralParticipant.create({
+                    data: {
+                      customerId: c.id,
+                      email: c.email.toLowerCase(),
+                      customerName: `${c.firstName} ${c.lastName}`.trim(),
+                      referralCode: newRefCode,
+                    },
+                  });
+                } catch (_) {}
+              }
             }
           }
         } catch (custErr) {
-          console.warn("[db-migrate] Ostrzezenie migracji hasel klientek:", custErr.message);
+          console.warn("[db-migrate] Ostrzezenie migracji/synchronizacji klientek:", custErr.message);
         }
 
         // Unieważnienie starych sesji administratora

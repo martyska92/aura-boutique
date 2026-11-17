@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Check,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 
 export interface CustomerRow {
@@ -68,6 +69,29 @@ export function CustomerListClient({ initialCustomers }: CustomerListClientProps
   const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Pobieranie aktualnej listy z bazy danych
+  const fetchCustomers = async () => {
+    try {
+      setIsRefreshing(true);
+      const res = await fetch("/api/admin/customers", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.customers && Array.isArray(data.customers)) {
+          setCustomers(data.customers);
+        }
+      }
+    } catch (err) {
+      console.error("Błąd odświeżania listy klientek:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
 
   // Stan formularza rabatu indywidualnego w profilu klientki
   const [discountPercentInput, setDiscountPercentInput] = useState<string>("");
@@ -159,7 +183,7 @@ export function CustomerListClient({ initialCustomers }: CustomerListClientProps
           <Search className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
         </div>
 
-        <div className="flex items-center gap-4 text-xs text-[#6E6259]">
+        <div className="flex items-center gap-3 text-xs text-[#6E6259]">
           <span>
             Zarejestrowane klientki: <strong className="text-[#241D1B]">{customers.length}</strong>
           </span>
@@ -167,6 +191,16 @@ export function CustomerListClient({ initialCustomers }: CustomerListClientProps
           <span>
             Wyniki wyszukiwania: <strong className="text-[#241D1B]">{filtered.length}</strong>
           </span>
+          <button
+            type="button"
+            onClick={fetchCustomers}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#EADFD5] bg-[#FAF6F1] text-[#241D1B] hover:bg-[#EFE6DD] text-xs font-medium transition-colors"
+            title="Odśwież dane z bazy Neon"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-[#8C7248] ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>Odśwież</span>
+          </button>
         </div>
       </div>
 

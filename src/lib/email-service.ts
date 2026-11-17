@@ -49,24 +49,24 @@ export function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): s
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #BCAB9B; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #241D1B;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #BCAB9B; padding: 36px 12px;">
+<body style="margin: 0; padding: 0; background-color: #BCAB9B; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #241D1B;" bgcolor="#BCAB9B">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #BCAB9B; padding: 36px 12px;" bgcolor="#BCAB9B">
     <tr>
-      <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #968372; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 24px rgba(36, 29, 27, 0.20);">
+      <td align="center" bgcolor="#BCAB9B">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #968372; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 24px rgba(36, 29, 27, 0.20);" bgcolor="#ffffff">
           
-          <!-- Nagłówek beżowo-kaszmirowy z czystym logo AURA -->
+          <!-- Nagłówek: ciemny beżowo-brązowy pas z czystym jasnym logo AURA -->
           <tr>
-            <td align="center" style="background-color: #FAF6F1; padding: 32px 20px; border-bottom: 2px solid #C5A069;">
+            <td align="center" bgcolor="#BCAB9B" style="background-color: #BCAB9B; padding: 32px 20px; border-bottom: 2px solid #C5A069;">
               <a href="${storeUrl}" target="_blank" style="text-decoration: none; display: inline-block;">
-                <img src="${storeUrl}/images/brand/aura-logo.png" alt="AURA Boutique" width="220" style="display: block; max-width: 220px; width: 100%; height: auto; border: 0; margin: 0 auto;" />
+                <img src="${storeUrl}/images/brand/aura-logo.png" alt="AURA Boutique" width="220" style="display: block; max-width: 220px; width: 100%; height: auto; border: 0; margin: 0 auto; background-color: transparent;" />
               </a>
             </td>
           </tr>
 
           <!-- Treść główna wiadomości -->
           <tr>
-            <td style="padding: 36px 30px; font-size: 14px; line-height: 1.6; color: #3E3835;">
+            <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 36px 30px; font-size: 14px; line-height: 1.6; color: #3E3835;">
               ${contentHtml}
             </td>
           </tr>

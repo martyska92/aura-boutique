@@ -1,6 +1,6 @@
 import React from "react";
 import { requireAdmin } from "@/lib/admin-auth";
-import { loadLocalStore } from "@/lib/store-data";
+import { loadLocalStore, getCustomers } from "@/lib/store-data";
 import { CustomerListClient, CustomerRow } from "@/components/admin/CustomerListClient";
 import { Users } from "lucide-react";
 
@@ -11,7 +11,7 @@ export default async function AdminCustomersPage() {
   await requireAdmin();
 
   const store = loadLocalStore();
-  const customers = store.customers || [];
+  const customers = await getCustomers();
   const orders = store.orders || [];
   const individualDiscounts = store.individualDiscounts || [];
 
