@@ -2,7 +2,7 @@ import { VisualBannerConfig } from "./types";
 
 export function getDefaultBannerConfig(): VisualBannerConfig {
   return {
-    imageUrl: "/images/hero/aura-hero-clean.jpg",
+    imageUrl: "/images/hero/aura-hero-boutique-clean.jpg",
     focalPointX: 50,
     focalPointY: 50,
     aspectRatioDesktop: "1024/390",

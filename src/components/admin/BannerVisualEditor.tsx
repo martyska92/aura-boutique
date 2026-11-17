@@ -29,6 +29,9 @@ import {
   Check,
   AlertCircle,
   HelpCircle,
+  Upload,
+  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 import {
   VisualBannerConfig,
@@ -73,6 +76,85 @@ export function BannerVisualEditor() {
   // Linie pomocnicze (Snap guidelines)
   const [snapGuideX, setSnapGuideX] = useState<number | null>(null);
   const [snapGuideY, setSnapGuideY] = useState<number | null>(null);
+
+  // Wgrywanie i podmiana zdjęcia banera
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [bannerUploadError, setBannerUploadError] = useState<string | null>(null);
+  const [bannerUploadSuccess, setBannerUploadSuccess] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const bannerFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBannerFileUpload = async (file: File) => {
+    setBannerUploadError(null);
+    setBannerUploadSuccess(null);
+
+    const allowedMimes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const isMimeOk =
+      allowedMimes.includes(file.type?.toLowerCase() || "") ||
+      ["jpg", "jpeg", "png", "webp"].includes(ext || "");
+
+    if (!isMimeOk) {
+      setBannerUploadError("Nieobsługiwany format pliku. Wybierz zdjęcie JPG, PNG lub WebP.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      setBannerUploadError(`Plik jest zbyt duży (${sizeMB} MB). Maksymalny rozmiar to 10 MB.`);
+      return;
+    }
+
+    setIsUploadingBanner(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/admin/banner/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Wystąpił błąd podczas wgrywania pliku.");
+      }
+
+      if (!data.url) {
+        throw new Error("Serwer nie zwrócił poprawnego adresu zdjęcia.");
+      }
+
+      // Aktualizacja tła banera w szkicu
+      setConfig((prev) => {
+        const next = { ...prev, imageUrl: data.url };
+        pushHistory(next);
+        return next;
+      });
+
+      setBannerUploadSuccess(data.message || "Zdjęcie banera zostało pomyślnie zaktualizowane.");
+      setTimeout(() => setBannerUploadSuccess(null), 4000);
+    } catch (err: any) {
+      setBannerUploadError(err.message || "Nie udało się przesłać zdjęcia.");
+    } finally {
+      setIsUploadingBanner(false);
+      if (bannerFileInputRef.current) {
+        bannerFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleUseDefaultCleanPhoto = () => {
+    setBannerUploadError(null);
+    const cleanUrl = `/images/hero/aura-hero-boutique-clean.jpg?v=${Date.now()}`;
+    setConfig((prev) => {
+      const next = { ...prev, imageUrl: cleanUrl };
+      pushHistory(next);
+      return next;
+    });
+    setBannerUploadSuccess("Ustawiono oryginalne czyste zdjęcie butiku AURA (bez napisów).");
+    setTimeout(() => setBannerUploadSuccess(null), 3500);
+  };
 
   // Przeciąganie i zmiana rozmiaru
   const bannerContainerRef = useRef<HTMLDivElement>(null);
@@ -1734,45 +1816,156 @@ export function BannerVisualEditor() {
 
           {/* ─── ZAKŁADKA 2: ZDJĘCIE W TLE I KADROWANIE ─── */}
           {activeTab === "image" && (
-            <div className="space-y-3.5 text-xs">
-              <div className="space-y-1">
-                <label className="font-semibold text-[#241D1B] block">
-                  Ścieżka lub URL zdjęcia:
-                </label>
-                <input
-                  type="text"
-                  value={config.imageUrl}
-                  onChange={(e) =>
-                    setConfig((prev) => {
-                      const next = { ...prev, imageUrl: e.target.value };
-                      pushHistory(next);
-                      return next;
-                    })
+            <div className="space-y-4 text-xs">
+              {/* Ukryty input do wyboru pliku z dysku */}
+              <input
+                ref={bannerFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/jpg"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleBannerFileUpload(e.target.files[0]);
                   }
-                  className="w-full p-2 border border-[#EADFD5] rounded bg-white text-xs font-mono text-[#241D1B]"
-                  placeholder="/images/hero/aura-hero-clean.jpg"
-                />
+                }}
+                className="hidden"
+              />
+
+              {/* Komunikaty stanu uploadu */}
+              {bannerUploadError && (
+                <div
+                  role="alert"
+                  className="p-3 bg-red-50 border border-red-200 text-red-900 rounded text-xs flex items-center gap-2"
+                >
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span className="font-medium leading-relaxed">{bannerUploadError}</span>
+                </div>
+              )}
+
+              {bannerUploadSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded text-xs flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-medium leading-relaxed">{bannerUploadSuccess}</span>
+                </div>
+              )}
+
+              {/* Sekcja 1: Wybór pliku z urządzenia i Drag & Drop */}
+              <div className="space-y-2">
+                <label className="font-semibold text-[#241D1B] block text-xs uppercase tracking-wider">
+                  Wgraj nowe zdjęcie banera:
+                </label>
+
+                {/* Widoczny przycisk wyboru pliku */}
+                <button
+                  type="button"
+                  disabled={isUploadingBanner}
+                  onClick={() => bannerFileInputRef.current?.click()}
+                  className="w-full py-2.5 px-3 bg-[#C5A069] hover:bg-[#AF884F] text-white rounded text-xs uppercase tracking-wider font-semibold transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-60"
+                >
+                  {isUploadingBanner ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Optymalizowanie zdjęcia...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 text-white" />
+                      <span>Wgraj zdjęcie z urządzenia</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Strefa upuszczania Drag & Drop */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(true);
+                  }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                      handleBannerFileUpload(e.dataTransfer.files[0]);
+                    }
+                  }}
+                  onClick={() => bannerFileInputRef.current?.click()}
+                  className={`p-4 border-2 border-dashed rounded text-center cursor-pointer transition-all ${
+                    isDragOver
+                      ? "border-[#C5A069] bg-[#FAF6F1]"
+                      : "border-[#D1BEB0] hover:border-[#9E8359] bg-[#FAF6F1]/50"
+                  }`}
+                >
+                  <ImageIcon className="w-6 h-6 mx-auto mb-1 text-[#9E8359]" />
+                  <p className="font-semibold text-[#241D1B] text-[11px]">
+                    Przeciągnij i upuść zdjęcie tutaj lub kliknij, aby wybrać
+                  </p>
+                  <p className="text-[10px] text-[#7E7771] mt-0.5">
+                    Dopuszczalne formaty: JPG, PNG, WebP (maks. 10 MB)
+                  </p>
+                </div>
               </div>
 
-              {/* Szybki przycisk przywrócenia domyślnego czystego zdjęcia z butiku */}
-              <button
-                type="button"
-                onClick={() =>
-                  setConfig((prev) => {
-                    const next = {
-                      ...prev,
-                      imageUrl: "/images/hero/aura-hero-clean.jpg",
-                    };
-                    pushHistory(next);
-                    return next;
-                  })
-                }
-                className="w-full py-1.5 px-2 bg-[#FAF6F1] border border-[#C5A069] text-[#8C6B38] rounded text-xs font-semibold hover:bg-[#F3ECE2] transition-colors"
-              >
-                Użyj nowego czystego zdjęcia AURA (bez napisów)
-              </button>
+              {/* Sekcja 2: Szybkie przywrócenie czystej fotografii z butiku */}
+              <div className="pt-2 border-t border-[#EADFD5] space-y-1.5">
+                <label className="font-semibold text-[#241D1B] block text-xs">
+                  Gotowa fotografia butiku AURA:
+                </label>
+                <button
+                  type="button"
+                  onClick={handleUseDefaultCleanPhoto}
+                  className="w-full py-2 px-3 bg-[#FAF6F1] border border-[#C5A069] text-[#8C6B38] hover:bg-[#F3ECE2] rounded text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                >
+                  <Sparkles className="w-4 h-4 text-[#C5A069]" />
+                  <span>Użyj nowego czystego zdjęcia AURA (bez napisów)</span>
+                </button>
+                <p className="text-[10px] text-[#7E7771] leading-tight">
+                  Wczytuje oryginalną fotografię showroomu AURA Boutique bez wbudowanych napisów ze świeżym znacznikiem wersji.
+                </p>
+              </div>
 
-              {/* Kadrowanie / Punkt centralny (Focal point X / Y) */}
+              {/* Sekcja 3: Miniatura aktualnego zdjęcia i ścieżka */}
+              <div className="pt-2 border-t border-[#EADFD5] space-y-2">
+                <label className="font-semibold text-[#241D1B] block text-xs">
+                  Aktualnie ustawione tło:
+                </label>
+                <div className="flex items-center gap-2.5 p-2 bg-[#FAF6F1] border border-[#EADFD5] rounded">
+                  <div className="w-14 h-9 bg-neutral-200 rounded overflow-hidden relative shrink-0 border border-[#D1BEB0]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={config.imageUrl || "/images/hero/aura-hero-boutique-clean.jpg"}
+                      alt="Miniatura banera"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-mono text-[#241D1B] truncate" title={config.imageUrl}>
+                      {config.imageUrl ? (config.imageUrl.startsWith("data:") ? "Własne zdjęcie (zapisane w bazie)" : config.imageUrl) : "Domyślne zdjęcie"}
+                    </p>
+                    <p className="text-[9px] text-[#7E7771] mt-0.5">
+                      Podgląd na żywo widoczny na płótnie obok
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] text-[#6E6259]">Ręczny URL zdjęcia (opcjonalnie):</span>
+                  <input
+                    type="text"
+                    value={config.imageUrl}
+                    onChange={(e) =>
+                      setConfig((prev) => {
+                        const next = { ...prev, imageUrl: e.target.value };
+                        pushHistory(next);
+                        return next;
+                      })
+                    }
+                    className="w-full p-2 border border-[#EADFD5] rounded bg-white text-[11px] font-mono text-[#241D1B]"
+                    placeholder="/images/hero/aura-hero-boutique-clean.jpg"
+                  />
+                </div>
+              </div>
+
+              {/* Sekcja 4: Kadrowanie / Punkt centralny (Focal point X / Y) */}
               <div className="space-y-2 pt-2 border-t border-[#EADFD5]">
                 <label className="font-semibold text-[#241D1B] block">
                   Punkt kadrowania zdjęcia (Focal Point):

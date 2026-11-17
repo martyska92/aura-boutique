@@ -141,11 +141,12 @@ export function BannerRenderer({
     >
       {/* 1. Zdjęcie w tle */}
       <Image
-        src={config.imageUrl || "/images/hero/aura-hero-clean.jpg"}
+        src={config.imageUrl || "/images/hero/aura-hero-boutique-clean.jpg"}
         alt="AURA Boutique Kolekcja"
         fill
         priority
-        sizes="(max-width: 768px) 100vw, 1400px"
+        unoptimized={Boolean(config.imageUrl?.startsWith("data:") || config.imageUrl?.includes("?"))}
+        sizes="(max-width: 768px) 100vw, 1920px"
         className="object-cover transition-all duration-300 pointer-events-none"
         style={{
           objectPosition: `${config.focalPointX ?? 50}% ${config.focalPointY ?? 50}%`,
