@@ -66,6 +66,15 @@ function AuthForms() {
   const [isForgotLoading, setIsForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Rejestracja nowego konta
   const [regFirstName, setRegFirstName] = useState("");
@@ -95,12 +104,16 @@ function AuthForms() {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data.retryAfterSeconds) {
+          setResendCooldown(data.retryAfterSeconds);
+        }
         throw new Error(data.error || "Wystąpił błąd podczas generowania kodu.");
       }
 
       setForgotSuccess("Jeśli konto z podanym adresem istnieje, otrzymasz wiadomość z instrukcją resetowania hasła.");
       setForgotCode("");
       setForgotStep(2);
+      setResendCooldown(data.cooldownSeconds || 60);
     } catch (err: any) {
       setForgotError(err.message || "Błąd połączenia. Spróbuj ponownie.");
     } finally {
@@ -768,7 +781,7 @@ function AuthForms() {
 
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                    Nowe hasło dostępowe * (min. 4 znaki)
+                    Nowe hasło dostępowe * (min. 8 znaków)
                   </label>
                   <div className="relative">
                     <input
@@ -790,7 +803,7 @@ function AuthForms() {
                   </div>
                 </div>
 
-                <div className="pt-2 space-y-2">
+                <div className="pt-2 space-y-3">
                   <button
                     type="submit"
                     disabled={isForgotLoading}
@@ -804,13 +817,26 @@ function AuthForms() {
                     <span>{isForgotLoading ? "Zapisywanie..." : "Zapisz Nowe Hasło"}</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setForgotStep(1)}
-                    className="w-full py-2 text-xs text-[#7A6458] hover:text-[#241D1B] text-center"
-                  >
-                    Zmień adres e-mail
-                  </button>
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      disabled={resendCooldown > 0 || isForgotLoading}
+                      onClick={handleRequestResetCode}
+                      className="text-xs text-[#8C7248] hover:text-[#241D1B] font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:underline"
+                    >
+                      {resendCooldown > 0
+                        ? `Wyślij kod ponownie (${resendCooldown}s)`
+                        : "Wyślij kod ponownie"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep(1)}
+                      className="text-xs text-[#7A6458] hover:text-[#241D1B] hover:underline"
+                    >
+                      Zmień adres e-mail
+                    </button>
+                  </div>
                 </div>
               </form>
             )}

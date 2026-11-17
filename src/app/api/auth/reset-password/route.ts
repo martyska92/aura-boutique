@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!newPassword || typeof newPassword !== "string" || newPassword.trim().length < 6) {
+    if (!newPassword || typeof newPassword !== "string" || newPassword.trim().length < 8) {
       return NextResponse.json(
-        { error: "Nowe hasło musi zawierać co najmniej 6 znaków." },
+        { error: "Nowe hasło musi zawierać co najmniej 8 znaków dla zapewnienia bezpieczeństwa." },
         { status: 400 }
       );
     }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { sendTestEmail, sendWelcomeCustomerEmail, getEmailConfig } from "@/lib/email-service";
-import { loadLocalStore, saveLocalStore } from "@/lib/store-data";
+import { loadLocalStore, saveLocalStore, isNeonConfigured } from "@/lib/store-data";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,7 +17,39 @@ export async function GET(req: NextRequest) {
   const customers = store.customers || [];
   const pendingWelcome = customers.filter((c) => c.welcomeEmailStatus !== "SENT");
   const failedWelcome = customers.filter((c) => c.welcomeEmailStatus === "FAILED");
-  const emailOutbox = ((store as any).emailOutbox || []).slice(0, 50);
+  let emailOutbox = ((store as any).emailOutbox || []).slice(0, 50);
+
+  if (isNeonConfigured()) {
+    try {
+      const dbOutbox = await prisma.emailOutbox.findMany({
+        take: 50,
+        orderBy: { createdAt: "desc" },
+      });
+      if (dbOutbox && dbOutbox.length > 0) {
+        const dbMapped = dbOutbox.map((d) => {
+          let meta: any = {};
+          try {
+            if (d.metadata) meta = JSON.parse(d.metadata);
+          } catch (_) {}
+          return {
+            id: d.id,
+            attemptId: meta.attemptId || d.id,
+            configVersion: meta.configVersion || "cfg-v1",
+            to: d.recipient,
+            subject: d.subject,
+            type: d.type,
+            status: d.status,
+            errorMessage: d.error,
+            smtpResponse: meta.smtpResponse,
+            createdAt: d.createdAt.toISOString(),
+            sentAt: d.sentAt ? d.sentAt.toISOString() : undefined,
+          };
+        });
+        const ids = new Set(dbMapped.map((m) => m.id));
+        emailOutbox = [...dbMapped, ...emailOutbox.filter((e: any) => !ids.has(e.id))].slice(0, 50);
+      }
+    } catch (_) {}
+  }
 
   return NextResponse.json({
     totalCustomers: customers.length,

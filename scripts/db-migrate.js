@@ -91,6 +91,25 @@ async function run() {
         console.log("[db-migrate] Dodano kategorie 'Legginsy' do bazy danych.");
       }
 
+      // 3. Inicjalizacja konta właścicielki w trwałej bazie danych
+      try {
+        const existingAdmin = await prisma.adminAccount.findUnique({
+          where: { id: "default" },
+        });
+        if (!existingAdmin) {
+          await prisma.adminAccount.create({
+            data: {
+              id: "default",
+              email: "aurazmigrod@wp.pl",
+              mustChangePassword: true,
+            },
+          });
+          console.log("[db-migrate] Zainicjalizowano konto wlascicielki w PostgreSQL.");
+        }
+      } catch (adminErr) {
+        console.warn("[db-migrate] Ostrzezenie inicjalizacji adminAccount:", adminErr.message);
+      }
+
       await prisma.$disconnect();
     } catch (dataErr) {
       console.warn("[db-migrate] Ostrzezenie podczas aktualizacji danych pomocniczych:", dataErr.message);

@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { formatDateTimeWarsaw } from "./date-utils";
-import { loadLocalStore, saveLocalStore } from "./store-data";
+import { loadLocalStore, saveLocalStore, isNeonConfigured } from "./store-data";
+import { prisma } from "./prisma";
 import { StoreSettings, Order } from "./types";
 
 export interface OutboxEmail {
@@ -402,6 +403,27 @@ export async function dispatchEmail(
       (store as any).emailOutbox.unshift(successEmail);
       saveLocalStore(store);
 
+      if (isNeonConfigured()) {
+        try {
+          await prisma.emailOutbox.create({
+            data: {
+              id: outboxId,
+              recipient: options.to,
+              subject: options.subject,
+              type: options.type,
+              status: "SENT",
+              sentAt: new Date(),
+              metadata: JSON.stringify({
+                attemptId,
+                configVersion: config.configVersion,
+                smtpResponse: sendInfo.response,
+                messageId: sendInfo.messageId,
+              }),
+            },
+          });
+        } catch (_) {}
+      }
+
       console.log(`[SMTP_ATTEMPT_SUCCESS] ID: ${attemptId} | Type: ${options.type} | Version: ${config.configVersion} | To: ${options.to} | Res: ${sendInfo.response}`);
 
       return {
@@ -432,6 +454,25 @@ export async function dispatchEmail(
       if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
       (store as any).emailOutbox.unshift(failedEmail);
       saveLocalStore(store);
+
+      if (isNeonConfigured()) {
+        try {
+          await prisma.emailOutbox.create({
+            data: {
+              id: outboxId,
+              recipient: options.to,
+              subject: options.subject,
+              type: options.type,
+              status: "FAILED",
+              error: err?.message || String(err),
+              metadata: JSON.stringify({
+                attemptId,
+                configVersion: config.configVersion,
+              }),
+            },
+          });
+        } catch (_) {}
+      }
 
       return {
         success: false,
@@ -513,6 +554,25 @@ export async function dispatchEmail(
       if (!(store as any).emailOutbox) (store as any).emailOutbox = [];
       (store as any).emailOutbox.unshift(failedEmail);
       saveLocalStore(store);
+
+      if (isNeonConfigured()) {
+        try {
+          await prisma.emailOutbox.create({
+            data: {
+              id: outboxId,
+              recipient: options.to,
+              subject: options.subject,
+              type: options.type,
+              status: "FAILED",
+              error: err?.message || String(err),
+              metadata: JSON.stringify({
+                attemptId,
+                configVersion: config.configVersion,
+              }),
+            },
+          });
+        } catch (_) {}
+      }
 
       return {
         success: false,

@@ -2037,7 +2037,6 @@ export async function updateStoreSettings(
   }
 ): Promise<StoreSettings> {
   const store = loadLocalStore();
-
   // Wczytaj najświeższy stan bazy danych, aby zapobiec nadpisaniu nowszych sekretów z innego urządzenia
   let dbExistingSettings: any = null;
   if (await isDatabaseConnected()) {
@@ -2045,7 +2044,7 @@ export async function updateStoreSettings(
       dbExistingSettings = await prisma.storeSettings.findUnique({
         where: { id: "default" },
       });
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const existingPassword =
@@ -2189,6 +2188,8 @@ export async function updateStoreSettings(
 
   // Przygotuj odpowiedź z poprawnymi flagami statusu
   const result: StoreSettings = { ...store.settings };
+  result.smtpPasswordConfigured = Boolean(result.smtpPassword);
+  result.resendApiKeyConfigured = Boolean(result.resendApiKey);
   result.smtpPasswordConfigured = Boolean(
     result.smtpPassword ||
     process.env.SMTP_PASSWORD ||
@@ -2202,6 +2203,7 @@ export async function updateStoreSettings(
   const sec = result.payuSandbox ? result.payuSecondKeySandbox : result.payuSecondKey;
   result.payuConfigured = Boolean(pos && sec);
 
+  // Nie zwracaj haseł w odpowiedzi API
   // Bezpieczeństwo: Nigdy nie zwracaj haseł w odpowiedzi API do przeglądarki
   result.smtpPassword = "";
   result.resendApiKey = "";
@@ -2917,6 +2919,10 @@ export async function markContactMessageRead(id: string): Promise<boolean> {
 // ==========================================
 // KONTO WŁAŚCICIELKI (aurazmigrod@wp.pl)
 // ==========================================
+export function hashResetCode(code: string): string {
+  return crypto.createHash("sha256").update(code.trim()).digest("hex");
+}
+
 export async function getAdminAccount(): Promise<AdminAccount> {
   const store = loadLocalStore();
   if (!store.adminAccount) {
@@ -2928,44 +2934,113 @@ export async function getAdminAccount(): Promise<AdminAccount> {
     delete (store.adminAccount as any).password;
     saveLocalStore(store);
   }
+
+  // Synchronizacja z trwałą bazą PostgreSQL (Neon)
+  if (isNeonConfigured()) {
+    try {
+      let dbAdmin = await prisma.adminAccount.findUnique({
+        where: { id: "default" },
+      });
+
+      if (!dbAdmin) {
+        dbAdmin = await prisma.adminAccount.create({
+          data: {
+            id: "default",
+            email: store.adminAccount.email || "aurazmigrod@wp.pl",
+            passwordHash: store.adminAccount.passwordHash || null,
+            mustChangePassword: Boolean(store.adminAccount.mustChangePassword),
+            lastPasswordChangedAt: store.adminAccount.lastPasswordChangedAt
+              ? new Date(store.adminAccount.lastPasswordChangedAt)
+              : null,
+          },
+        });
+      }
+
+      store.adminAccount.email = dbAdmin.email;
+      store.adminAccount.passwordHash = dbAdmin.passwordHash || undefined;
+      store.adminAccount.mustChangePassword = dbAdmin.mustChangePassword;
+      if (dbAdmin.lastPasswordChangedAt) {
+        store.adminAccount.lastPasswordChangedAt = dbAdmin.lastPasswordChangedAt.toISOString();
+      }
+    } catch (_) {
+      // W przypadku braku łączności bazujemy na stanie lokalnym
+    }
+  }
+
   return store.adminAccount;
 }
 
 /**
- * Zapisuje kod resetowania hasła z ograniczeniem częstotliwości (rate limit 60s) i limitem prób
+ * Zapisuje kod resetowania hasła z ograniczeniem częstotliwości (rate limit 60s) i limitem prób.
+ * Kod jest haszowany funkcją skrótu SHA-256 – NIGDY nie jest zapisywany jawnie.
  */
 export async function savePasswordResetCode(
   email: string,
   code: string,
   ttlMs: number = 15 * 60 * 1000
-): Promise<{ success: boolean; rateLimited?: boolean }> {
+): Promise<{ success: boolean; rateLimited?: boolean; retryAfterSeconds?: number }> {
+  const normalized = email.trim().toLowerCase();
+  const codeHash = hashResetCode(code);
+  const now = Date.now();
+  const expiresAt = new Date(now + ttlMs);
+
+  // 1. Sprawdzamy i zapisujemy w trwałej bazie PostgreSQL (Neon)
+  if (isNeonConfigured()) {
+    try {
+      const activeToken = await prisma.passwordResetToken.findFirst({
+        where: {
+          email: normalized,
+          expiresAt: { gt: new Date(now) },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (activeToken && now - activeToken.createdAt.getTime() < 60 * 1000) {
+        const remainingSeconds = Math.ceil((activeToken.createdAt.getTime() + 60 * 1000 - now) / 1000);
+        return { success: false, rateLimited: true, retryAfterSeconds: remainingSeconds };
+      }
+
+      await prisma.passwordResetToken.deleteMany({
+        where: { email: normalized },
+      });
+
+      await prisma.passwordResetToken.create({
+        data: {
+          email: normalized,
+          codeHash,
+          expiresAt,
+          attempts: 0,
+        },
+      });
+    } catch (e) {
+      console.warn("Błąd zapisu tokenu resetu w PostgreSQL:", e);
+    }
+  }
+
+  // 2. Kopia zapasowa w magazynie lokalnym / pamięci
   const store = loadLocalStore();
   if (!store.passwordResetTokens) store.passwordResetTokens = [];
 
-  const normalized = email.trim().toLowerCase();
-  const now = Date.now();
-
   const existing = store.passwordResetTokens.find(
-    (t) => t.email.toLowerCase() === normalized && t.expiresAt > now
+    (t: any) => t.email.toLowerCase() === normalized && t.expiresAt > now
   );
 
-  // Rate limit: 60 sekund między kolejnymi żądaniami
   if (existing && existing.createdAt && now - existing.createdAt < 60 * 1000) {
-    return { success: false, rateLimited: true };
+    const remainingSeconds = Math.ceil((existing.createdAt + 60 * 1000 - now) / 1000);
+    return { success: false, rateLimited: true, retryAfterSeconds: remainingSeconds };
   }
 
-  // Usuń stare kody dla tego adresu
   store.passwordResetTokens = store.passwordResetTokens.filter(
-    (t) => t.email.toLowerCase() !== normalized && t.expiresAt > now
+    (t: any) => t.email.toLowerCase() !== normalized && t.expiresAt > now
   );
 
   store.passwordResetTokens.push({
     email: normalized,
-    code: code.trim(),
+    code: codeHash,
     expiresAt: now + ttlMs,
     attempts: 0,
     createdAt: now,
-  });
+  } as any);
 
   saveLocalStore(store);
   return { success: true };
@@ -2973,18 +3048,57 @@ export async function savePasswordResetCode(
 
 /**
  * Weryfikuje kod resetowania hasła z zabezpieczeniem brute-force (max 5 prób)
+ * Weryfikuje skrót SHA-256 – nie ujawnia kodu.
  */
 export async function verifyPasswordResetCode(
   email: string,
   code: string
 ): Promise<{ valid: boolean; error?: string }> {
-  const store = loadLocalStore();
   const normalized = email.trim().toLowerCase();
-  const trimmedCode = code.trim();
-  const now = Date.now();
+  const enteredCodeHash = hashResetCode(code);
+  const now = new Date();
 
+  // 1. Sprawdzamy w trwałej bazie PostgreSQL (Neon)
+  if (isNeonConfigured()) {
+    try {
+      const dbToken = await prisma.passwordResetToken.findFirst({
+        where: {
+          email: normalized,
+          expiresAt: { gt: now },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!dbToken) {
+        return { valid: false, error: "Kod wygasł lub nie istnieje. Poproś o nowy kod." };
+      }
+
+      if (dbToken.attempts >= 5) {
+        await prisma.passwordResetToken.delete({ where: { id: dbToken.id } });
+        return { valid: false, error: "Zbyt wiele nieudanych prób. Wygeneruj nowy kod resetowania." };
+      }
+
+      if (dbToken.codeHash !== enteredCodeHash) {
+        await prisma.passwordResetToken.update({
+          where: { id: dbToken.id },
+          data: { attempts: { increment: 1 } },
+        });
+        return {
+          valid: false,
+          error: `Nieprawidłowy kod weryfikacyjny. Pozostało prób: ${Math.max(0, 4 - dbToken.attempts)}.`,
+        };
+      }
+
+      return { valid: true };
+    } catch (e) {
+      console.warn("Błąd weryfikacji tokenu w PostgreSQL, fallback do magazynu lokalnego:", e);
+    }
+  }
+
+  // 2. Fallback do pamięci podręcznej magazynu
+  const store = loadLocalStore();
   const token = (store.passwordResetTokens || []).find(
-    (t) => t.email.toLowerCase() === normalized && t.expiresAt > now
+    (t: any) => t.email.toLowerCase() === normalized && t.expiresAt > Date.now()
   );
 
   if (!token) {
@@ -2993,13 +3107,16 @@ export async function verifyPasswordResetCode(
 
   if ((token.attempts || 0) >= 5) {
     store.passwordResetTokens = (store.passwordResetTokens || []).filter(
-      (t) => t.email.toLowerCase() !== normalized
+      (t: any) => t.email.toLowerCase() !== normalized
     );
     saveLocalStore(store);
     return { valid: false, error: "Zbyt wiele nieudanych prób. Wygeneruj nowy kod resetowania." };
   }
 
-  if (token.code !== trimmedCode) {
+  const storedHash = (token as any).code || (token as any).codeHash || "";
+  // Porównanie skrótów lub wariantu legacy
+  const isMatch = storedHash === enteredCodeHash || storedHash === code.trim();
+  if (!isMatch) {
     token.attempts = (token.attempts || 0) + 1;
     saveLocalStore(store);
     return {
@@ -3041,6 +3158,32 @@ export async function resetUserPassword(
     }
 
     saveLocalStore(store);
+
+    if (isNeonConfigured()) {
+      try {
+        await prisma.adminAccount.upsert({
+          where: { id: "default" },
+          update: {
+            passwordHash: hashPassword(cleanPassword),
+            mustChangePassword: false,
+            lastPasswordChangedAt: new Date(),
+          },
+          create: {
+            id: "default",
+            email: adminEmail,
+            passwordHash: hashPassword(cleanPassword),
+            mustChangePassword: false,
+            lastPasswordChangedAt: new Date(),
+          },
+        });
+        await prisma.passwordResetToken.deleteMany({
+          where: { email: normalized },
+        });
+      } catch (e) {
+        console.warn("Neon admin password reset sync error:", e);
+      }
+    }
+
     await addPromotionAuditLog(
       "RESET_HASŁA_ADMINA",
       "Pomyślnie zresetowano hasło dla konta właścicielki butiku (aurazmigrod@wp.pl). Zapisano bezpieczny skrót PBKDF2.",
@@ -3089,6 +3232,28 @@ export async function updateAdminPassword(newPassword: string): Promise<AdminAcc
   store.adminAccount.mustChangePassword = false;
   store.adminAccount.lastPasswordChangedAt = new Date().toISOString();
   saveLocalStore(store);
+
+  if (isNeonConfigured()) {
+    try {
+      await prisma.adminAccount.upsert({
+        where: { id: "default" },
+        update: {
+          passwordHash: hashPassword(newPassword.trim()),
+          mustChangePassword: false,
+          lastPasswordChangedAt: new Date(),
+        },
+        create: {
+          id: "default",
+          email: store.adminAccount.email || "aurazmigrod@wp.pl",
+          passwordHash: hashPassword(newPassword.trim()),
+          mustChangePassword: false,
+          lastPasswordChangedAt: new Date(),
+        },
+      });
+    } catch (e) {
+      console.warn("Neon admin password update sync error:", e);
+    }
+  }
 
   await addPromotionAuditLog(
     "ZMIANA_HASŁA_WŁAŚCICIELKI",
