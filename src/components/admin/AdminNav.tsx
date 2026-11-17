@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Tag,
   Users,
+  Sparkles,
 } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 
@@ -48,6 +49,7 @@ export function AdminNav() {
     { label: "Zamówienia", href: "/admin/zamowienia", icon: ShoppingBag },
     { label: "Klientki", href: "/admin/klientki", icon: Users },
     { label: "Promocje & Rabaty", href: "/admin/promocje", icon: Tag },
+    { label: "Edytor Banera", href: "/admin/baner", icon: Sparkles },
     { label: "Ustawienia Butiku", href: "/admin/ustawienia", icon: Settings },
   ];
 

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
+import { WishlistProvider } from "@/context/WishlistContext";
 
 const playfair = Playfair_Display({
   subsets: ["latin", "latin-ext"],
@@ -61,9 +62,11 @@ export default function RootLayout({
     <html lang="pl" className={`${playfair.variable} ${jakarta.variable}`}>
       <body className="min-h-screen flex flex-col bg-[#FAF6F1] text-[#241D1B] antialiased selection:bg-[#ECCDC7] selection:text-[#542823]">
         <CartProvider>
-          <div className="flex flex-col min-h-screen">
-            {children}
-          </div>
+          <WishlistProvider>
+            <div className="flex flex-col min-h-screen">
+              {children}
+            </div>
+          </WishlistProvider>
         </CartProvider>
       </body>
     </html>

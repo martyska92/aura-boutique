@@ -3,8 +3,9 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Sparkles, ArrowRight, ShoppingBag } from "lucide-react";
+import { Sparkles, ArrowRight, ShoppingBag, Heart } from "lucide-react";
 import { Product } from "@/lib/types";
+import { useWishlist } from "@/context/WishlistContext";
 
 interface ProductCardProps {
   product: Product;
@@ -59,6 +60,8 @@ export function ProductCard({ product }: ProductCardProps) {
   );
 
   const isOutOfStock = product.variants.every((v) => v.stockQuantity <= 0);
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const isFav = isInWishlist(product.id);
 
   return (
     <div className="group flex flex-col bg-white border border-[#EADFD5] hover:border-[#C5A069] rounded-sm transition-all duration-300 shadow-[0_2px_8px_rgba(234,223,213,0.3)] hover:shadow-[0_6px_20px_rgba(197,160,105,0.2)] overflow-hidden h-full">
@@ -76,6 +79,25 @@ export function ProductCard({ product }: ProductCardProps) {
           className="object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
           onError={() => setImgSrc("/images/products/neutral-placeholder.svg")}
         />
+
+        {/* Przycisk dodawania do ulubionych (serduszko) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleWishlist(product.id);
+          }}
+          className={`absolute top-2 right-2 sm:top-3 sm:right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-20 ${
+            isFav
+              ? "bg-[#8C2D2D] text-white shadow-md scale-105"
+              : "bg-white/85 hover:bg-white text-[#241D1B] hover:text-[#8C2D2D] shadow-xs active:scale-90"
+          }`}
+          title={isFav ? "Usuń z ulubionych" : "Dodaj do ulubionych"}
+          aria-label={isFav ? "Usuń z ulubionych" : "Dodaj do ulubionych"}
+        >
+          <Heart className={`w-4 h-4 transition-transform ${isFav ? "fill-white text-white" : ""}`} />
+        </button>
 
         {/* Badge'e w stylistyce wizualizacji 2 (pudrowy róż i satynowe złoto) */}
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 flex flex-col gap-1 z-10">

@@ -322,9 +322,35 @@ export function StoreSettingsClient({
                 </label>
                 <input
                   type="text"
-                  placeholder="np. 380123456"
+                  placeholder="np. [do uzupełnienia]"
                   value={settings.regon || ""}
                   onChange={(e) => handleChange("regon", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Adres siedziby rejestrowej
+                </label>
+                <input
+                  type="text"
+                  placeholder="np. [do uzupełnienia]"
+                  value={settings.registeredAddress || ""}
+                  onChange={(e) => handleChange("registeredAddress", e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Adres do zwrotów i reklamacji
+                </label>
+                <input
+                  type="text"
+                  placeholder="AURA Boutique K.B. - ZWROTY, ul. Poprzeczna 3/1A, 55-140 Żmigród"
+                  value={settings.returnAddress || ""}
+                  onChange={(e) => handleChange("returnAddress", e.target.value)}
                   className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
                 />
               </div>
@@ -376,7 +402,7 @@ export function StoreSettingsClient({
 
           {/* Treści Banera Głównego & Paska Ogłoszeń */}
           <div className="bg-white p-6 border border-[#EADFD5] rounded shadow-sm space-y-5">
-            <div className="flex items-center justify-between pb-2 border-b border-[#EADFD5]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-[#EADFD5]">
               <div>
                 <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B]">
                   Baner Główny & Pasek Ogłoszeń
@@ -385,15 +411,24 @@ export function StoreSettingsClient({
                   Steruj tekstami, nagłówkami i banerami widocznymi na stronie głównej butiku oraz w górnym pasku.
                 </p>
               </div>
-              <a
-                href="/"
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 bg-[#FAF6F1] border border-[#C5A069] text-[#7A5B20] hover:bg-[#C5A069] hover:text-white rounded text-xs font-semibold transition-all inline-flex items-center gap-1.5 shrink-0"
-              >
-                <span>Zobacz na stronie</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href="/admin/baner"
+                  className="px-3.5 py-1.5 bg-[#C5A069] hover:bg-[#AF884F] text-white rounded text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-2xs shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Wizualny Edytor Banera (Drag & Drop)</span>
+                </a>
+                <a
+                  href="/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-[#FAF6F1] border border-[#C5A069] text-[#7A5B20] hover:bg-[#C5A069] hover:text-white rounded text-xs font-semibold transition-all inline-flex items-center gap-1.5 shrink-0"
+                >
+                  <span>Podgląd sklepu</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

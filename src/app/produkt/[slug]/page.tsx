@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const { slug } = await params;
   const product = await getProductBySlug(slug);
 
-  if (!product) {
+  if (!product || product.isArchived || !product.isPublished) {
     return {
       title: "Produkt nie znaleziony | AURA Boutique K.B.",
     };
@@ -42,7 +42,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
 
-  if (!product) {
+  if (!product || product.isArchived || !product.isPublished) {
     return <ProductViewFallback slug={slug} />;
   }
 

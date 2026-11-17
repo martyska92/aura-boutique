@@ -25,26 +25,22 @@ export default async function TermsPage() {
 
           <div className="bg-white p-8 sm:p-12 border border-[#EADFD5] shadow-sm rounded-sm space-y-6 text-xs sm:text-sm text-[#3E3B38] leading-relaxed">
             {/* Karta z danymi Sprzedawcy */}
-            <section className="space-y-3">
-              <h2 className="font-serif text-base text-[#241D1B] font-bold">
-                § 1. Postanowienia ogólne i dane Sprzedawcy
-              </h2>
-              <p>
-                1. Niniejszy Regulamin określa zasady korzystania ze sklepu internetowego {settings.boutiqueName} oraz warunki składania zamówień i zawierania umów sprzedaży na odległość.
+            <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] font-mono text-xs space-y-1.5 rounded">
+              <p className="text-[#AF884F] font-bold font-sans uppercase tracking-wider text-[11px]">
+                Dane identyfikacyjne Sprzedawcy:
               </p>
-              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] font-mono text-xs space-y-1 rounded">
-                <p className="text-[#AF884F] font-bold">Sprzedawca i Właściciel Sklepu:</p>
-                <p><strong>Firma:</strong> {settings.companyName || settings.boutiqueName || "AURA Boutique K.B."}</p>
-                <p><strong>Adres butiku stacjonarnego:</strong> {settings.address}</p>
-                <p><strong>NIP:</strong> {settings.nip || "W uzupełnieniu"}</p>
-                <p><strong>REGON:</strong> {settings.regon || "W uzupełnieniu"}</p>
-                <p><strong>E-mail:</strong> {settings.email} | <strong>Tel.:</strong> {settings.phone}</p>
-              </div>
-            </section>
+              <p><strong>Firma / Sprzedawca:</strong> {settings.companyName || "AURA BOUTIQUE K.B. [do uzupełnienia pełna nazwa rejestrowa]"}</p>
+              <p><strong>NIP:</strong> {settings.nip || "6131569301"}</p>
+              <p><strong>REGON:</strong> {settings.regon || "[do uzupełnienia]"}</p>
+              <p><strong>Adres siedziby rejestrowej:</strong> {settings.registeredAddress || "[do uzupełnienia]"}</p>
+              <p><strong>Adres butiku stacjonarnego i odbiorów:</strong> {settings.address || "ul. Poprzeczna 3/1A, 55-140 Żmigród"}</p>
+              <p><strong>Adres do zwrotów i reklamacji:</strong> {settings.returnAddress || "AURA Boutique K.B. - ZWROTY, ul. Poprzeczna 3/1A, 55-140 Żmigród"}</p>
+              <p><strong>Kontakt:</strong> e-mail: {settings.email} | tel. {settings.phone}</p>
+            </div>
 
             {/* Treść regulaminu edytowalna w panelu */}
             {settings.termsAndConditions ? (
-              <div className="space-y-4 whitespace-pre-line text-xs sm:text-sm text-[#3E3B38] leading-relaxed border-t border-[#EADFD5] pt-4">
+              <div className="space-y-4 whitespace-pre-line text-xs sm:text-sm text-[#3E3B38] leading-relaxed pt-2">
                 {settings.termsAndConditions}
               </div>
             ) : (

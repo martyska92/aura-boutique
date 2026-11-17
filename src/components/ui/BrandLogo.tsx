@@ -30,6 +30,15 @@ export function BrandLogo({
       className={`relative ${sizeClasses[size] || sizeClasses.md} aspect-[493/177] shrink-0 flex items-center justify-center`}
       style={{ filter: "none", opacity: 1 }}
     >
+      {/* Subtelne przyciemnienie taupe z łagodnym radialnym przejściem bez widocznych krawędzi prostokąta dla idealnego kontrastu na beżowym tle */}
+      <div
+        className="absolute -inset-x-6 -inset-y-3 pointer-events-none -z-10"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(64, 48, 38, 0.20) 0%, rgba(64, 48, 38, 0.08) 45%, rgba(64, 48, 38, 0) 75%)",
+        }}
+        aria-hidden="true"
+      />
       <Image
         src="/images/brand/aura-logo.svg"
         alt="AURA Boutique"
@@ -37,7 +46,7 @@ export function BrandLogo({
         height={177}
         priority
         unoptimized
-        className="w-full h-auto object-contain object-center select-none"
+        className="w-full h-auto object-contain object-center select-none relative z-10"
         style={{ filter: "none", opacity: 1 }}
       />
     </div>

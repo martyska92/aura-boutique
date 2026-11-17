@@ -72,9 +72,9 @@ export async function POST(req: NextRequest) {
 
     for (const item of cartItems) {
       const product = await getProductById(item.productId);
-      if (!product) {
+      if (!product || product.isArchived || !product.isPublished) {
         return NextResponse.json(
-          { error: `Produkt nie istnieje lub został usunięty: ${item.name}` },
+          { error: `Produkt nie jest już dostępny w sprzedaży: ${item.name}` },
           { status: 400 }
         );
       }

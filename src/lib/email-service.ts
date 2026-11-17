@@ -1202,7 +1202,7 @@ export async function sendReturnRequestedCustomerEmail(
         <strong>Adres do odesłania paczki ze zwrotem:</strong><br>
         AURA Boutique K.B.<br>
         ul. Poprzeczna 3/1A<br>
-        55-110 Żmigród<br>
+        55-140 Żmigród<br>
         tel. 605 540 681 • e-mail: aurazmigrod@wp.pl
       </div>
 

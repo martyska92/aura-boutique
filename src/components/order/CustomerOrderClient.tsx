@@ -1239,7 +1239,7 @@ export function CustomerOrderClient({
                         Wysyłka pocztą / kurierem na adres Butiku
                       </span>
                       <span className="text-[10px] text-[#6E6259]">
-                        AURA Boutique K.B., ul. Poprzeczna 3/1A, 55-110 Żmigród
+                        AURA Boutique K.B., ul. Poprzeczna 3/1A, 55-140 Żmigród
                       </span>
                     </div>
                   </label>

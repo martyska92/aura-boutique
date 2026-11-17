@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Product, ProductVariant } from "@/lib/types";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { ProductReviewsSection } from "@/components/product/ProductReviewsSection";
 
 interface ProductDetailClientProps {
@@ -33,6 +34,8 @@ interface ProductDetailClientProps {
 
 export function ProductDetailClient({ product, relatedProducts }: ProductDetailClientProps) {
   const { addItem } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const isFavorite = isInWishlist(product.id);
 
   // Zdjęcia produktu
   const images = product.images.length > 0 ? product.images : [
@@ -475,6 +478,21 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
               >
                 <ShoppingBag className="w-4 h-4" />
                 <span>{isCurrentVariantInStock ? "Dodaj do Koszyka" : "Produkt Niedostępny"}</span>
+              </button>
+
+              {/* Dodaj do ulubionych */}
+              <button
+                type="button"
+                onClick={() => toggleWishlist(product.id)}
+                className={`w-12 min-h-[48px] border transition-all rounded-xs flex items-center justify-center shrink-0 ${
+                  isFavorite
+                    ? "border-[#8C2D2D] bg-[#FDF2F2] text-[#8C2D2D]"
+                    : "border-[#EADFD5] bg-white text-[#857670] hover:text-[#8C2D2D] hover:border-[#8C2D2D]"
+                }`}
+                title={isFavorite ? "Usuń z ulubionych" : "Dodaj do ulubionych"}
+                aria-label={isFavorite ? "Usuń z ulubionych" : "Dodaj do ulubionych"}
+              >
+                <Heart className={`w-4 h-4 transition-transform active:scale-125 ${isFavorite ? "fill-[#8C2D2D]" : ""}`} />
               </button>
 
               {/* Udostępnij */}

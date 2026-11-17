@@ -193,6 +193,8 @@ export type StoreSettings = {
   nip?: string;
   regon?: string;
   address: string;
+  registeredAddress?: string;
+  returnAddress?: string;
   phone: string;
   email: string;
   openingHours: string;
@@ -252,6 +254,9 @@ export type StoreSettings = {
   announcementBarLeft?: string;
   announcementBarRight?: string;
   announcementItems?: string[];
+  // Wizualny edytor banera głównego (szkic roboczy i opublikowana wersja)
+  visualBannerDraft?: VisualBannerConfig;
+  visualBannerPublished?: VisualBannerConfig;
   // Flagi bezpieczeństwa sekretów serwerowych
   smtpPasswordConfigured?: boolean;
   resendApiKeyConfigured?: boolean;
@@ -473,7 +478,102 @@ export type CustomerAccount = {
   welcomeEmailStatus?: "PENDING" | "SENT" | "FAILED" | "NOT_CONFIGURED";
   welcomeEmailError?: string;
   welcomeEmailSentAt?: string;
+  wishlistProductIds?: string[];
 };
+
+// ==========================================
+// WIZUALNY EDYTOR BANERA GŁÓWNEGO
+// ==========================================
+export type DeviceViewport = "desktop" | "tablet" | "mobile";
+
+export interface VisualElementResponsiveProps {
+  x: number; // 0 do 100 procent szerokości banera
+  y: number; // 0 do 100 procent wysokości banera
+  width?: number; // procentowa szerokość pola tekstowego (np. 50%) lub undefined dla auto
+  fontSize?: number; // rozmiar fontu w px
+  textAlign?: "left" | "center" | "right";
+  visible?: boolean;
+}
+
+export interface BannerTextElement {
+  id: string;
+  type: "text";
+  label?: string; // np. "Nagłówek", "Podtytuł", "Hasło 1"
+  text: string;
+  fontFamily: "serif" | "sans" | "playfair" | "cormorant" | "montserrat" | "inter" | "script";
+  fontWeight: 300 | 400 | 500 | 600 | 700;
+  italic: boolean;
+  color: string; // kod HEX np. #241D1B
+  letterSpacing: number; // w px lub em
+  lineHeight: number; // np. 1.2
+  opacity: number; // 0 do 1
+  zIndex: number;
+  // Cień tekstu
+  hasShadow?: boolean;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowX?: number;
+  shadowY?: number;
+  // Obrys tekstu
+  hasStroke?: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
+  // Tło pod tekstem (kapsuła / frosted glass)
+  hasBackground?: boolean;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  backgroundPadding?: number; // w px
+  borderRadius?: number; // w px
+  // Pozycje i wielkości per urządzenie
+  desktop: VisualElementResponsiveProps;
+  tablet?: VisualElementResponsiveProps;
+  mobile?: VisualElementResponsiveProps;
+}
+
+export interface BannerButtonElement {
+  id: string;
+  type: "button";
+  text: string;
+  link: string;
+  backgroundColor: string;
+  textColor: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius: number;
+  paddingY: number;
+  paddingX: number;
+  fontSize: number;
+  fontWeight: 400 | 500 | 600 | 700;
+  letterSpacing: number;
+  hasShadow?: boolean;
+  visible: boolean;
+  zIndex: number;
+  // Pozycje per urządzenie
+  desktop: VisualElementResponsiveProps;
+  tablet?: VisualElementResponsiveProps;
+  mobile?: VisualElementResponsiveProps;
+}
+
+export interface BannerOverlayConfig {
+  enabled: boolean;
+  color: string; // np. #000000 lub #423229
+  opacity: number; // 0 do 1
+  gradientType: "none" | "to-bottom" | "to-top" | "to-right" | "radial";
+}
+
+export interface VisualBannerConfig {
+  imageUrl: string;
+  focalPointX: number; // 0 do 100 (%)
+  focalPointY: number; // 0 do 100 (%)
+  aspectRatioDesktop: string; // np. "1024/380"
+  aspectRatioTablet: string; // np. "768/400"
+  aspectRatioMobile: string; // np. "375/460"
+  overlay: BannerOverlayConfig;
+  textElements: BannerTextElement[];
+  buttonElement: BannerButtonElement;
+  updatedAt: string;
+  publishedAt?: string;
+}
 
 
 

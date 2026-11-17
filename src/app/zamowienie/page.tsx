@@ -22,12 +22,13 @@ import {
   ChevronUp,
   ShoppingBag,
   Lock,
+  Navigation,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ContinueShoppingButton } from "@/components/ui/ContinueShoppingButton";
 import { useCart } from "@/context/CartContext";
-import { ShippingMethod, PaymentMethod } from "@/lib/types";
+import { ShippingMethod, PaymentMethod, AppliedPromotionSummary } from "@/lib/types";
 
 interface InpostPoint {
   name: string;
@@ -35,6 +36,7 @@ interface InpostPoint {
   street: string;
   postalCode?: string;
   description?: string;
+  distanceMeters?: number;
 }
 
 const formatPln = (val: number): string =>
@@ -80,8 +82,10 @@ export default function CheckoutPage() {
   } | null>(null);
 
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [appliedPromotions, setAppliedPromotions] = useState<AppliedPromotionSummary[]>([]);
   const [giftItem, setGiftItem] = useState<{ productName: string; color: string; value: number } | null>(null);
   const [serverShippingCost, setServerShippingCost] = useState<number | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
 
   // Zwijane podsumowanie na telefonie
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
@@ -210,6 +214,41 @@ export default function CheckoutPage() {
     return () => clearTimeout(timer);
   }, [inpostQuery, shippingMethod]);
 
+  // Wyszukiwanie paczkomatów po lokalizacji GPS klientki (tylko na żądanie po kliknięciu przycisku)
+  const handleLocateMe = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      alert("Twoja przeglądarka nie udostępnia geolokalizacji. Wpisz miejscowość, ulicę lub kod w polu wyszukiwania.");
+      return;
+    }
+    setIsLocating(true);
+    setIsLoadingPoints(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `/api/inpost/points?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            setInpostSuggestions(data.points || []);
+            setShowSuggestions(true);
+          }
+        } catch (err) {
+          console.error("Błąd lokalizacji punktów InPost:", err);
+        } finally {
+          setIsLocating(false);
+          setIsLoadingPoints(false);
+        }
+      },
+      () => {
+        setIsLocating(false);
+        setIsLoadingPoints(false);
+        alert("Nie udało się uzyskać lokalizacji. Wpisz swoją miejscowość lub kod pocztowy w polu wyszukiwania.");
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
   // Przeliczanie promocji i rabatów (serwer)
   const calculatePromotions = async (couponToTest?: string) => {
     if (items.length === 0) return;
@@ -231,6 +270,7 @@ export default function CheckoutPage() {
       if (res.ok) {
         const data = await res.json();
         setDiscountAmount(data.totalDiscountAmount || 0);
+        setAppliedPromotions(data.appliedPromotions || []);
         setServerShippingCost(data.shippingCost);
 
         if (data.gift?.isEligible && data.gift?.giftItem) {
@@ -300,7 +340,9 @@ export default function CheckoutPage() {
   };
 
   const freeShippingThreshold = 300;
-  const isFreeShipping = subtotal >= freeShippingThreshold;
+  // Jedno wspólne źródło obliczeń: Darmowa dostawa obowiązuje od 300 zł wartości produktów PO rabatach!
+  const finalSubtotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+  const isFreeShipping = finalSubtotal >= freeShippingThreshold;
 
   let fallbackShippingCost = 0;
   if (!isFreeShipping) {
@@ -310,8 +352,7 @@ export default function CheckoutPage() {
   }
 
   const shippingCost = serverShippingCost !== null ? serverShippingCost : fallbackShippingCost;
-  const finalSubtotal = Math.max(0, subtotal - discountAmount);
-  const grandTotal = finalSubtotal + shippingCost;
+  const grandTotal = Math.round((finalSubtotal + shippingCost) * 100) / 100;
   const totalItemsCount = items.reduce((acc, it) => acc + it.quantity, 0);
 
   const validateForm = () => {
@@ -340,7 +381,7 @@ export default function CheckoutPage() {
 
     if (shippingMethod === "COURIER") {
       if (!street.trim()) errors.street = "Podaj ulicę i numer";
-      if (!postalCode.trim()) errors.postalCode = "Podaj kod pocztowy (np. 55-110)";
+      if (!postalCode.trim()) errors.postalCode = "Podaj kod pocztowy (np. 55-140)";
       if (!city.trim()) errors.city = "Podaj miejscowość";
     }
 
@@ -539,14 +580,30 @@ export default function CheckoutPage() {
                     <span>Wartość produktów:</span>
                     <span className="text-[#241D1B] font-medium">{formatPln(subtotal)}</span>
                   </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-700 font-medium">
-                      <span>Rabat / Promocja:</span>
+                  {appliedPromotions.length > 0 ? (
+                    appliedPromotions.map((p, idx) => (
+                      <div key={idx} className="flex justify-between text-emerald-700 font-semibold">
+                        <span className="flex items-center gap-1">
+                          <Tag className="w-3.5 h-3.5 shrink-0" />
+                          <span>{p.name}:</span>
+                        </span>
+                        <span>-{formatPln(p.discountAmount)}</span>
+                      </div>
+                    ))
+                  ) : discountAmount > 0 ? (
+                    <div className="flex justify-between text-emerald-700 font-semibold">
+                      <span>Rabat:</span>
                       <span>-{formatPln(discountAmount)}</span>
+                    </div>
+                  ) : null}
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-[#4A3F3B] font-medium pt-1 border-t border-[#EADFD5]/60">
+                      <span>Wartość po rabatach:</span>
+                      <span className="font-semibold text-[#241D1B]">{formatPln(finalSubtotal)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span>Dostawa:</span>
+                    <span>Dostawa ({shippingMethod === "INPOST_LOCKER" ? "Paczkomat InPost" : shippingMethod === "COURIER" ? "Kurier" : "Odbiór osobisty"}):</span>
                     <span className="text-[#241D1B] font-medium">
                       {shippingCost === 0 ? "0,00 zł (Darmowa)" : formatPln(shippingCost)}
                     </span>
@@ -812,13 +869,35 @@ export default function CheckoutPage() {
 
                           {(!selectedPoint && !parcelLockerCode) && (
                             <div className="relative">
-                              <label className="text-xs font-medium text-[#4A3F3B] block mb-1">
-                                Wpisz miejscowość, ulicę lub kod Paczkomatu *
-                              </label>
+                              <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                                <label className="text-xs font-medium text-[#4A3F3B]">
+                                  Wyszukaj Paczkomat w swojej okolicy *
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={handleLocateMe}
+                                  disabled={isLocating || isLoadingPoints}
+                                  className="text-[11px] text-[#C5A069] hover:text-[#8C6B38] font-semibold flex items-center gap-1.5 bg-[#FDFBF7] hover:bg-[#F7EFE4] px-2.5 py-1 rounded-md border border-[#C5A069]/40 transition-colors cursor-pointer"
+                                  title="Wyszukaj paczkomaty w oparciu o Twoją bieżącą lokalizację"
+                                >
+                                  {isLocating ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 animate-spin text-[#C5A069]" />
+                                      <span>Lokalizowanie...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Navigation className="w-3 h-3 text-[#C5A069]" />
+                                      <span>Znajdź blisko mnie</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
                               <div className="relative">
                                 <input
                                   type="text"
-                                  placeholder="np. Żmigród, Pełczyń, Wrocławska..."
+                                  placeholder="Wpisz miejscowość, ulicę, kod pocztowy lub kod (np. WAW01M)..."
                                   value={inpostQuery}
                                   onChange={(e) => {
                                     setInpostQuery(e.target.value);
@@ -856,6 +935,13 @@ export default function CheckoutPage() {
                                           <span className="font-semibold text-[#241D1B]">
                                             {point.city}, {point.street}
                                           </span>
+                                          {point.distanceMeters !== undefined && (
+                                            <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-mono font-medium">
+                                              ok. {point.distanceMeters < 1000
+                                                ? `${point.distanceMeters} m`
+                                                : `${(point.distanceMeters / 1000).toFixed(1)} km`}
+                                            </span>
+                                          )}
                                         </div>
                                         {point.description && (
                                           <p className="text-[11px] text-[#857670] mt-0.5">
@@ -870,45 +956,6 @@ export default function CheckoutPage() {
                                   ))}
                                 </div>
                               )}
-
-                              {/* Szybkie propozycje w rejonie */}
-                              <div className="pt-2">
-                                <p className="text-[11px] text-[#857670] mb-1.5">
-                                  Szybki wybór w rejonie:
-                                </p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleSelectPoint({
-                                        name: "ZMI01M",
-                                        city: "Żmigród",
-                                        street: "ul. Poprzeczna 3/1A",
-                                        description: "Butik AURA / Centrum",
-                                      })
-                                    }
-                                    className="px-2.5 py-1.5 bg-white hover:bg-[#FAF6F1] border border-[#EADFD5] hover:border-[#C5A069] text-xs text-[#241D1B] rounded-md transition-colors flex items-center gap-1 min-h-[36px]"
-                                  >
-                                    <MapPin className="w-3 h-3 text-[#C5A069]" />
-                                    <span>Żmigród Poprzeczna (ZMI01M)</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleSelectPoint({
-                                        name: "PEL01M",
-                                        city: "Pełczyń",
-                                        street: "ul. Główna 15",
-                                        description: "Centrum miejscowości Pełczyń",
-                                      })
-                                    }
-                                    className="px-2.5 py-1.5 bg-white hover:bg-[#FAF6F1] border border-[#EADFD5] hover:border-[#C5A069] text-xs text-[#241D1B] rounded-md transition-colors flex items-center gap-1 min-h-[36px]"
-                                  >
-                                    <MapPin className="w-3 h-3 text-[#C5A069]" />
-                                    <span>Pełczyń (PEL01M)</span>
-                                  </button>
-                                </div>
-                              </div>
                             </div>
                           )}
                         </div>
@@ -1412,18 +1459,35 @@ export default function CheckoutPage() {
                       <span className="font-medium text-[#241D1B]">{formatPln(subtotal)}</span>
                     </div>
 
-                    {discountAmount > 0 && (
+                    {appliedPromotions.length > 0 ? (
+                      appliedPromotions.map((p, idx) => (
+                        <div key={idx} className="flex justify-between text-emerald-700 font-semibold">
+                          <span className="flex items-center gap-1">
+                            <Tag className="w-3.5 h-3.5 shrink-0" />
+                            <span>{p.name}:</span>
+                          </span>
+                          <span>-{formatPln(p.discountAmount)}</span>
+                        </div>
+                      ))
+                    ) : discountAmount > 0 ? (
                       <div className="flex justify-between text-emerald-700 font-semibold">
                         <span className="flex items-center gap-1">
                           <Tag className="w-3.5 h-3.5" />
-                          Rabat / Promocja:
+                          <span>Rabat:</span>
                         </span>
                         <span>-{formatPln(discountAmount)}</span>
+                      </div>
+                    ) : null}
+
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-[#4A3F3B] font-medium pt-1 border-t border-[#EADFD5]/60">
+                        <span>Wartość produktów po rabatach:</span>
+                        <span className="font-semibold text-[#241D1B]">{formatPln(finalSubtotal)}</span>
                       </div>
                     )}
 
                     <div className="flex justify-between">
-                      <span>Dostawa:</span>
+                      <span>Dostawa ({shippingMethod === "INPOST_LOCKER" ? "Paczkomat InPost" : shippingMethod === "COURIER" ? "Kurier" : "Odbiór osobisty"}):</span>
                       <span className="font-medium text-[#241D1B]">
                         {shippingCost === 0 ? "0,00 zł (Darmowa)" : formatPln(shippingCost)}
                       </span>

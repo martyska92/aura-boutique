@@ -50,7 +50,7 @@ export default function ReturnsPage() {
               <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] font-mono text-xs text-[#241D1B] space-y-1">
                 <p><strong>AURA Boutique K.B. - ZWROTY</strong></p>
                 <p>ul. Poprzeczna 3/1A</p>
-                <p>55-110 Żmigród</p>
+                <p>55-140 Żmigród</p>
                 <p>tel. +48 789 123 456</p>
                 <p>e-mail: kontakt@auraboutique.pl</p>
               </div>

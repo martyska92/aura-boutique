@@ -117,6 +117,26 @@ body {
   scrollbar-width: none;
 }
 
+/* Elegancki, subtelny pasek przewijania dla menu bocznego i paneli */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #FAF6F1;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #C5A069;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9E8359;
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #C5A069 #FAF6F1;
+}
+
 ::selection {
   background: #EED9D4;
   color: #241D1B;

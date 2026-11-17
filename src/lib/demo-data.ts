@@ -57,6 +57,15 @@ export const initialCategories: Category[] = [
     orderIndex: 5,
     isActive: true,
   },
+  {
+    id: "cat-legginsy",
+    name: "Legginsy",
+    slug: "legginsy",
+    description: "Stylowe, wygodne i modelujące legginsy damskie na każdą okazję.",
+    imageUrl: "/images/categories/cat-t-shirty.jpg",
+    orderIndex: 6,
+    isActive: true,
+  },
 ];
 
 export const initialProducts: Product[] = [
@@ -531,10 +540,10 @@ export const initialPromotions: Promotion[] = [
     id: "promo-first-order-15",
     name: "–15% na pierwsze zamówienie",
     publicTitle: "Rabat –15% na Twoje pierwsze zakupy",
-    description: "Automatyczny rabat –15% dla nowych klientek (weryfikacja po adresie e-mail w historii zamówień).",
+    description: "Dedykowany unikalny kod rabatowy –15% dla nowych klientek po rejestracji do wykorzystania na pierwsze zakupy.",
     type: "FIRST_ORDER",
     discountValue: 15,
-    isAutomatic: true,
+    isAutomatic: false,
     targetScope: "ALL",
     excludeDiscounted: false,
     noEndDate: true,

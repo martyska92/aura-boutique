@@ -29,12 +29,13 @@ export default async function PrivacyPolicyPage() {
               <h2 className="font-serif text-base text-[#241D1B] font-bold">
                 1. Administrator Danych Osobowych
               </h2>
-              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] font-mono text-xs space-y-1 rounded">
-                <p className="text-[#AF884F] font-bold">Administrator Twoich Danych:</p>
-                <p><strong>Firma:</strong> {settings.companyName || settings.boutiqueName || "AURA Boutique K.B."}</p>
-                <p><strong>Siedziba / Butik:</strong> {settings.address}</p>
-                <p><strong>NIP:</strong> {settings.nip || "W uzupełnieniu"}</p>
-                <p><strong>REGON:</strong> {settings.regon || "W uzupełnieniu"}</p>
+              <div className="p-4 bg-[#FAF6F1] border border-[#EADFD5] text-[#241D1B] font-mono text-xs space-y-1.5 rounded">
+                <p className="text-[#AF884F] font-bold font-sans uppercase tracking-wider text-[11px]">Administrator Twoich Danych Osobowych:</p>
+                <p><strong>Firma / Administrator:</strong> {settings.companyName || "AURA BOUTIQUE K.B. [do uzupełnienia pełna nazwa rejestrowa]"}</p>
+                <p><strong>NIP:</strong> {settings.nip || "6131569301"}</p>
+                <p><strong>REGON:</strong> {settings.regon || "[do uzupełnienia]"}</p>
+                <p><strong>Adres siedziby rejestrowej:</strong> {settings.registeredAddress || "[do uzupełnienia]"}</p>
+                <p><strong>Adres butiku stacjonarnego:</strong> {settings.address || "ul. Poprzeczna 3/1A, 55-140 Żmigród"}</p>
                 <p><strong>E-mail do spraw ochrony danych:</strong> {settings.email}</p>
                 <p><strong>Telefon kontaktowy:</strong> {settings.phone}</p>
               </div>

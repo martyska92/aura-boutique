@@ -115,16 +115,68 @@ export function CatalogClient({
     };
   }, [mobileCategoriesOpen, mobileFiltersOpen]);
 
-  // Dostępne rozmiary i kolory w katalogu
-  const allSizes = ["XS", "S", "M", "L", "XL", "UNI"];
-  const allColors = [
-    { label: "Wszystkie", value: "all" },
-    { label: "Kość Słoniowa", value: "ivory", hex: "#FAF4EC" },
-    { label: "Piaskowy Beż", value: "sand", hex: "#D8C7B5" },
-    { label: "Pudrowy Róż", value: "róż", hex: "#E5BEB8" },
-    { label: "Camel", value: "camel", hex: "#B8874E" },
-    { label: "Czerń", value: "czerń", hex: "#141414" },
-  ];
+  // Dostępne rozmiary i kolory w katalogu wyliczane dynamicznie z wariantów produktów
+  const allSizes = useMemo(() => {
+    const rawSizes = new Set<string>();
+    productsList.forEach((p) => {
+      (p.variants || []).forEach((v) => {
+        if (!v.size) return;
+        let s = v.size.trim();
+        if (/^uni$/i.test(s)) s = "UNI";
+        else if (/^s\/m$/i.test(s)) s = "S/M";
+        else if (/^l\/xl$/i.test(s)) s = "L/XL";
+        else s = s.toUpperCase();
+        rawSizes.add(s);
+      });
+    });
+
+    const standardOrder = ["XS", "S", "S/M", "M", "L", "L/XL", "XL", "UNI"];
+    const ordered = standardOrder.filter((s) => rawSizes.has(s));
+    rawSizes.forEach((s) => {
+      if (!ordered.includes(s)) ordered.push(s);
+    });
+    return ordered.length > 0 ? ordered : ["XS", "S", "S/M", "M", "L", "L/XL", "XL", "UNI"];
+  }, [productsList]);
+
+  const allColors = useMemo(() => {
+    const colorMap = new Map<string, { label: string; value: string; hex?: string }>();
+    colorMap.set("all", { label: "Wszystkie", value: "all" });
+
+    const knownHexMap: Record<string, string> = {
+      "piaskowy beż": "#D8C7B5",
+      "beż": "#D8C7B5",
+      "czarny": "#141414",
+      "czerń": "#141414",
+      "cappuccino": "#9E7E6B",
+      "ecru / kość słoniowa": "#FAF4EC",
+      "kość słoniowa": "#FAF4EC",
+      "ecru": "#FAF4EC",
+      "stary róż": "#C89D9C",
+      "róż": "#E5BEB8",
+      "pudrowy róż": "#E5BEB8",
+      "czekolada": "#4A2E1B",
+      "camel": "#B8874E",
+      "biel": "#FFFFFF",
+      "szary": "#8A8A8A",
+    };
+
+    productsList.forEach((p) => {
+      (p.variants || []).forEach((v) => {
+        if (!v.color) return;
+        const norm = v.color.trim();
+        const lower = norm.toLowerCase();
+        if (!colorMap.has(lower)) {
+          colorMap.set(lower, {
+            label: norm,
+            value: lower,
+            hex: v.colorHex || knownHexMap[lower] || "#D8C7B5",
+          });
+        }
+      });
+    });
+
+    return Array.from(colorMap.values());
+  }, [productsList]);
 
   // Wybór kategorii z aktualizacją URL
   const handleSelectCategory = (catSlug: string) => {
@@ -203,11 +255,15 @@ export function CatalogClient({
         if (!matchesName && !matchesDesc && !matchesComp) return false;
       }
 
-      // 4. Rozmiar
+      // 4. Rozmiar (z unifikacją UNI / Uni oraz obsługą S/M i L/XL)
       if (selectedSize !== "all") {
-        const hasSize = product.variants.some(
-          (v) => v.size.toLowerCase().includes(selectedSize.toLowerCase()) && v.stockQuantity > 0
-        );
+        const normSelected = selectedSize.toLowerCase();
+        const hasSize = product.variants.some((v) => {
+          if (!v.size) return false;
+          const s = v.size.trim().toLowerCase();
+          if (normSelected === "uni" && (s === "uni" || s === "uniwersalny")) return v.stockQuantity > 0;
+          return (s === normSelected || s === normSelected.replace("/", "")) && v.stockQuantity > 0;
+        });
         if (!hasSize) return false;
       }
 
@@ -306,10 +362,11 @@ export function CatalogClient({
         {/* ─── JEDEN LEWY PANEL NA KOMPUTERZE (220 px) ─── */}
         <aside
           aria-label="Kategorie i filtry"
-          className="hidden lg:block w-full sticky top-[154px] self-start z-30 max-h-[calc(100dvh-10.5rem)] overflow-y-auto no-scrollbar space-y-4"
+          className="hidden lg:block w-full sticky top-[148px] self-start z-30"
         >
-          <div className="bg-white border border-[#EADFD5] rounded-lg p-4 shadow-xs space-y-5">
-            {/* 1. SEKCJA: KATEGORIE ODZIEŻY (Z bazy danych) */}
+          <div className="bg-white border border-[#EADFD5] rounded-xl shadow-xs overflow-hidden flex flex-col max-h-[calc(100dvh-158px)]">
+            <div className="overflow-y-auto overscroll-contain p-4 space-y-5 pb-8 custom-scrollbar">
+              {/* 1. SEKCJA: KATEGORIE ODZIEŻY (Z bazy danych) */}
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#C5A069] border-b border-[#EADFD5] pb-2">
                 <Layers className="w-3.5 h-3.5" />
@@ -503,6 +560,7 @@ export function CatalogClient({
                 <span>Wyczyść filtry</span>
               </button>
             )}
+            </div>
           </div>
         </aside>
 

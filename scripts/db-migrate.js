@@ -45,6 +45,56 @@ async function run() {
       },
     });
     console.log("[db-migrate] Schemat bazy danych zostal pomyslnie zaktualizowany!");
+
+    // Bezpieczna archiwizacja produktów testowych i uzupełnienie kategorii
+    try {
+      const { PrismaClient } = require("@prisma/client");
+      const prisma = new PrismaClient({
+        datasources: { db: { url: process.env.DATABASE_URL || dbUrl } },
+      });
+
+      // 1. Archiwizacja produktów testowych (ads, vfggh, dupa, niespodzianka)
+      const archiveResult = await prisma.product.updateMany({
+        where: {
+          OR: [
+            { name: { contains: "ads", mode: "insensitive" } },
+            { name: { contains: "vfggh", mode: "insensitive" } },
+            { name: { contains: "dupa", mode: "insensitive" } },
+            { name: { contains: "niespodzianka", mode: "insensitive" } },
+            { slug: { in: ["ads", "vfggh", "dupa", "niespodzianka"] } },
+          ],
+        },
+        data: {
+          isArchived: true,
+          isPublished: false,
+        },
+      });
+      if (archiveResult.count > 0) {
+        console.log(`[db-migrate] Zarchiwizowano ${archiveResult.count} produktow testowych bez usuwania danych.`);
+      }
+
+      // 2. Kategoria Legginsy
+      const existingLegginsy = await prisma.category.findUnique({
+        where: { id: "cat-legginsy" },
+      });
+      if (!existingLegginsy) {
+        await prisma.category.create({
+          data: {
+            id: "cat-legginsy",
+            name: "Legginsy",
+            slug: "legginsy",
+            description: "Stylowe, wygodne i modelujące legginsy damskie na każdą okazję.",
+            orderIndex: 8,
+            isActive: true,
+          },
+        });
+        console.log("[db-migrate] Dodano kategorie 'Legginsy' do bazy danych.");
+      }
+
+      await prisma.$disconnect();
+    } catch (dataErr) {
+      console.warn("[db-migrate] Ostrzezenie podczas aktualizacji danych pomocniczych:", dataErr.message);
+    }
   } catch (err) {
     console.warn("[db-migrate] Ostrzezenie podczas synchronizacji schematu:", err.message);
   }

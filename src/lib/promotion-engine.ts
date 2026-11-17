@@ -73,7 +73,8 @@ export function normalizeEmail(email?: string): string {
  */
 export function isNewCustomerEmail(email: string, orders: Order[]): boolean {
   const norm = normalizeEmail(email);
-  if (!norm) return true; // Dla pustego koszyka zakładamy potencjalnie nowego klienta
+  // Ważne: Jeśli brak adresu e-mail (niezalogowany gość), nie przyznajemy automatycznie statusu uprawnionego do rabatu na pierwsze zakupy!
+  if (!norm) return false;
 
   // Sprawdzamy historię zamówień
   const hasPreviousOrder = orders.some((o) => {
@@ -316,17 +317,9 @@ export async function calculateOrderPromotions(params: {
           });
         }
       } else if (promo.type === "FIRST_ORDER") {
-        // Jeśli klientka wpisała dedykowany kod powitalny lub kod z polecenia, nie dodajemy automatycznego kandydata, aby nie dublować rabatu
-        if (isNewCustomer && !welcomeCustomerPromo && !referralParticipant) {
-          const discountAmt = Math.round(item.price * (promo.discountValue / 100) * 100) / 100;
-          candidates.push({
-            sourceName: promo.publicTitle || "Rabat na pierwsze zakupy –15%",
-            sourceType: promo.type,
-            percent: promo.discountValue,
-            amount: discountAmt * item.quantity,
-            isFromCoupon: false,
-          });
-        }
+        // Rabat powitalny / na pierwsze zakupy przysługuje wyłącznie po rejestracji, przez dedykowany unikalny kod powitalny (welcomeCustomerPromo).
+        // Nigdy nie przyznajemy go automatycznie niezalogowanym gościom ani bez podania dedykowanego kodu!
+        continue;
       } else if (promo.type === "PERCENTAGE") {
         let isEligible = promo.targetScope === "ALL";
         if (promo.targetScope === "CATEGORIES" && promo.categoryIds?.includes(categoryId || "")) isEligible = true;
@@ -425,7 +418,7 @@ export async function calculateOrderPromotions(params: {
       // Dedykowany kod powitalny nowej klientki: 15% na produkty w pierwszym zamówieniu (nie obejmuje dostawy)
       const discountAmt = Math.round(item.price * 0.15 * 100) / 100;
       candidates.push({
-        sourceName: `Kod powitalny: ${welcomeCustomerPromo.code} (–15%)`,
+        sourceName: `Rabat powitalny −15%`,
         sourceType: "WELCOME_COUPON",
         percent: 15,
         amount: discountAmt * item.quantity,
