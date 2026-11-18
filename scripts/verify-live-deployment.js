@@ -32,7 +32,7 @@ async function run() {
   const html = await pageRes.text();
   console.log("HTML Preview (first 500 chars):", html.slice(0, 500));
   const hasTitle = html.includes("Koszty i kalkulator marży") || html.includes("Koszty i zysk");
-  const hasTabs = html.includes("Symulator produktu") || html.includes("Pojedyncze zamówienie") || html.includes("Miesiąc i koszty stałe");
+  const hasTabs = html.includes("Widok Produktu") || html.includes("Widok Zamówienia") || html.includes("Koszty Stałe & Zasady");
   console.log("Czy strona zawiera nagłówek modułu:", hasTitle);
   console.log("Czy strona zawiera zakładki kalkulatora:", hasTabs);
 
@@ -124,7 +124,7 @@ async function run() {
         console.log("   Assertions:", JSON.stringify(r.assertions, null, 2));
       }
     });
-    console.log(`\nŁączny wynik: ${suiteData.passedCount}/${suiteData.totalCount} testów zaliczonych.`);
+    console.log(`\nŁączny wynik: ${suiteData.scenariosPassed}/${suiteData.scenariosTotal} testów zaliczonych.`);
   } else {
     console.log("Odpowiedź API:", suiteData);
   }
