@@ -170,10 +170,24 @@ export async function POST(req: NextRequest) {
     let customerId: string | undefined = undefined;
     try {
       const session = await getUserSession();
-      if (session && session.email && session.email.toLowerCase() === customerEmail.trim().toLowerCase()) {
-        const store = (await import("@/lib/store-data")).loadLocalStore();
-        const customer = (store.customers || []).find((c) => c.email.toLowerCase() === session.email.toLowerCase());
-        if (customer) customerId = customer.id;
+      // Wiążemy zamówienie ze stałym identyfikatorem konta pobranym bezpośrednio z bezpiecznej sesji serwera
+      const targetEmail = (session && session.email ? session.email : customerEmail).trim().toLowerCase();
+      if (targetEmail) {
+        const { prisma, isNeonConfigured, isDatabaseConnected } = await import("@/lib/prisma");
+        if (isNeonConfigured() && (await isDatabaseConnected())) {
+          const dbCust = await prisma.customerAccount.findUnique({
+            where: { email: targetEmail },
+            select: { id: true },
+          });
+          if (dbCust) customerId = dbCust.id;
+        }
+        if (!customerId) {
+          const store = (await import("@/lib/store-data")).loadLocalStore();
+          const customer = (store.customers || []).find(
+            (c) => c.email.toLowerCase() === targetEmail
+          );
+          if (customer) customerId = customer.id;
+        }
       }
     } catch {}
 
@@ -243,6 +257,20 @@ export async function POST(req: NextRequest) {
         });
       } catch (newsErr) {
         console.warn("Błąd zapisu newslettera przy zamówieniu:", newsErr);
+      }
+    }
+
+    // Obsługa zapamiętania domyślnego paczkomatu w profilu klientki
+    if (body.rememberLocker && shippingMethod === "INPOST_LOCKER" && parcelLockerCode) {
+      try {
+        const { updateCustomerProfile } = await import("@/lib/store-data");
+        const accountEmail = (customerEmail || "").trim().toLowerCase();
+        await updateCustomerProfile(accountEmail, {
+          lastParcelLocker: parcelLockerCode.toUpperCase(),
+          lastParcelLockerAddress: body.parcelLockerAddress || undefined,
+        });
+      } catch (lockerErr) {
+        console.warn("Błąd zapisu domyślnego paczkomatu:", lockerErr);
       }
     }
 

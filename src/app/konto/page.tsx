@@ -30,6 +30,9 @@ import {
   HeartHandshake,
   FileText,
   UserCheck,
+  Search,
+  Mail,
+  Trash2,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -99,6 +102,28 @@ export default function AccountPage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Zarządzanie newsletterem (status z PostgreSQL/Neon)
+  const [newsletterStatus, setNewsletterStatus] = useState<"NONE" | "PENDING" | "CONFIRMED" | "UNSUBSCRIBED">("NONE");
+  const [isNewsletterLoading, setIsNewsletterLoading] = useState(false);
+  const [newsletterMessage, setNewsletterMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Domyślny Paczkomat InPost
+  const [defaultLocker, setDefaultLocker] = useState<string>("");
+  const [defaultLockerAddress, setDefaultLockerAddress] = useState<string>("");
+  const [isEditingLocker, setIsEditingLocker] = useState(false);
+  const [lockerSearchQuery, setLockerSearchQuery] = useState("");
+  const [lockerSuggestions, setLockerSuggestions] = useState<any[]>([]);
+  const [isSearchingLocker, setIsSearchingLocker] = useState(false);
+  const [isSavingLocker, setIsSavingLocker] = useState(false);
+  const [lockerMessage, setLockerMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Przypisywanie zamówienia gościnnego
+  const [claimOrderNumber, setClaimOrderNumber] = useState("");
+  const [claimAccessKey, setClaimAccessKey] = useState("");
+  const [isClaimingOrder, setIsClaimingOrder] = useState(false);
+  const [claimMessage, setClaimMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [showClaimForm, setShowClaimForm] = useState(false);
+
   // Program poleceń & rabaty
   const [referralCode, setReferralCode] = useState<string>("");
   const [serverReferralUrl, setServerReferralUrl] = useState<string>("");
@@ -124,12 +149,25 @@ export default function AccountPage() {
         fetchOrders();
         fetchReturns();
         fetchProfile();
+        fetchNewsletter();
         fetchReferrals(data.email);
       }
     } catch (e) {
       console.error("Błąd sesji:", e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchNewsletter = async () => {
+    try {
+      const res = await fetch("/api/customer/newsletter");
+      if (res.ok) {
+        const d = await res.json();
+        if (d.status) setNewsletterStatus(d.status);
+      }
+    } catch (e) {
+      console.error("Błąd pobierania newslettera:", e);
     }
   };
 
@@ -176,6 +214,10 @@ export default function AccountPage() {
           marketingConsent: d.marketingConsent,
           marketingConsentDate: d.marketingConsentDate,
         });
+        if (d.lastParcelLocker) {
+          setDefaultLocker(d.lastParcelLocker);
+          setDefaultLockerAddress(d.lastParcelLockerAddress || "");
+        }
       }
     } catch (e) {
       console.error("Błąd pobierania profilu:", e);
@@ -278,6 +320,135 @@ export default function AccountPage() {
       setProfileMessage({ type: "error", text: err.message || "Błąd podczas zapisu profilu." });
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  // Zarządzanie newsletterem
+  const handleNewsletterAction = async (action: "subscribe" | "unsubscribe") => {
+    setIsNewsletterLoading(true);
+    setNewsletterMessage(null);
+    try {
+      const res = await fetch("/api/customer/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Wystąpił błąd.");
+      setNewsletterStatus(d.status);
+      setNewsletterMessage({ type: "success", text: d.message });
+      setTimeout(() => setNewsletterMessage(null), 5000);
+    } catch (err: any) {
+      setNewsletterMessage({ type: "error", text: err.message || "Błąd obsługi newslettera." });
+    } finally {
+      setIsNewsletterLoading(false);
+    }
+  };
+
+  // Wyszukiwanie paczkomatów InPost
+  const handleSearchLocker = async (q: string) => {
+    setLockerSearchQuery(q);
+    if (!q.trim() || q.trim().length < 2) {
+      setLockerSuggestions([]);
+      return;
+    }
+    setIsSearchingLocker(true);
+    try {
+      const res = await fetch(`/api/inpost/points?query=${encodeURIComponent(q.trim())}`);
+      if (res.ok) {
+        const d = await res.json();
+        setLockerSuggestions(d.points || []);
+      }
+    } catch (e) {
+      console.error("Błąd wyszukiwania paczkomatów:", e);
+    } finally {
+      setIsSearchingLocker(false);
+    }
+  };
+
+  // Zapis domyślnego paczkomatu w profilu
+  const handleSelectDefaultLocker = async (point: any) => {
+    setIsSavingLocker(true);
+    setLockerMessage(null);
+    try {
+      const lockerName = point.name;
+      const lockerAddr = `${point.street}, ${point.city}`.trim();
+      const res = await fetch("/api/customer/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lastParcelLocker: lockerName,
+          lastParcelLockerAddress: lockerAddr,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Błąd zapisu paczkomatu.");
+      setDefaultLocker(lockerName);
+      setDefaultLockerAddress(lockerAddr);
+      setIsEditingLocker(false);
+      setLockerSearchQuery("");
+      setLockerSuggestions([]);
+      setLockerMessage({ type: "success", text: `Paczkomat ${lockerName} został zapisany jako domyślny.` });
+      setTimeout(() => setLockerMessage(null), 4000);
+    } catch (err: any) {
+      setLockerMessage({ type: "error", text: err.message || "Błąd zapisu paczkomatu." });
+    } finally {
+      setIsSavingLocker(false);
+    }
+  };
+
+  // Usunięcie domyślnego paczkomatu z profilu
+  const handleRemoveDefaultLocker = async () => {
+    setIsSavingLocker(true);
+    setLockerMessage(null);
+    try {
+      const res = await fetch("/api/customer/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lastParcelLocker: "",
+          lastParcelLockerAddress: "",
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Błąd usuwania paczkomatu.");
+      setDefaultLocker("");
+      setDefaultLockerAddress("");
+      setLockerMessage({ type: "success", text: "Domyślny Paczkomat został usunięty z profilu." });
+      setTimeout(() => setLockerMessage(null), 4000);
+    } catch (err: any) {
+      setLockerMessage({ type: "error", text: err.message || "Błąd usuwania paczkomatu." });
+    } finally {
+      setIsSavingLocker(false);
+    }
+  };
+
+  // Przypisanie zamówienia gościnnego
+  const handleClaimOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!claimOrderNumber.trim()) return;
+    setIsClaimingOrder(true);
+    setClaimMessage(null);
+    try {
+      const res = await fetch("/api/customer/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderNumber: claimOrderNumber.trim(),
+          accessKey: claimAccessKey.trim() || undefined,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Nie udało się przypisać zamówienia.");
+      setClaimMessage({ type: "success", text: d.message || "Zamówienie zostało przypisane do Twojego konta!" });
+      setClaimOrderNumber("");
+      setClaimAccessKey("");
+      setShowClaimForm(false);
+      fetchOrders();
+    } catch (err: any) {
+      setClaimMessage({ type: "error", text: err.message || "Błąd podczas przypisywania zamówienia." });
+    } finally {
+      setIsClaimingOrder(false);
     }
   };
 
@@ -793,6 +964,82 @@ export default function AccountPage() {
                   })}
                 </div>
               )}
+
+              {/* Sekcja: Przypisanie zamówienia gościnnego */}
+              <div className="bg-white/95 backdrop-blur-sm p-5 border border-[#BCAB9B] rounded-xl shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-[#C5A069]" />
+                    <h4 className="font-serif text-xs uppercase tracking-wider font-semibold text-[#241D1B]">
+                      Nie widzisz swojego zamówienia złożonego bez rejestracji?
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowClaimForm(!showClaimForm)}
+                    className="text-xs text-[#8C7248] hover:text-[#241D1B] underline font-medium"
+                  >
+                    {showClaimForm ? "Zwiń" : "Przypisz do konta"}
+                  </button>
+                </div>
+                {showClaimForm && (
+                  <form onSubmit={handleClaimOrder} className="pt-2 space-y-3 border-t border-[#EADFD5]">
+                    <p className="text-[11px] text-[#7A6458]">
+                      Wpisz numer zamówienia (np. AURA-20261118-6559). Jeśli podałaś inny adres e-mail przy zakupie, wpisz także klucz dostępu z wiadomości potwierdzającej.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-semibold text-[#241D1B] block mb-1">
+                          Numer zamówienia *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="np. AURA-20261118-6559"
+                          value={claimOrderNumber}
+                          onChange={(e) => setClaimOrderNumber(e.target.value)}
+                          className="w-full bg-[#FAF6F1] border border-[#BCAB9B] px-3 py-2 rounded text-xs text-[#241D1B] uppercase font-mono focus:outline-none focus:border-[#C5A069]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-[#241D1B] block mb-1">
+                          Klucz dostępu (opcjonalny)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Klucz z linku w e-mailu"
+                          value={claimAccessKey}
+                          onChange={(e) => setClaimAccessKey(e.target.value)}
+                          className="w-full bg-[#FAF6F1] border border-[#BCAB9B] px-3 py-2 rounded text-xs text-[#241D1B] font-mono focus:outline-none focus:border-[#C5A069]"
+                        />
+                      </div>
+                    </div>
+                    {claimMessage && (
+                      <div
+                        className={`p-2.5 rounded text-xs flex items-center gap-2 ${
+                          claimMessage.type === "success"
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : "bg-rose-50 text-rose-800 border border-rose-200"
+                        }`}
+                      >
+                        {claimMessage.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        )}
+                        <span>{claimMessage.text}</span>
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isClaimingOrder}
+                      className="px-4 py-2 bg-[#241D1B] hover:bg-[#3E3430] text-white text-xs uppercase tracking-wider rounded font-medium disabled:opacity-50 transition-colors"
+                    >
+                      {isClaimingOrder ? "Przypisywanie..." : "Przypisz zamówienie do konta"}
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           )}
 
@@ -1210,21 +1457,236 @@ export default function AccountPage() {
                   />
                 </div>
 
-                {/* Zgoda marketingowa */}
-                <div className="p-3.5 bg-[#FAF6F1] border border-[#EADFD5] rounded-lg text-xs space-y-1">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-[#C5A069]" />
-                    <span className="font-semibold text-[#241D1B]">Zgody marketingowe i rabaty</span>
+                {/* ═══════════════════════════════════════════════════════ */}
+                {/* SEKCJA: MÓJ DOMYŚLNY PACZKOMAT INPOST                  */}
+                {/* ═══════════════════════════════════════════════════════ */}
+                <div className="p-4 bg-[#FAF6F1] border border-[#BCAB9B] rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-[#C5A069]" />
+                      <h3 className="font-serif text-xs uppercase tracking-wider font-semibold text-[#241D1B]">
+                        Mój domyślny Paczkomat InPost
+                      </h3>
+                    </div>
+                    {defaultLocker && !isEditingLocker && (
+                      <span className="px-2 py-0.5 bg-[#241D1B] text-[#FFF8E7] font-mono text-[11px] font-bold rounded">
+                        {defaultLocker}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-[11px] text-[#7A6458]">
-                    {profile.marketingConsent
-                      ? `Zgoda na otrzymywanie informacji o nowościach i kodach rabatowych jest aktywna (wyrażona: ${
-                          profile.marketingConsentDate
-                            ? new Date(profile.marketingConsentDate).toLocaleDateString("pl-PL")
-                            : "podczas rejestracji"
-                        }).`
-                      : "Nie wyraziłaś zgody na powiadomienia e-mail z kodami promocyjnymi."}
+
+                  <p className="text-[11px] text-[#7A6458] leading-relaxed">
+                    Zapisany paczkomat będzie automatycznie podpowiadany podczas zakupów w kasie na dowolnym Twoim urządzeniu. W każdej chwili możesz wybrać inny punkt lub zmienić domyślny.
                   </p>
+
+                  {lockerMessage && (
+                    <div
+                      className={`p-2.5 rounded text-xs flex items-center gap-2 ${
+                        lockerMessage.type === "success"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-rose-50 text-rose-800 border border-rose-200"
+                      }`}
+                    >
+                      {lockerMessage.type === "success" ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      )}
+                      <span>{lockerMessage.text}</span>
+                    </div>
+                  )}
+
+                  {defaultLocker && !isEditingLocker ? (
+                    <div className="p-3 bg-white border border-[#EADFD5] rounded-lg flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-[#241D1B]">{defaultLocker}</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 font-medium">
+                            Domyślny punkt
+                          </span>
+                        </div>
+                        {defaultLockerAddress && (
+                          <p className="text-xs text-[#5A483D] flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-[#8C7248] shrink-0" />
+                            <span>{defaultLockerAddress}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditingLocker(true);
+                            setLockerSearchQuery("");
+                            setLockerSuggestions([]);
+                          }}
+                          className="px-3 py-1.5 border border-[#BCAB9B] text-xs text-[#241D1B] hover:bg-[#FAF6F1] rounded font-medium transition-colors"
+                        >
+                          Zmień
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSavingLocker}
+                          onClick={handleRemoveDefaultLocker}
+                          className="p-1.5 text-[#7A6458] hover:text-rose-600 transition-colors"
+                          title="Usuń domyślny paczkomat"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-[#8C7248] absolute left-3 top-3" />
+                        <input
+                          type="text"
+                          value={lockerSearchQuery}
+                          onChange={(e) => handleSearchLocker(e.target.value)}
+                          placeholder="Wpisz miejscowość, ulicę lub kod paczkomatu (np. ZMI01M)..."
+                          className="w-full bg-white border border-[#BCAB9B] pl-9 pr-3 py-2 rounded-lg text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069]"
+                        />
+                        {isSearchingLocker && (
+                          <div className="absolute right-3 top-2.5">
+                            <div className="w-3.5 h-3.5 border-2 border-[#C5A069] border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      {lockerSuggestions.length > 0 && (
+                        <div className="max-h-48 overflow-y-auto bg-white border border-[#BCAB9B] rounded-lg divide-y divide-[#EADFD5] shadow-md">
+                          {lockerSuggestions.map((point) => (
+                            <button
+                              key={point.name}
+                              type="button"
+                              onClick={() => handleSelectDefaultLocker(point)}
+                              disabled={isSavingLocker}
+                              className="w-full text-left p-2.5 hover:bg-[#FAF6F1] transition-colors flex items-center justify-between text-xs"
+                            >
+                              <div>
+                                <span className="font-mono font-bold text-[#241D1B] mr-2">{point.name}</span>
+                                <span className="text-[#5A483D]">{point.street}, {point.city}</span>
+                                {point.description && (
+                                  <p className="text-[10px] text-[#7A6458]">{point.description}</p>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-[#C5A069] font-semibold underline shrink-0 ml-2">
+                                Wybierz
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {isEditingLocker && (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditingLocker(false);
+                              setLockerSuggestions([]);
+                            }}
+                            className="text-xs text-[#7A6458] hover:text-[#241D1B] underline"
+                          >
+                            Anuluj zmianę
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ═══════════════════════════════════════════════════════ */}
+                {/* SEKCJA: NEWSLETTER (ŚCIŚLE ROZŁĄCZONY Z RABATAMI)        */}
+                {/* ═══════════════════════════════════════════════════════ */}
+                <div className="p-4 bg-[#FAF6F1] border border-[#BCAB9B] rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-[#C5A069]" />
+                      <h3 className="font-serif text-xs uppercase tracking-wider font-semibold text-[#241D1B]">
+                        Newsletter
+                      </h3>
+                    </div>
+
+                    {/* Status subskrypcji */}
+                    {newsletterStatus === "CONFIRMED" ? (
+                      <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold uppercase rounded-full flex items-center gap-1">
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span>Aktywna subskrypcja</span>
+                      </span>
+                    ) : newsletterStatus === "PENDING" ? (
+                      <span className="px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold uppercase rounded-full flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        <span>Oczekuje na potwierdzenie</span>
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 bg-neutral-100 text-neutral-600 border border-neutral-300 text-[10px] font-bold uppercase rounded-full">
+                        Brak zgody
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-[#7A6458] leading-relaxed">
+                    Bądź pierwsza, która dowie się o nowych kolekcjach, limitowanych dropach i ekskluzywnych ofertach AURA Boutique.{" "}
+                    <strong className="text-[#241D1B] font-semibold">
+                      Twój rabat powitalny −15% oraz indywidualne kody rabatowe działają zawsze i niezależnie od zgody na newsletter.
+                    </strong>
+                  </p>
+
+                  {newsletterMessage && (
+                    <div
+                      className={`p-2.5 rounded text-xs flex items-center gap-2 ${
+                        newsletterMessage.type === "success"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-rose-50 text-rose-800 border border-rose-200"
+                      }`}
+                    >
+                      {newsletterMessage.type === "success" ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      )}
+                      <span>{newsletterMessage.text}</span>
+                    </div>
+                  )}
+
+                  {/* Przyciski zarządzania subskrypcją */}
+                  <div className="pt-1 flex items-center justify-between gap-3 flex-wrap">
+                    {newsletterStatus === "CONFIRMED" ? (
+                      <button
+                        type="button"
+                        disabled={isNewsletterLoading}
+                        onClick={() => handleNewsletterAction("unsubscribe")}
+                        className="px-4 py-2 border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-medium rounded transition-colors disabled:opacity-50"
+                      >
+                        {isNewsletterLoading ? "Wypisywanie..." : "Wypisz się z newslettera"}
+                      </button>
+                    ) : newsletterStatus === "PENDING" ? (
+                      <div className="space-y-1.5 w-full">
+                        <p className="text-[11px] text-amber-800">
+                          Wysłaliśmy link aktywacyjny na Twój adres e-mail. Sprawdź swoją skrzynkę (oraz folder Oferty/Spam), aby potwierdzić subskrypcję.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={isNewsletterLoading}
+                          onClick={() => handleNewsletterAction("subscribe")}
+                          className="px-4 py-2 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs font-semibold rounded transition-colors disabled:opacity-50"
+                        >
+                          {isNewsletterLoading ? "Wysyłanie..." : "Wyślij link ponownie"}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isNewsletterLoading}
+                        onClick={() => handleNewsletterAction("subscribe")}
+                        className="px-4 py-2 bg-[#241D1B] hover:bg-[#3E3430] text-[#FAF6F1] text-xs uppercase tracking-wider font-medium rounded transition-colors disabled:opacity-50"
+                      >
+                        {isNewsletterLoading ? "Zapisywanie..." : "Zapisz się do newslettera"}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">

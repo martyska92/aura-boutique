@@ -5,22 +5,30 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, Eye, EyeOff, ShieldAlert, CheckCircle2, ArrowRight } from "lucide-react";
 import { BrandLogo } from "@/components/ui/BrandLogo";
+import {
+  PasswordLengthIndicator,
+  PasswordMatchIndicator,
+  getPasswordValidationState,
+} from "@/components/ui/LivePasswordValidation";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  const validation = getPasswordValidationState(newPassword, confirmPassword, 8);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (newPassword.length < 6) {
-      setError("Hasło musi mieć co najmniej 6 znaków.");
+    if (newPassword.length < 8) {
+      setError("Hasło musi mieć co najmniej 8 znaków.");
       return;
     }
 
@@ -44,10 +52,6 @@ export default function ChangePasswordPage() {
       }
 
       setIsSuccess(true);
-      setTimeout(() => {
-        router.push("/admin");
-        router.refresh();
-      }, 1500);
     } catch (err: any) {
       setError(err.message || "Błąd połączenia.");
       setIsLoading(false);
@@ -66,28 +70,15 @@ export default function ChangePasswordPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <BrandLogo size="lg" variant="cashmere" />
         <h1 className="mt-6 font-serif text-2xl text-[#241D1B] tracking-wide">
-          Wymagana Zmiana Hasła
+          Zmiana Hasła
         </h1>
         <p className="mt-1 text-xs text-[#7A6458]">
-          Wprowadź nowe, bezpieczne hasło do swojego konta.
+          Wprowadź nowe, bezpieczne hasło do swojego konta w AURA Boutique.
         </p>
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white/95 backdrop-blur-sm py-8 px-6 sm:px-10 border border-[#BCAB9B] rounded-lg shadow-xl space-y-6">
-          {/* Ostrzeżenie o konieczności zmiany */}
-          <div className="p-4 bg-[#FFF9EE] border border-[#ECD399] rounded-md text-xs text-[#6B4B11] flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-[#C5A069] shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-[#4A3206] mb-1">
-                Zalogowano przy użyciu hasła jednorazowego
-              </p>
-              <p className="leading-relaxed text-[11px] text-[#6B4B11]">
-                Ze względów bezpieczeństwa sklepu internetowego AURA oraz danych klientek, przed wejściem do panelu właścicielki musisz ustalić własne, prywatne hasło.
-              </p>
-            </div>
-          </div>
-
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded flex items-center gap-2">
               <span className="font-bold">⚠️</span>
@@ -96,26 +87,41 @@ export default function ChangePasswordPage() {
           )}
 
           {isSuccess ? (
-            <div className="p-6 text-center bg-emerald-50 border border-emerald-200 rounded-md space-y-3">
+            <div className="p-6 text-center bg-emerald-50 border border-emerald-200 rounded-md space-y-4">
               <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
-              <h3 className="font-serif text-lg text-emerald-900 font-semibold">
-                Hasło zostało pomyślnie zmienione!
+              <h3 className="font-serif text-lg text-emerald-950 font-semibold">
+                Hasło zostało zmienione. Możesz się zalogować
               </h3>
-              <p className="text-xs text-emerald-700">
-                Przekierowywanie do Panelu Właścicielki...
+              <p className="text-xs text-emerald-800">
+                Twoje nowe hasło zostało pomyślnie zaktualizowane w systemie.
               </p>
+              <div className="pt-2 flex flex-col gap-2">
+                <Link
+                  href="/logowanie"
+                  className="w-full py-3 bg-[#241D1B] hover:bg-[#3E3835] text-white text-xs uppercase tracking-wider font-semibold rounded transition-colors flex items-center justify-center gap-2"
+                >
+                  <span>Przejdź do logowania</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  href="/konto"
+                  className="text-xs text-[#7A6458] hover:text-[#241D1B] underline py-1"
+                >
+                  Przejdź do mojego konta
+                </Link>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                  Nowe hasło
+                <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
+                  Nowe hasło *
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     required
-                    placeholder="Wpisz nowe, bezpieczne hasło (min. 6 znaków)..."
+                    placeholder="Wpisz nowe hasło..."
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full bg-[#FAF6F1] border border-[#BCAB9B] p-3 text-xs text-[#241D1B] pr-10 focus:outline-none focus:border-[#C5A069] rounded font-medium"
@@ -124,34 +130,53 @@ export default function ChangePasswordPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                    title={showPassword ? "Ukryj hasło" : "Pokaż hasło"}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <PasswordLengthIndicator value={newPassword} minLength={8} />
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                  Powtórz nowe hasło
+                <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
+                  Powtórz nowe hasło *
                 </label>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="Wpisz dokładnie takie samo hasło..."
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-[#FAF6F1] border border-[#BCAB9B] p-3 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded font-medium"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    placeholder="Wpisz ponownie nowe hasło..."
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-[#FAF6F1] border border-[#BCAB9B] p-3 text-xs text-[#241D1B] pr-10 focus:outline-none focus:border-[#C5A069] rounded font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                    title={showConfirmPassword ? "Ukryj hasło" : "Pokaż hasło"}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <PasswordMatchIndicator password={newPassword} confirmPassword={confirmPassword} />
               </div>
+
+              {!validation.isValid && (
+                <div className="p-2.5 bg-[#FAF6F1] border border-[#EADFD5] rounded text-[11px] text-[#7A6458] text-center">
+                  {validation.reason}
+                </div>
+              )}
 
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded shadow-md"
+                  disabled={isLoading || !validation.isValid}
+                  className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded shadow-md cursor-pointer"
                 >
                   <Lock className="w-4 h-4" />
-                  <span>{isLoading ? "Zapisywanie..." : "Zapisz nowe hasło i przejdź do panelu"}</span>
+                  <span>{isLoading ? "Zapisywanie..." : "Zapisz nowe hasło"}</span>
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </button>
               </div>

@@ -7,7 +7,7 @@ import { subscribeToNewsletter } from "@/lib/newsletter-service";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { firstName, lastName, email, phone, password, newsletterConsent, returnUrl } = body;
+    const { firstName, lastName, email, phone, password, confirmPassword, newsletterConsent, returnUrl } = body;
 
     if (!firstName || !firstName.trim()) {
       return NextResponse.json({ error: "Podaj swoje imię." }, { status: 400 });
@@ -21,9 +21,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Podaj prawidłowy adres e-mail." }, { status: 400 });
     }
 
-    if (!password || password.length < 6) {
+    if (!password || password.length < 8) {
       return NextResponse.json(
-        { error: "Hasło musi mieć co najmniej 6 znaków." },
+        { error: "Hasło musi mieć co najmniej 8 znaków dla zapewnienia bezpieczeństwa konta." },
+        { status: 400 }
+      );
+    }
+
+    if (confirmPassword !== undefined && password !== confirmPassword) {
+      return NextResponse.json(
+        { error: "Wprowadzone hasła nie są identyczne." },
         { status: 400 }
       );
     }
@@ -50,12 +57,13 @@ export async function POST(req: NextRequest) {
     const safeReturn = sanitizeReturnUrl(returnUrl);
 
     // 1. Utworzenie niezweryfikowanego konta i wysyłka maila z linkiem weryfikacyjnym
+    // Bez przycinania ani modyfikowania wpisanego hasła
     const regResult = await createPendingCustomerRegistration({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: normalizedEmail,
       phone: phone?.trim(),
-      password: password.trim(),
+      password: password,
       returnUrl: safeReturn,
     });
 

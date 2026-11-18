@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
         name: "Brak samowolnego oznaczenia jako PAID przy samym powrocie z bramki",
         passed: statusData.paymentStatus === "PENDING",
         expected: "PENDING",
-        actual: statusData.paymentStatus,
+        actual: String(statusData.paymentStatus ?? (statusData.error || "brak")),
       });
 
       const currentOrder = await getOrderById(order.id);
@@ -542,6 +542,9 @@ export async function POST(req: NextRequest) {
         actual: String(res1.status),
       });
 
+      const orderAfterFirst = await getOrderById(order.id);
+      const firstPaidAt = orderAfterFirst?.paidAt;
+
       // Drugie powiadomienie (np. powtórzone przez PayU po 30s)
       const res2 = await fetch(new URL("/api/payments/payu/notify", req.url).toString(), {
         method: "POST",
@@ -562,9 +565,18 @@ export async function POST(req: NextRequest) {
 
       assertions.push({
         name: "Wykrycie wcześniejszego opłacenia (ochrona przed wielokrotnym naliczeniem)",
-        passed: data2.message?.includes("wcześniej"),
+        passed: Boolean(data2.message?.includes("wcześniej")),
         expected: "true",
         actual: String(Boolean(data2.message?.includes("wcześniej"))),
+      });
+
+      const orderAfterSecond = await getOrderById(order.id);
+      const paidAtUnchanged = orderAfterSecond?.paidAt === firstPaidAt;
+      assertions.push({
+        name: "Powtórzone powiadomienie nie zmienia pierwotnej daty wpłaty (paidAt)",
+        passed: paidAtUnchanged,
+        expected: "true",
+        actual: String(paidAtUnchanged),
       });
 
       passed = assertions.every((a) => a.passed);
@@ -724,8 +736,9 @@ export async function POST(req: NextRequest) {
         items: [],
       });
 
-      // Sprawdź, czy kod został oznaczony jako użyty
-      const custAfterOrder = store.customers.find((c) => c.id === testCust.id);
+      // Sprawdź, czy kod został oznaczony jako zarezerwowany dla tego zamówienia
+      const storeAfterOrder = loadLocalStore();
+      const custAfterOrder = (storeAfterOrder.customers || []).find((c) => c.id === testCust.id);
       assertions.push({
         name: "Kod rabatowy został pierwotnie zarezerwowany przy składaniu zamówienia",
         passed: custAfterOrder?.welcomeDiscountUsed === true,

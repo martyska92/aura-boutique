@@ -91,6 +91,7 @@ export function AdminNav() {
     { label: "Zamówienia", href: "/admin/zamowienia", exact: false },
     { label: "Klientki", href: "/admin/klientki", exact: false },
     { label: "Promocje i rabaty", href: "/admin/promocje", exact: false },
+    { label: "Notatki i kalendarz", href: "/admin/kalendarz", exact: false },
     { label: "Edytor banera", href: "/admin/baner", exact: false },
     { label: "Ustawienia", href: "/admin/ustawienia", exact: false },
   ];

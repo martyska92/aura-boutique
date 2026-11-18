@@ -6,7 +6,7 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, code, newPassword } = await req.json();
+    const { email, code, newPassword, confirmPassword } = await req.json();
 
     if (!email || typeof email !== "string" || !email.trim()) {
       return NextResponse.json(
@@ -22,9 +22,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!newPassword || typeof newPassword !== "string" || newPassword.trim().length < 8) {
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 8) {
       return NextResponse.json(
         { error: "Nowe hasło musi zawierać co najmniej 8 znaków dla zapewnienia bezpieczeństwa." },
+        { status: 400 }
+      );
+    }
+
+    if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+      return NextResponse.json(
+        { error: "Wprowadzone hasła nie są identyczne." },
         { status: 400 }
       );
     }
@@ -39,8 +46,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resetujemy hasło użytkownika
-    const result = await resetUserPassword(normalizedEmail, newPassword.trim());
+    // Resetujemy hasło użytkownika (bez przycinania)
+    const result = await resetUserPassword(normalizedEmail, newPassword);
 
     // Wysłanie powiadomienia o zmianie hasła
     try {

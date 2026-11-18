@@ -227,6 +227,7 @@ export function OrderListClient({ initialOrders }: OrderListClientProps) {
 
   const paymentBadges: Record<PaymentStatus, { label: string; class: string }> = {
     PENDING: { label: "Oczekuje", class: "text-amber-700 bg-amber-50" },
+    PARTIALLY_PAID: { label: "Częściowo opłacone (dopłata)", class: "text-amber-900 bg-amber-100 font-bold border border-amber-300" },
     PAID: { label: "Opłacone ✓", class: "text-emerald-800 bg-emerald-50 font-bold" },
     FAILED: { label: "Nieudane", class: "text-red-700 bg-red-50" },
     EXPIRED: { label: "Wygasła", class: "text-zinc-600 bg-zinc-100" },

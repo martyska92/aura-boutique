@@ -112,10 +112,17 @@ export function CustomerOrderClient({
     setIsInitiatingPayment(true);
     setPaymentError(null);
     try {
+      const isSurcharge =
+        order.paymentStatus === "PARTIALLY_PAID" ||
+        Boolean(order.remainingAmount && order.remainingAmount > 0);
+
       const res = await fetch(`/api/orders/${order.id}/pay?key=${order.accessKey || ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessKey: order.accessKey }),
+        body: JSON.stringify({
+          accessKey: order.accessKey,
+          isSurcharge,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -415,7 +422,16 @@ export function CustomerOrderClient({
         {/* Nagłówek statusu */}
         <div className="text-center space-y-3 pb-6 border-b border-[#EADFD5]">
           <div className="flex justify-center pb-2">
-            <BrandLogo size="md" />
+            <div
+              className="px-6 py-2.5 rounded-lg shadow-inner flex items-center justify-center border border-[#968372]/40"
+              style={{
+                backgroundColor: "#BCAB9B",
+                backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
+                backgroundRepeat: "repeat",
+              }}
+            >
+              <BrandLogo size="md" />
+            </div>
           </div>
           <div className="w-16 h-16 rounded-full bg-[#FAF6F1] text-[#C5A069] flex items-center justify-center mx-auto border-2 border-[#D8BE8E]">
             <CheckCircle2 className="w-8 h-8" />
@@ -453,7 +469,76 @@ export function CustomerOrderClient({
             SEKCJA PŁATNOŚCI: RZECZYWISTY STATUS I DOKOŃCZENIE PŁATNOŚCI
            ======================================================== */}
         <div className="space-y-4">
-          {order.paymentStatus === "PAID" ? (
+          {order.paymentStatus === "PARTIALLY_PAID" ||
+          (order.paidAmount !== undefined &&
+            order.paidAmount > 0 &&
+            order.remainingAmount !== undefined &&
+            order.remainingAmount > 0) ? (
+            <div className="p-5 bg-gradient-to-r from-amber-50/90 to-orange-50/90 border-2 border-amber-300 rounded-lg space-y-3.5 shadow-xs">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 shrink-0 border border-amber-200">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-sm font-semibold uppercase tracking-wider text-amber-950">
+                      Wymagana dopłata do zmodyfikowanego zamówienia
+                    </h3>
+                    <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                      Do Twojego zamówienia dodano nowe pozycje. Wcześniejsza wpłata ({order.paidAmount?.toFixed(2)} PLN) została w całości zachowana i rozliczona.
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[11px] font-bold text-amber-900 bg-amber-200/90 px-2.5 py-1 rounded border border-amber-400 shrink-0">
+                  POZOSTAŁO: {(order.remainingAmount || (order.totalAmount - (order.paidAmount || 0))).toFixed(2)} PLN
+                </span>
+              </div>
+
+              {/* Tabela rozliczenia wpłat */}
+              <div className="bg-white/90 p-3.5 rounded border border-amber-200 text-xs space-y-2">
+                <div className="flex justify-between text-[#3E3835]">
+                  <span>Łączna wartość zamówienia:</span>
+                  <strong className="text-[#241D1B] font-mono text-sm">{order.totalAmount.toFixed(2)} zł</strong>
+                </div>
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>Już zapłacono (potwierdzone przez operatora):</span>
+                  <strong className="font-mono text-sm">{(order.paidAmount || 0).toFixed(2)} zł ✓</strong>
+                </div>
+                <div className="flex justify-between text-amber-900 font-bold border-t border-amber-200 pt-1.5">
+                  <span>Pozostało do zapłaty:</span>
+                  <strong className="font-mono text-sm text-[#B45309]">
+                    {(order.remainingAmount || (order.totalAmount - (order.paidAmount || 0))).toFixed(2)} zł
+                  </strong>
+                </div>
+              </div>
+
+              {paymentError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded">
+                  {paymentError}
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleInitiatePayment}
+                  disabled={isInitiatingPayment}
+                  className="px-6 py-3 bg-[#241D1B] hover:bg-[#3E3835] text-white text-xs uppercase tracking-widest font-semibold rounded transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4 text-[#C5A069]" />
+                  <span>
+                    {isInitiatingPayment
+                      ? "Łączenie z operatorem..."
+                      : `Dopłać ${(order.remainingAmount || (order.totalAmount - (order.paidAmount || 0))).toFixed(2)} zł`}
+                  </span>
+                </button>
+                <span className="text-[11px] text-amber-800/80">
+                  Bezpieczna dopłata przez szyfrowaną bramkę płatności
+                </span>
+              </div>
+            </div>
+          ) : order.paymentStatus === "PAID" ? (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-3 text-emerald-900">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div>
@@ -1045,9 +1130,43 @@ export function CustomerOrderClient({
             </div>
 
             <div className="flex justify-between pt-2 border-t border-[#EADFD5] text-sm font-semibold text-[#241D1B]">
-              <span>Łączna kwota do zapłaty:</span>
-              <span className="text-base text-[#AF884F]">{order.totalAmount.toFixed(2)} PLN</span>
+              <span>Łączna wartość zamówienia:</span>
+              <span className="text-base text-[#AF884F] font-mono">{order.totalAmount.toFixed(2)} zł</span>
             </div>
+
+            {order.paidAmount !== undefined && order.paidAmount > 0 && (
+              <div className="flex justify-between text-xs text-emerald-700 font-medium">
+                <span>Już zapłacono (potwierdzone przez operatora):</span>
+                <span className="font-mono">{order.paidAmount.toFixed(2)} zł ✓</span>
+              </div>
+            )}
+
+            {(order.paymentStatus === "PARTIALLY_PAID" ||
+              (order.remainingAmount !== undefined && order.remainingAmount > 0)) && (
+              <>
+                <div className="flex justify-between text-xs font-bold text-amber-900 pt-1.5 border-t border-dashed border-[#EADFD5]">
+                  <span>Pozostało do zapłaty:</span>
+                  <span className="font-mono text-sm text-[#B45309]">
+                    {(order.remainingAmount || (order.totalAmount - (order.paidAmount || 0))).toFixed(2)} zł
+                  </span>
+                </div>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleInitiatePayment}
+                    disabled={isInitiatingPayment}
+                    className="w-full py-2.5 bg-[#241D1B] hover:bg-[#3E3835] text-white text-xs uppercase tracking-wider font-semibold rounded transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-60"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-[#C5A069]" />
+                    <span>
+                      {isInitiatingPayment
+                        ? "Przetwarzanie..."
+                        : `Dopłać ${(order.remainingAmount || (order.totalAmount - (order.paidAmount || 0))).toFixed(2)} zł`}
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

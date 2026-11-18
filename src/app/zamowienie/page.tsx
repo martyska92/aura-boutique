@@ -99,15 +99,59 @@ export default function CheckoutPage() {
     welcomeDiscountUsed?: boolean;
   } | null>(null);
 
+  const [rememberLocker, setRememberLocker] = useState(false);
+  const [isValidatingLocker, setIsValidatingLocker] = useState(false);
+
   useEffect(() => {
     fetch("/api/auth/session")
       .then((r) => r.json())
-      .then((data) => {
+      .then(async (data) => {
         if (data && data.isLoggedIn) {
           setSessionUser(data);
           if (!email && data.email) setEmail(data.email);
           if (!firstName && data.firstName) setFirstName(data.firstName);
           if (!lastName && data.lastName) setLastName(data.lastName);
+
+          // Automatyczne podpowiadanie zapisanego Paczkomatu InPost z profilu
+          try {
+            const profRes = await fetch("/api/customer/profile");
+            if (profRes.ok) {
+              const prof = await profRes.json();
+              if (prof.phone && !phone) setPhone(prof.phone);
+              if (prof.lastParcelLocker) {
+                setParcelLockerCode((prev) => prev || prof.lastParcelLocker);
+                setSelectedPoint((prev) =>
+                  prev || {
+                    name: prof.lastParcelLocker,
+                    street: prof.lastParcelLockerAddress || "Domyślny Paczkomat z profilu",
+                    city: "",
+                    postalCode: "",
+                    description: "Zapisany w Twoim profilu klientki",
+                  }
+                );
+                return;
+              }
+            }
+
+            // Jeśli nie ustawiono w profilu, podpowiedź z ostatnio złożonego zamówienia
+            const ordRes = await fetch("/api/customer/orders");
+            if (ordRes.ok) {
+              const ordData = await ordRes.json();
+              const lastWithLocker = (ordData.orders || []).find((o: any) => o.parcelLockerCode);
+              if (lastWithLocker) {
+                setParcelLockerCode((prev) => prev || lastWithLocker.parcelLockerCode);
+                setSelectedPoint((prev) =>
+                  prev || {
+                    name: lastWithLocker.parcelLockerCode,
+                    street: "Paczkomat z Twojego poprzedniego zamówienia",
+                    city: "",
+                    postalCode: "",
+                    description: "Ostatnio użyty punkt odbioru",
+                  }
+                );
+              }
+            }
+          } catch {}
         }
       })
       .catch(() => {});
@@ -463,6 +507,36 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
 
+    // Weryfikacja czy punkt InPost nadal jest aktywny i obsługuje dostawy
+    if (shippingMethod === "INPOST_LOCKER" && parcelLockerCode) {
+      setIsValidatingLocker(true);
+      try {
+        const verifyRes = await fetch(`/api/inpost/points?query=${encodeURIComponent(parcelLockerCode.trim())}`);
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          const cleanCode = parcelLockerCode.trim().toUpperCase();
+          const found = (verifyData.points || []).find(
+            (p: any) => p.name.toUpperCase() === cleanCode
+          );
+          if (!found) {
+            setFieldErrors((prev) => ({
+              ...prev,
+              parcelLockerCode: "Wybrany paczkomat jest obecnie niedostępny lub nie obsługuje przesyłek. Wybierz inny punkt odbioru.",
+            }));
+            setErrorMessage("Wybrany paczkomat jest obecnie niedostępny lub nie obsługuje przesyłek. Wybierz inny punkt odbioru.");
+            fieldRefs.parcelLockerCode.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            setIsSubmitting(false);
+            setIsValidatingLocker(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Weryfikacja paczkomatu:", err);
+      } finally {
+        setIsValidatingLocker(false);
+      }
+    }
+
     try {
       const res = await fetch("/api/orders/create", {
         method: "POST",
@@ -474,6 +548,8 @@ export default function CheckoutPage() {
           customerPhone: phone.trim(),
           shippingMethod,
           parcelLockerCode: shippingMethod === "INPOST_LOCKER" ? parcelLockerCode.trim().toUpperCase() : undefined,
+          parcelLockerAddress: selectedPoint ? `${selectedPoint.street}, ${selectedPoint.city}`.trim() : undefined,
+          rememberLocker,
           shippingStreet: shippingMethod === "COURIER" ? street.trim() : undefined,
           shippingCity: shippingMethod === "COURIER" ? city.trim() : undefined,
           shippingPostalCode: shippingMethod === "COURIER" ? postalCode.trim() : undefined,
@@ -938,40 +1014,56 @@ export default function CheckoutPage() {
                       {shippingMethod === "INPOST_LOCKER" && (
                         <div ref={fieldRefs.parcelLockerCode} className="mt-3 pt-3 border-t border-[#EADFD5] space-y-2.5">
                           {selectedPoint || parcelLockerCode ? (
-                            <div className="p-3 bg-[#FAF6F1] border border-[#C5A069] rounded-lg flex items-start justify-between gap-2.5">
-                              <div className="flex items-start gap-2">
-                                <div className="w-5 h-5 rounded-full bg-[#C5A069] text-white flex items-center justify-center shrink-0 mt-0.5">
-                                  <Check className="w-3.5 h-3.5" />
-                                </div>
-                                <div>
-                                  <p className="text-xs font-bold text-[#241D1B] flex items-center gap-1.5 flex-wrap">
-                                    <span>Wybrany Paczkomat:</span>
-                                    <span className="px-1.5 py-0.5 bg-[#241D1B] text-[#E5D7B7] font-mono rounded text-[11px]">
-                                      {selectedPoint?.name || parcelLockerCode}
-                                    </span>
-                                  </p>
-                                  <p className="text-xs text-[#4A3F3B] mt-0.5">
-                                    {selectedPoint ? `${selectedPoint.street}, ${selectedPoint.city}` : "Paczkomat InPost"}
-                                  </p>
-                                  {selectedPoint?.description && (
-                                    <p className="text-[11px] text-[#857670] mt-0.5 italic">
-                                      {selectedPoint.description}
+                            <div className="space-y-2">
+                              <div className="p-3 bg-[#FAF6F1] border border-[#C5A069] rounded-lg flex items-start justify-between gap-2.5">
+                                <div className="flex items-start gap-2">
+                                  <div className="w-5 h-5 rounded-full bg-[#C5A069] text-white flex items-center justify-center shrink-0 mt-0.5">
+                                    <Check className="w-3.5 h-3.5" />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-bold text-[#241D1B] flex items-center gap-1.5 flex-wrap">
+                                      <span>Wybrany Paczkomat:</span>
+                                      <span className="px-1.5 py-0.5 bg-[#241D1B] text-[#E5D7B7] font-mono rounded text-[11px]">
+                                        {selectedPoint?.name || parcelLockerCode}
+                                      </span>
                                     </p>
-                                  )}
+                                    <p className="text-xs text-[#4A3F3B] mt-0.5">
+                                      {selectedPoint ? `${selectedPoint.street}, ${selectedPoint.city}` : "Paczkomat InPost"}
+                                    </p>
+                                    {selectedPoint?.description && (
+                                      <p className="text-[11px] text-[#857670] mt-0.5 italic">
+                                        {selectedPoint.description}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedPoint(null);
+                                    setParcelLockerCode("");
+                                    setInpostQuery("");
+                                    setShowSuggestions(true);
+                                  }}
+                                  className="text-xs text-[#C5A069] hover:text-[#AF884F] font-semibold underline shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                >
+                                  Zmień
+                                </button>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedPoint(null);
-                                  setParcelLockerCode("");
-                                  setInpostQuery("");
-                                  setShowSuggestions(true);
-                                }}
-                                className="text-xs text-[#C5A069] hover:text-[#AF884F] font-semibold underline shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
-                              >
-                                Zmień
-                              </button>
+
+                              {/* Opcja zapamiętania paczkomatu na kolejne zakupy */}
+                              <div className="pt-1 flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  id="rememberLocker"
+                                  checked={rememberLocker}
+                                  onChange={(e) => setRememberLocker(e.target.checked)}
+                                  className="w-4 h-4 rounded border-[#BCAB9B] text-[#C5A069] focus:ring-[#C5A069]"
+                                />
+                                <label htmlFor="rememberLocker" className="text-xs text-[#5A483D] cursor-pointer">
+                                  Zapamiętaj ten paczkomat na kolejne zakupy
+                                </label>
+                              </div>
                             </div>
                           ) : null}
 

@@ -21,6 +21,11 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import {
+  PasswordLengthIndicator,
+  PasswordMatchIndicator,
+  getPasswordValidationState,
+} from "@/components/ui/LivePasswordValidation";
 
 function AuthForms() {
   const router = useRouter();
@@ -106,7 +111,9 @@ function AuthForms() {
   const [regEmail, setRegEmail] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
   const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [newsletterConsent, setNewsletterConsent] = useState(false);
   const [isRegLoading, setIsRegLoading] = useState(false);
@@ -195,13 +202,9 @@ function AuthForms() {
     setForgotError(null);
     setForgotSuccess(null);
 
-    if (forgotNewPassword.trim().length < 8) {
-      setForgotError("Nowe hasło musi zawierać co najmniej 8 znaków dla zapewnienia bezpieczeństwa konta.");
-      return;
-    }
-
-    if (forgotConfirmPassword && forgotNewPassword.trim() !== forgotConfirmPassword.trim()) {
-      setForgotError("Wprowadzone hasła nie są identyczne. Upewnij się, że wpisujesz dokładnie to samo hasło w obu polach.");
+    const forgotValidation = getPasswordValidationState(forgotNewPassword, forgotConfirmPassword, 8);
+    if (!forgotValidation.isValid) {
+      setForgotError(forgotValidation.reason);
       return;
     }
 
@@ -214,7 +217,8 @@ function AuthForms() {
         body: JSON.stringify({
           email: forgotEmail.trim(),
           code: forgotCode.trim(),
-          newPassword: forgotNewPassword.trim(),
+          newPassword: forgotNewPassword,
+          confirmPassword: forgotConfirmPassword,
         }),
       });
       const data = await res.json();
@@ -222,14 +226,9 @@ function AuthForms() {
         throw new Error(data.error || "Wystąpił błąd podczas zmiany hasła.");
       }
 
-      setForgotSuccess(data.message || "Hasło zostało pomyślnie zmienione!");
+      setForgotSuccess("Hasło zostało zmienione. Możesz się zalogować.");
       setLoginEmail(forgotEmail.trim());
-      setLoginPassword(forgotNewPassword.trim());
-      setTimeout(() => {
-        setActiveTab("login");
-        setForgotStep(1);
-        setForgotSuccess(null);
-      }, 1500);
+      setLoginPassword(forgotNewPassword);
     } catch (err: any) {
       setForgotError(err.message || "Błąd resetowania hasła.");
     } finally {
@@ -345,8 +344,9 @@ function AuthForms() {
       return;
     }
 
-    if (regPassword.length < 6) {
-      setRegError("Hasło musi mieć co najmniej 6 znaków.");
+    const regValidation = getPasswordValidationState(regPassword, regConfirmPassword, 8);
+    if (!regValidation.isValid) {
+      setRegError(regValidation.reason);
       return;
     }
 
@@ -362,7 +362,8 @@ function AuthForms() {
           lastName: regLastName.trim(),
           email: regEmail.trim(),
           phone: regPhone.trim(),
-          password: regPassword.trim(),
+          password: regPassword,
+          confirmPassword: regConfirmPassword,
           newsletterConsent,
           returnUrl,
         }),
@@ -937,26 +938,54 @@ function AuthForms() {
 
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
-                  Hasło dostępowe * (min. 6 znaków)
+                  Nowe hasło *
                 </label>
                 <div className="relative">
                   <input
                     type={showRegPassword ? "text" : "password"}
                     required
-                    placeholder="Wpisz bezpieczne hasło..."
+                    placeholder="Wpisz nowe hasło..."
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs"
+                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
                   />
                   <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
                   <button
                     type="button"
                     onClick={() => setShowRegPassword(!showRegPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                    title={showRegPassword ? "Ukryj hasło" : "Pokaż hasło"}
                   >
                     {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <PasswordLengthIndicator value={regPassword} minLength={8} />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
+                  Powtórz nowe hasło *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showRegConfirmPassword ? "text" : "password"}
+                    required
+                    placeholder="Wpisz ponownie nowe hasło..."
+                    value={regConfirmPassword}
+                    onChange={(e) => setRegConfirmPassword(e.target.value)}
+                    className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2.5 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                  />
+                  <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                    title={showRegConfirmPassword ? "Ukryj hasło" : "Pokaż hasło"}
+                  >
+                    {showRegConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <PasswordMatchIndicator password={regPassword} confirmPassword={regConfirmPassword} />
               </div>
 
               {/* Wymagana akceptacja regulaminu - domyślnie ODZNACZONY */}
@@ -1012,21 +1041,39 @@ function AuthForms() {
                 </span>
               </div>
 
-              <div className="pt-1">
-                <button
-                  type="submit"
-                  disabled={isRegLoading}
-                  className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded-xs shadow-md cursor-pointer disabled:cursor-not-allowed"
-                >
-                  {isRegLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <UserPlus className="w-4 h-4" />
-                  )}
-                  <span>{isRegLoading ? "Tworzenie konta..." : "Zarejestruj się i Odbierz –15%"}</span>
-                  {!isRegLoading && <ArrowRight className="w-4 h-4 ml-1" />}
-                </button>
-              </div>
+              {(() => {
+                const regVal = getPasswordValidationState(regPassword, regConfirmPassword, 8);
+                const isSubmitDisabled = isRegLoading || !acceptTerms || !regVal.isValid;
+
+                return (
+                  <div className="pt-1 space-y-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmitDisabled}
+                      className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-40 flex items-center justify-center gap-2 rounded-xs shadow-md cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      {isRegLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <UserPlus className="w-4 h-4" />
+                      )}
+                      <span>{isRegLoading ? "Tworzenie konta..." : "Zarejestruj się i Odbierz –15%"}</span>
+                      {!isRegLoading && <ArrowRight className="w-4 h-4 ml-1" />}
+                    </button>
+
+                    {!regVal.isValid && (
+                      <p className="text-[11px] text-amber-800 text-center">
+                        {regVal.reason}
+                      </p>
+                    )}
+                    {regVal.isValid && !acceptTerms && (
+                      <p className="text-[11px] text-amber-800 text-center">
+                        Zaznacz wymaganą zgodę na Regulamin i Politykę Prywatności.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </form>
 
             <div className="pt-2 text-center">
@@ -1060,15 +1107,33 @@ function AuthForms() {
               </div>
             )}
 
-            {forgotSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{forgotSuccess}</span>
+            {forgotSuccess ? (
+              <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-md text-center space-y-3.5 my-2">
+                <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+                <h3 className="font-serif text-base font-semibold text-emerald-950">
+                  Hasło zostało zmienione. Możesz się zalogować
+                </h3>
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  Twoje nowe hasło dostępowe zostało pomyślnie zaktualizowane w systemie AURA Boutique.
+                </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("login");
+                      setForgotStep(1);
+                      setForgotSuccess(null);
+                    }}
+                    className="w-full py-3.5 bg-[#241D1B] hover:bg-[#3E3835] text-white text-xs uppercase tracking-wider font-semibold rounded transition-colors shadow-sm cursor-pointer"
+                  >
+                    Przejdź do logowania
+                  </button>
+                </div>
               </div>
-            )}
-
-            {forgotStep === 1 && (
-              <form onSubmit={handleRequestResetCode} className="space-y-4">
+            ) : (
+              <>
+                {forgotStep === 1 && (
+                  <form onSubmit={handleRequestResetCode} className="space-y-4">
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
                     Adres e-mail przypisany do konta *
@@ -1146,7 +1211,7 @@ function AuthForms() {
 
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                    Nowe hasło dostępowe * (min. 8 znaków)
+                    Nowe hasło dostępowe *
                   </label>
                   <div className="relative">
                     <input
@@ -1162,10 +1227,12 @@ function AuthForms() {
                       type="button"
                       onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                      title={showForgotNewPassword ? "Ukryj hasło" : "Pokaż hasło"}
                     >
                       {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  <PasswordLengthIndicator value={forgotNewPassword} minLength={8} />
                 </div>
 
                 <div>
@@ -1186,25 +1253,41 @@ function AuthForms() {
                       type="button"
                       onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                      title={showForgotConfirmPassword ? "Ukryj hasło" : "Pokaż hasło"}
                     >
                       {showForgotConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  <PasswordMatchIndicator password={forgotNewPassword} confirmPassword={forgotConfirmPassword} />
                 </div>
 
-                <div className="pt-2 space-y-3">
-                  <button
-                    type="submit"
-                    disabled={isForgotLoading}
-                    className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded-xs shadow-md"
-                  >
-                    {isForgotLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4" />
-                    )}
-                    <span>{isForgotLoading ? "Zapisywanie..." : "Zapisz Nowe Hasło"}</span>
-                  </button>
+                {(() => {
+                  const forgotVal = getPasswordValidationState(forgotNewPassword, forgotConfirmPassword, 8);
+                  const isSubmitDisabled = isForgotLoading || !forgotVal.isValid || !forgotCode.trim();
+
+                  return (
+                    <div className="pt-2 space-y-2">
+                      <button
+                        type="submit"
+                        disabled={isSubmitDisabled}
+                        className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-xs shadow-md cursor-pointer"
+                      >
+                        {isForgotLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4" />
+                        )}
+                        <span>{isForgotLoading ? "Zapisywanie..." : "Zapisz Nowe Hasło"}</span>
+                      </button>
+
+                      {!forgotVal.isValid && (
+                        <p className="text-[11px] text-amber-800 text-center">
+                          {forgotVal.reason}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
 
                   <div className="flex items-center justify-between pt-1">
                     <button
@@ -1226,9 +1309,10 @@ function AuthForms() {
                       Zmień adres e-mail
                     </button>
                   </div>
-                </div>
               </form>
             )}
+            </>
+          )}
 
             <div className="pt-2 text-center border-t border-[#EADFD5]">
               <button

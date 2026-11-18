@@ -60,11 +60,31 @@ export async function POST(
       }
     }
 
-    // 1. Zabezpieczenie przed ponowną płatnością za już opłacone zamówienie
-    if (order.paymentStatus === "PAID") {
+    // 1. Zabezpieczenie przed ponowną płatnością za już w pełni opłacone zamówienie
+    const isSurchargeRequested =
+      Boolean(body.isSurcharge) ||
+      order.paymentStatus === "PARTIALLY_PAID" ||
+      (order.remainingAmount !== undefined && order.remainingAmount > 0);
+
+    const remainingToPay =
+      order.remainingAmount !== undefined
+        ? order.remainingAmount
+        : (order.paidAmount ? Math.max(0, order.totalAmount - order.paidAmount) : order.totalAmount);
+
+    if (order.paymentStatus === "PAID" && !isSurchargeRequested) {
       return NextResponse.json(
         {
           error: "To zamówienie zostało już opłacone. Nie ma konieczności ponawiania płatności.",
+          alreadyPaid: true,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (isSurchargeRequested && remainingToPay <= 0) {
+      return NextResponse.json(
+        {
+          error: "Zamówienie zostało już w pełni rozliczone (pozostało do zapłaty: 0,00 zł).",
           alreadyPaid: true,
         },
         { status: 400 }
@@ -117,6 +137,8 @@ export async function POST(
         returnUrl,
         notifyUrl,
         customSettings: settings,
+        isSurcharge: isSurchargeRequested,
+        surchargeAmount: remainingToPay,
       });
 
       if (!payuRes.success || !payuRes.paymentUrl) {

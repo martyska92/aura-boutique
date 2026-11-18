@@ -1232,6 +1232,7 @@ function mapPrismaOrder(dbOrder: any): Order {
     id: dbOrder.id,
     orderNumber: dbOrder.orderNumber,
     isTest: Boolean(dbOrder.isTest),
+    customerId: dbOrder.customerId || undefined,
     customerFirstName: dbOrder.customerFirstName,
     customerLastName: dbOrder.customerLastName,
     customerEmail: dbOrder.customerEmail,
@@ -1243,6 +1244,10 @@ function mapPrismaOrder(dbOrder: any): Order {
     shippingPostalCode: dbOrder.shippingPostalCode || undefined,
     paymentMethod: dbOrder.paymentMethod as PaymentMethod,
     paymentStatus: dbOrder.paymentStatus as PaymentStatus,
+    paidAmount: dbOrder.paidAmount !== undefined && dbOrder.paidAmount !== null ? Number(dbOrder.paidAmount) : undefined,
+    remainingAmount: dbOrder.remainingAmount !== undefined && dbOrder.remainingAmount !== null ? Number(dbOrder.remainingAmount) : undefined,
+    payuOrderId: dbOrder.payuOrderId || undefined,
+    accessKey: dbOrder.accessKey || undefined,
     fulfillmentStatus: dbOrder.fulfillmentStatus as FulfillmentStatus,
     trackingNumber: dbOrder.trackingNumber || undefined,
     subtotalAmount: Number(dbOrder.subtotalAmount),
@@ -1321,12 +1326,34 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
       });
     }
 
-    // 2. Upsert zamówienia
+    // 2. Bezpieczne powiązanie z kontem klientki (weryfikacja klucza obcego P2003)
+    let validCustomerId: string | null = null;
+    if (order.customerId) {
+      try {
+        const c = await prisma.customerAccount.findUnique({
+          where: { id: order.customerId },
+          select: { id: true },
+        });
+        if (c) validCustomerId = c.id;
+      } catch (_) {}
+    }
+    if (!validCustomerId && order.customerEmail) {
+      try {
+        const c = await prisma.customerAccount.findUnique({
+          where: { email: order.customerEmail.trim().toLowerCase() },
+          select: { id: true },
+        });
+        if (c) validCustomerId = c.id;
+      } catch (_) {}
+    }
+
+    // 3. Upsert zamówienia
     await prisma.order.upsert({
       where: { id: order.id },
       update: {
         orderNumber: order.orderNumber,
         isTest: Boolean(order.isTest),
+        customerId: validCustomerId,
         customerFirstName: order.customerFirstName,
         customerLastName: order.customerLastName,
         customerEmail: order.customerEmail,
@@ -1352,6 +1379,7 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
         id: order.id,
         orderNumber: order.orderNumber,
         isTest: Boolean(order.isTest),
+        customerId: validCustomerId,
         customerFirstName: order.customerFirstName,
         customerLastName: order.customerLastName,
         customerEmail: order.customerEmail,
@@ -1522,6 +1550,7 @@ export async function createOrder(
     ...orderInput,
     id: newId,
     orderNumber,
+    accessKey: orderInput.accessKey || crypto.randomBytes(16).toString("hex"),
     createdAt: now,
     updatedAt: now,
   };
@@ -1587,6 +1616,15 @@ export async function updateOrderAdmin(
     paymentStatus?: PaymentStatus;
     trackingNumber?: string;
     adminNotes?: string;
+    paidAt?: string;
+    paidAmount?: number;
+    remainingAmount?: number;
+    payuOrderId?: string;
+    paymentOperator?: string;
+    items?: OrderItem[];
+    totalAmount?: number;
+    subtotalAmount?: number;
+    shippingCost?: number;
   }
 ): Promise<Order> {
   const store = loadLocalStore();
@@ -1624,35 +1662,39 @@ export async function updateOrderAdmin(
 
   // 2. Obsługa stanów magazynowych:
   // Anulowanie zamówienia: przywróć stany magazynowe w bazie i w pamięci (tylko raz, dla rzeczywistych zamówień produkcyjnych)
-  if (newFulfillmentStatus === "CANCELLED" && prevFulfillmentStatus !== "CANCELLED" && !existingOrder.isTest) {
-    for (const item of existingOrder.items) {
-      if (item.variantId) {
-        for (const prod of store.products) {
-          const variant = prod.variants?.find((v) => v.id === item.variantId);
-          if (variant) {
-            variant.stockQuantity += item.quantity;
+  if (newFulfillmentStatus === "CANCELLED" && prevFulfillmentStatus !== "CANCELLED") {
+    if (!existingOrder.isTest) {
+      for (const item of existingOrder.items) {
+        if (item.variantId) {
+          for (const prod of store.products) {
+            const variant = prod.variants?.find((v) => v.id === item.variantId);
+            if (variant) {
+              variant.stockQuantity += item.quantity;
+            }
           }
-        }
-        if (await isDatabaseConnected()) {
-          try {
-            await prisma.productVariant.update({
-              where: { id: item.variantId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-          } catch (e) {
-            console.warn("Błąd przywracania stanu magazynowego po anulowaniu:", e);
+          if (await isDatabaseConnected()) {
+            try {
+              await prisma.productVariant.update({
+                where: { id: item.variantId },
+                data: { stockQuantity: { increment: item.quantity } },
+              });
+            } catch (e) {
+              console.warn("Błąd przywracania stanu magazynowego po anulowaniu:", e);
+            }
           }
         }
       }
     }
 
     // Zwolnienie kodu rabatowego, by klientka nie utraciła zniżki po anulowanym/nieopłaconym zamówieniu
+    // Wykonywane dla danego zamówienia (zarówno testowego jak i produkcyjnego)
     const cancelledCode = existingOrder.couponCode?.trim().toUpperCase();
     if (cancelledCode) {
       for (const cust of store.customers || []) {
         if (
           cust.welcomeDiscountCode?.trim().toUpperCase() === cancelledCode &&
-          cust.welcomeDiscountUsedInOrderId === existingOrder.id
+          (cust.welcomeDiscountUsedInOrderId === existingOrder.id ||
+            cust.welcomeDiscountUsedInOrderId === existingOrder.orderNumber)
         ) {
           cust.welcomeDiscountUsed = false;
           cust.welcomeDiscountUsedAt = undefined;
@@ -1674,7 +1716,7 @@ export async function updateOrderAdmin(
       for (const d of (store as any).individualDiscountsList || []) {
         if (
           d.code?.trim().toUpperCase() === cancelledCode &&
-          d.usedInOrderId === existingOrder.id &&
+          (d.usedInOrderId === existingOrder.id || d.usedInOrderId === existingOrder.orderNumber) &&
           !d.isPermanent
         ) {
           d.isUsed = false;
@@ -1719,11 +1761,24 @@ export async function updateOrderAdmin(
     }
   }
 
-  // 3. Utwórz zaktualizowany obiekt zamówienia
+  // 3. Spójne i atomowe ustalenie paidAt (nigdy nie nadpisuje pierwotnej daty wpłaty)
+  let finalPaidAt = existingOrder.paidAt;
+  if (newPaymentStatus === "PAID" && !finalPaidAt) {
+    finalPaidAt = updates.paidAt || now;
+  }
+
+  // 4. Utwórz zaktualizowany obiekt zamówienia
   const updatedOrder: Order = {
     ...existingOrder,
     fulfillmentStatus: newFulfillmentStatus,
     paymentStatus: newPaymentStatus,
+    paidAt: finalPaidAt,
+    paidAmount: updates.paidAmount !== undefined ? updates.paidAmount : existingOrder.paidAmount,
+    remainingAmount: updates.remainingAmount !== undefined ? updates.remainingAmount : existingOrder.remainingAmount,
+    items: updates.items !== undefined ? updates.items : existingOrder.items,
+    totalAmount: updates.totalAmount !== undefined ? updates.totalAmount : existingOrder.totalAmount,
+    subtotalAmount: updates.subtotalAmount !== undefined ? updates.subtotalAmount : existingOrder.subtotalAmount,
+    shippingCost: updates.shippingCost !== undefined ? updates.shippingCost : existingOrder.shippingCost,
     trackingNumber:
       updates.trackingNumber !== undefined
         ? updates.trackingNumber
@@ -1930,12 +1985,68 @@ export async function editOrderCustomer(
       : (store.settings.courierCost || 15);
   }
 
+  const newTotal = Math.round((subtotal + shippingCost) * 100) / 100;
+
+  // Rozliczenie dotychczasowych potwierdzonych wpłat
+  const confirmedPaid =
+    order.paidAmount !== undefined && order.paidAmount > 0
+      ? order.paidAmount
+      : (order.paymentStatus === "PAID" ? order.totalAmount : 0);
+
+  const newRemaining = Math.max(0, Math.round((newTotal - confirmedPaid) * 100) / 100);
+
+  let newPaymentStatus: PaymentStatus = order.paymentStatus;
+  if (confirmedPaid > 0) {
+    if (newRemaining > 0) {
+      newPaymentStatus = "PARTIALLY_PAID";
+    } else {
+      newPaymentStatus = "PAID";
+    }
+  } else {
+    newPaymentStatus = "PENDING";
+  }
+
+  // Weryfikacja i aktualizacja magazynu: wyłącznie dla zamówień rzeczywistych produkcyjnych!
+  // Testy sandbox (isTest === true) NIGDY nie modyfikują stanów magazynowych butiku
+  if (!order.isTest) {
+    for (const newItem of newItems) {
+      const prevItem = (order.items || []).find(
+        (it) => it.variantId && it.variantId === newItem.variantId
+      );
+      const prevQty = prevItem ? prevItem.quantity : 0;
+      const diffQty = newItem.quantity - prevQty;
+
+      if (diffQty > 0 && newItem.variantId) {
+        // Zmniejsz stan magazynowy o nowo dodane sztuki
+        for (const prod of store.products) {
+          const variant = prod.variants?.find((v) => v.id === newItem.variantId);
+          if (variant) {
+            variant.stockQuantity = Math.max(0, variant.stockQuantity - diffQty);
+          }
+        }
+        if (await isDatabaseConnected()) {
+          try {
+            await prisma.productVariant.update({
+              where: { id: newItem.variantId },
+              data: { stockQuantity: { decrement: diffQty } },
+            });
+          } catch (e) {
+            console.warn("Błąd pomniejszania stanu magazynowego po edycji zamówienia:", e);
+          }
+        }
+      }
+    }
+  }
+
   const updatedOrder: Order = {
     ...order,
     items: newItems,
     subtotalAmount: subtotal,
     shippingCost,
-    totalAmount: subtotal + shippingCost,
+    totalAmount: newTotal,
+    paidAmount: confirmedPaid > 0 ? confirmedPaid : order.paidAmount,
+    remainingAmount: newRemaining,
+    paymentStatus: newPaymentStatus,
     updatedAt: new Date().toISOString(),
   };
 
@@ -3273,7 +3384,7 @@ export async function resetUserPassword(
 ): Promise<{ success: boolean; role: "ADMIN" | "CUSTOMER" }> {
   const store = loadLocalStore();
   const normalized = email.trim().toLowerCase();
-  const cleanPassword = newPassword.trim();
+  const cleanPassword = newPassword; // Bez przycinania znaków hasła
 
   // 1. Sprawdzamy czy to konto właścicielki (admin)
   const adminEmail = (store.adminAccount?.email || "aurazmigrod@wp.pl").trim().toLowerCase();

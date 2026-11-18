@@ -22,6 +22,8 @@ export interface OutboxEmail {
     | "ORDER_SHIPPED"
     | "ORDER_CANCELLED"
     | "ORDER_PAYMENT_FAILED"
+    | "ORDER_PAYMENT_REMINDER"
+    | "REFUND_EXECUTED"
     | "RETURN_REQUESTED"
     | "RETURN_STATUS_UPDATED"
     | "PASSWORD_RESET"
@@ -61,7 +63,7 @@ export function wrapBoutiqueEmailTemplate(title: string, contentHtml: string): s
           <tr>
             <td align="center" bgcolor="#BCAB9B" style="background-color: #BCAB9B; padding: 32px 20px; border-bottom: 2px solid #C5A069;">
               <a href="${storeUrl}" target="_blank" style="text-decoration: none; display: inline-block;">
-                <img src="${storeUrl}/images/brand/aura-logo.png" alt="AURA Boutique" width="220" style="display: block; max-width: 220px; width: 100%; height: auto; border: 0; margin: 0 auto; background-color: transparent;" />
+                <img src="${storeUrl}/images/brand/aura-logo.png" alt="AURA Boutique" width="220" height="79" style="display: block; max-width: 220px; width: 220px; height: 79px; border: 0; margin: 0 auto; background-color: transparent;" />
               </a>
             </td>
           </tr>
@@ -1185,8 +1187,21 @@ export async function sendOrderPlacedCustomerEmail(
   const orderUrl = `${storeUrl}/zamowienie/${order.id}/potwierdzenie${order.accessKey ? `?key=${order.accessKey}` : ""}`;
   const breakdownHtml = renderOrderFinancialBreakdownHtml(order);
 
+  const isPaid = order.paymentStatus === "PAID";
+  const paymentBadge = isPaid
+    ? `<span style="display: inline-block; padding: 4px 10px; background-color: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; border-radius: 4px; font-weight: 600; font-size: 12px;">Płatność potwierdzona ✓</span>`
+    : `<span style="display: inline-block; padding: 4px 10px; background-color: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; border-radius: 4px; font-weight: 600; font-size: 12px;">Oczekujemy na płatność</span>`;
+
   let paymentInstructions = "";
-  if (order.paymentMethod === "TRADITIONAL_TRANSFER") {
+  if (isPaid) {
+    paymentInstructions = `
+      <div style="background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 4px; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0; font-size: 13px; color: #065F46;">
+          <strong>Płatność została potwierdzona.</strong> Twoje zamówienie jest już w trakcie przygotowywania do wysyłki.
+        </p>
+      </div>
+    `;
+  } else if (order.paymentMethod === "TRADITIONAL_TRANSFER") {
     const details = order.bankTransferDetails || {
       recipient: "AURA BOUTIQUE KLAUDIA BIAŁEK",
       accountNumber: "52 1090 2398 0000 0001 5482 9102",
@@ -1197,7 +1212,11 @@ export async function sendOrderPlacedCustomerEmail(
     };
     paymentInstructions = `
       <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 18px; margin: 24px 0;">
-        <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; color: #241D1B; margin: 0 0 12px 0;">
+        <div style="margin-bottom: 12px;">
+          <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #7A6458; display: block; margin-bottom: 4px;">Status płatności:</span>
+          ${paymentBadge}
+        </div>
+        <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: #241D1B; margin: 0 0 12px 0;">
           Dane do wykonania przelewu tradycyjnego (Rezerwacja na ${details.deadlineHours}h):
         </h3>
         <table style="width: 100%; font-size: 13px; color: #3E3835; line-height: 1.6;">
@@ -1221,14 +1240,15 @@ export async function sendOrderPlacedCustomerEmail(
       </div>
     `;
   } else {
-    // Płatność online BLIK / P24
+    // Płatność online BLIK / PayU / P24
     paymentInstructions = `
       <div style="background-color: #FAF6F1; border: 1px solid #EADFD5; border-radius: 4px; padding: 18px; margin: 24px 0; text-align: center;">
-        <p style="margin: 0 0 12px 0; font-size: 14px; color: #3E3835;">
-          Status płatności: <strong style="color: #D97706;">Oczekuje na opłacenie online</strong>
-        </p>
+        <div style="margin-bottom: 12px;">
+          <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #7A6458; display: block; margin-bottom: 4px;">Status płatności:</span>
+          ${paymentBadge}
+        </div>
         <p style="margin: 0 0 16px 0; font-size: 12px; color: #6E6259;">
-          Jeśli płatność w oknie operatora nie została jeszcze ukończona, możesz w każdej chwili bezpiecznie sfinalizować transakcję poniższym przyciskiem:
+          Twoje zamówienie zostało zarejestrowane i oczekuje na opłacenie. Aby dokończyć płatność i przekazać zamówienie do realizacji, kliknij poniższy przycisk:
         </p>
         <a href="${orderUrl}" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600;">
           Opłać zamówienie online
@@ -1261,12 +1281,12 @@ export async function sendOrderPlacedCustomerEmail(
     </div>
   `;
 
-  const html = wrapBoutiqueEmailTemplate(`Przyjęto zamówienie ${order.orderNumber}`, content);
+  const html = wrapBoutiqueEmailTemplate(`Otrzymaliśmy Twoje zamówienie ${order.orderNumber}`, content);
 
   return dispatchEmail(
     {
       to: order.customerEmail.trim().toLowerCase(),
-      subject: `Przyjęto zamówienie ${order.orderNumber} | AURA Boutique`,
+      subject: `Otrzymaliśmy Twoje zamówienie ${order.orderNumber} | AURA Boutique`,
       html,
       type: "ORDER_PLACED",
     },
@@ -1293,15 +1313,15 @@ export async function sendOrderPaymentConfirmedCustomerEmail(
       </p>
       <div style="background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 4px; padding: 16px; margin: 16px 0;">
         <p style="margin: 0; font-size: 14px; color: #065F46; font-weight: 600;">
-          ✓ Płatność za zamówienie ${order.orderNumber} została potwierdzona!
+          ✓ Płatność za zamówienie ${order.orderNumber} została potwierdzona — dziękujemy!
         </p>
         <p style="margin: 6px 0 0 0; font-size: 12px; color: #047857;">
-          Otrzymaliśmy wpłatę w kwocie <strong>${order.totalAmount.toFixed(2)} PLN</strong>. Twoje zamówienie trafiło do kompletowania i przygotowywania do wysyłki.
+          Otrzymałyśmy Twoją wpłatę w kwocie <strong>${(order.paidAmount || order.totalAmount).toFixed(2)} PLN</strong>. Z radością przygotowujemy Twoje zakupy do wysyłki.
         </p>
       </div>
 
       <p style="margin: 16px 0;">
-        Gdy paczka zostanie nadana, otrzymasz od nas wiadomość e-mail oraz SMS z numerem przesyłki i linkiem do śledzenia w InPost.
+        Gdy paczka zostanie nadana, otrzymasz od nas kolejną wiadomość z numerem przesyłki i linkiem do śledzenia w InPost.
       </p>
 
       <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; color: #241D1B; margin: 24px 0 8px 0; border-bottom: 1px solid #EADFD5; padding-bottom: 6px;">
@@ -1311,18 +1331,18 @@ export async function sendOrderPaymentConfirmedCustomerEmail(
 
       <div style="text-align: center; margin: 30px 0 10px;">
         <a href="${orderUrl}" style="display: inline-block; background-color: #241D1B; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600;">
-          Śledź status przesyłki
+          Zobacz szczegóły zamówienia
         </a>
       </div>
     </div>
   `;
 
-  const html = wrapBoutiqueEmailTemplate(`Płatność potwierdzona: ${order.orderNumber}`, content);
+  const html = wrapBoutiqueEmailTemplate(`Płatność potwierdzona — dziękujemy!`, content);
 
   return dispatchEmail(
     {
       to: order.customerEmail.trim().toLowerCase(),
-      subject: `Potwierdzenie płatności za zamówienie ${order.orderNumber} ✨ | AURA Boutique`,
+      subject: `Płatność potwierdzona — dziękujemy! Zamówienie ${order.orderNumber} | AURA Boutique`,
       html,
       type: "ORDER_PAID",
     },
@@ -1466,33 +1486,129 @@ export async function sendOrderPaymentFailedCustomerEmail(
 
       <div style="background-color: #FFFBEB; border: 1px solid #FDE68A; border-radius: 4px; padding: 16px; margin: 16px 0;">
         <p style="margin: 0; font-size: 14px; color: #92400E; font-weight: 600;">
-          Płatność za zamówienie ${order.orderNumber} nie powiodła się lub została przerwana.
+          Płatność nie powiodła się
         </p>
-        <p style="margin: 6px 0 0 0; font-size: 12px; color: #78350F;">
-          Nie martw się – Twoje zamówienie jest bezpiecznie zapisane, a wybrane ubrania pozostają dla Ciebie zarezerwowane.
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #78350F; line-height: 1.5;">
+          Nie udało się dokończyć płatności za Twoje zamówienie <strong>${order.orderNumber}</strong>. Możesz spróbować ponownie — nie musisz składać nowego zamówienia.
         </p>
       </div>
 
       <p style="margin: 16px 0; color: #5A4E47;">
-        Możesz w każdej chwili bezpiecznie dokończyć opłacenie zamówienia przez BLIK, szybki przelew lub wykonać tradycyjny przelew bankowy.
+        Twoje zamówione produkty pozostają dla Ciebie bezpiecznie zarezerwowane. Możesz wybrać ponowną płatność BLIK, szybki przelew online lub tradycyjny przelew na konto butiku.
       </p>
 
       <div style="text-align: center; margin: 28px 0;">
-        <a href="${retryUrl}" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(197, 160, 105, 0.25);">
-          Opłać zamówienie teraz
+        <a href="${retryUrl}" style="display: inline-block; background-color: #241D1B; color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(36, 29, 27, 0.25);">
+          Ponów płatność
         </a>
       </div>
     </div>
   `;
 
-  const html = wrapBoutiqueEmailTemplate(`Dokończ płatność: ${order.orderNumber}`, content);
+  const html = wrapBoutiqueEmailTemplate(`Płatność nie powiodła się`, content);
 
   return dispatchEmail(
     {
       to: order.customerEmail.trim().toLowerCase(),
-      subject: `Nieudana płatność za zamówienie ${order.orderNumber} – możesz spróbować ponownie 💛 | AURA BOUTIQUE`,
+      subject: `Płatność nie powiodła się: Zamówienie ${order.orderNumber} | AURA Boutique`,
       html,
       type: "ORDER_PAYMENT_FAILED",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 11b. Przypomnienie o oczekującej płatności (wysyłane po 30 minutach dla nieopłaconych zamówień)
+ */
+export async function sendOrderPaymentReminderCustomerEmail(
+  order: Order,
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://aura-boutique-w38e.vercel.app";
+  const payUrl = `${storeUrl}/zamowienie/${order.id}/potwierdzenie${order.accessKey ? `?key=${order.accessKey}` : ""}`;
+
+  const remaining = order.remainingAmount !== undefined ? order.remainingAmount : order.totalAmount;
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}! ⏳
+      </p>
+
+      <div style="background-color: #FFFBEB; border: 1px solid #FDE68A; border-radius: 4px; padding: 16px; margin: 16px 0;">
+        <p style="margin: 0; font-size: 14px; color: #92400E; font-weight: 600;">
+          Twoje zamówienie czeka na płatność
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #78350F;">
+          Przypominamy o niedokończonej płatności za zamówienie <strong>${order.orderNumber}</strong> na kwotę <strong>${remaining.toFixed(2)} PLN</strong>.
+        </p>
+      </div>
+
+      <p style="margin: 16px 0; color: #5A4E47;">
+        Twoje produkty są jeszcze zarezerwowane. Abyśmy mogły przygotować paczkę i przekazać ją kurierowi, dokończ płatność za pomocą poniższego przycisku:
+      </p>
+
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${payUrl}" style="display: inline-block; background-color: #C5A069; color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; box-shadow: 0 2px 8px rgba(197, 160, 105, 0.25);">
+          Dokończ płatność (${remaining.toFixed(2)} zł)
+        </a>
+      </div>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Twoje zamówienie czeka na płatność: ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Twoje zamówienie czeka na płatność: ${order.orderNumber} | AURA Boutique`,
+      html,
+      type: "ORDER_PAYMENT_REMINDER",
+    },
+    customSettings
+  );
+}
+
+/**
+ * 11c. Potwierdzenie zrealizowania zwrotu środków klientce
+ */
+export async function sendRefundExecutedCustomerEmail(
+  order: Order,
+  refundAmount?: number,
+  customSettings?: Partial<StoreSettings>
+): Promise<{ success: boolean; notConfigured?: boolean; error?: string }> {
+  const amountToDisplay = refundAmount !== undefined ? refundAmount : order.totalAmount;
+
+  const content = `
+    <div style="font-size: 14px; color: #241D1B; line-height: 1.6;">
+      <p style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0;">
+        Dzień dobry, ${order.customerFirstName}! ✨
+      </p>
+
+      <div style="background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 4px; padding: 16px; margin: 16px 0;">
+        <p style="margin: 0; font-size: 14px; color: #065F46; font-weight: 600;">
+          ✓ Zwrot środków został zrealizowany
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #047857;">
+          Środki w wysokości <strong>${amountToDisplay.toFixed(2)} PLN</strong> zostały przesłane na Twoje konto (za pośrednictwem operatora płatności lub przelewu bankowego).
+        </p>
+      </div>
+
+      <p style="margin: 16px 0; color: #5A4E47;">
+        Księgowanie w Twoim banku może zająć od 1 do 3 dni roboczych w zależności od operatora. Dziękujemy za zaufanie i mamy nadzieję do zobaczenia ponownie w AURA Boutique!
+      </p>
+    </div>
+  `;
+
+  const html = wrapBoutiqueEmailTemplate(`Zwrot środków zrealizowany: ${order.orderNumber}`, content);
+
+  return dispatchEmail(
+    {
+      to: order.customerEmail.trim().toLowerCase(),
+      subject: `Zwrot środków został zrealizowany: Zamówienie ${order.orderNumber} | AURA Boutique`,
+      html,
+      type: "REFUND_EXECUTED",
     },
     customSettings
   );

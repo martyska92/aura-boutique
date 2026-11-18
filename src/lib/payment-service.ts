@@ -661,12 +661,16 @@ export async function registerPayUTransaction({
   notifyUrl,
   customerIp = "127.0.0.1",
   customSettings,
+  isSurcharge,
+  surchargeAmount,
 }: {
   order: Order;
   returnUrl: string;
   notifyUrl: string;
   customerIp?: string;
   customSettings?: Partial<StoreSettings>;
+  isSurcharge?: boolean;
+  surchargeAmount?: number;
 }): Promise<{
   success: boolean;
   paymentUrl?: string;
@@ -684,7 +688,15 @@ export async function registerPayUTransaction({
   }
 
   try {
-    const totalAmountGrosze = Math.round(order.totalAmount * 100);
+    const isSurchargeTx =
+      Boolean(isSurcharge) ||
+      (order.paymentStatus === "PARTIALLY_PAID" && Boolean(order.remainingAmount && order.remainingAmount > 0));
+
+    const chargeAmountPln = isSurchargeTx
+      ? surchargeAmount || order.remainingAmount || order.totalAmount
+      : order.totalAmount;
+
+    const totalAmountGrosze = Math.round(chargeAmountPln * 100);
 
     const buyer = {
       email: order.customerEmail || "klientka@auraboutique.pl",
@@ -694,31 +706,51 @@ export async function registerPayUTransaction({
       language: "pl",
     };
 
-    const products = (order.items || []).map((item) => ({
-      name: item.productNameSnapshot || "Produkt AURA",
-      unitPrice: Math.round(item.unitPriceSnapshot * 100),
-      quantity: item.quantity,
-    }));
+    let products: { name: string; unitPrice: number; quantity: number }[] = [];
 
-    if (order.shippingCost && order.shippingCost > 0) {
-      products.push({
-        name: `Dostawa: ${order.shippingMethod}`,
-        unitPrice: Math.round(order.shippingCost * 100),
-        quantity: 1,
-      });
+    if (isSurchargeTx) {
+      products = [
+        {
+          name: `Dopłata do zamówienia ${order.orderNumber}`,
+          unitPrice: totalAmountGrosze,
+          quantity: 1,
+        },
+      ];
+    } else {
+      products = (order.items || []).map((item) => ({
+        name: item.productNameSnapshot || "Produkt AURA",
+        unitPrice: Math.round(item.unitPriceSnapshot * 100),
+        quantity: item.quantity,
+      }));
+
+      if (order.shippingCost && order.shippingCost > 0) {
+        products.push({
+          name: `Dostawa: ${order.shippingMethod}`,
+          unitPrice: Math.round(order.shippingCost * 100),
+          quantity: 1,
+        });
+      }
     }
+
+    const txExtOrderId = isSurchargeTx
+      ? `${order.orderNumber}_DOP_${Date.now()}`
+      : order.orderNumber;
+
+    const txDescription = isSurchargeTx
+      ? `[DOPŁATA] Zamówienie ${order.orderNumber} - AURA Boutique`
+      : order.isTest
+      ? `[TEST SANDBOX] Zamówienie ${order.orderNumber} - AURA Boutique`
+      : `Zamówienie ${order.orderNumber} w AURA Boutique`;
 
     const orderPayload = {
       notifyUrl,
       continueUrl: returnUrl,
       customerIp: customerIp.includes(":") ? "127.0.0.1" : customerIp,
       merchantPosId: config.posId,
-      description: order.isTest
-        ? `[TEST SANDBOX] Zamówienie ${order.orderNumber} - AURA Boutique`
-        : `Zamówienie ${order.orderNumber} w AURA Boutique`,
+      description: txDescription,
       currencyCode: "PLN",
       totalAmount: totalAmountGrosze.toString(),
-      extOrderId: order.orderNumber,
+      extOrderId: txExtOrderId,
       buyer,
       products,
     };

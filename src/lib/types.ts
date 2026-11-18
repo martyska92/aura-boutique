@@ -71,6 +71,7 @@ export type ShippingMethod = 'INPOST_LOCKER' | 'COURIER' | 'LOCAL_PICKUP';
 export type PaymentMethod = 'PRZELEWY24' | 'BLIK' | 'PAYU' | 'TRADITIONAL_TRANSFER' | 'COD';
 export type PaymentStatus =
   | 'PENDING'
+  | 'PARTIALLY_PAID'
   | 'PAID'
   | 'FAILED'
   | 'EXPIRED'
@@ -151,9 +152,13 @@ export type Order = {
   paymentStatus: PaymentStatus;
   fulfillmentStatus: FulfillmentStatus;
   paidAt?: string; // data zaksięgowania / weryfikacji wpłaty
-  paymentOperator?: string; // np. "PRZELEWY24" | "TRADITIONAL_TRANSFER" | "COD"
+  paidAmount?: number; // kwota rzeczywiście wpłacona i potwierdzona przez operatora
+  remainingAmount?: number; // kwota pozostała do dopłaty
+  paymentReminderSentAt?: string; // data wysłania przypomnienia o płatności
+  paymentOperator?: string; // np. "PRZELEWY24" | "TRADITIONAL_TRANSFER" | "COD" | "PAYU"
   p24SessionId?: string;
   p24OrderId?: number;
+  payuOrderId?: string;
   trackingNumber?: string;
   inpostShipmentId?: string;
   subtotalAmount: number; // wartość produktów po rabacie

@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "OK" });
     }
 
-    const extOrderId = payuOrder.extOrderId; // Numer zamówienia w butiku (np. AURA-20261116-5467)
+    const extOrderId = payuOrder.extOrderId; // Numer zamówienia w butiku (np. AURA-20261116-5467 lub AURA-20261116-5467_DOP_...)
     const payuStatus = payuOrder.status; // COMPLETED, CANCELED, PENDING, WAITING_FOR_CONFIRMATION
     const payuOrderId = payuOrder.orderId;
     const payuCurrency = payuOrder.currencyCode || "PLN";
@@ -34,8 +34,9 @@ export async function POST(req: NextRequest) {
     const store = loadLocalStore();
     const settings = store.settings;
 
-    // Pobieramy zamówienie z bazy Neon / pamięci
-    const order = await getOrderById(extOrderId);
+    // Pobieramy zamówienie z bazy Neon / pamięci (obsługa transakcji dopłaty z sufiksem _DOP)
+    const baseOrderId = extOrderId ? extOrderId.split("_DOP")[0].split("_")[0] : "";
+    const order = (await getOrderById(extOrderId)) || (baseOrderId ? await getOrderById(baseOrderId) : null);
 
     if (!order) {
       console.warn(`[PayU Webhook] Powiadomienie dla nieistniejącego zamówienia: ${extOrderId}`);
@@ -71,23 +72,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Weryfikacja kwoty (w groszach) — kwota z bramki musi odpowiadać kwocie zamówienia po rabacie i dostawie
+    // 3. Weryfikacja kwoty (w groszach) — kwota z bramki musi odpowiadać kwocie całego zamówienia lub kwocie dopłaty
     const orderGrosze = Math.round(order.totalAmount * 100);
-    if (payuTotalAmount !== orderGrosze) {
+    const remainingGrosze =
+      order.remainingAmount !== undefined
+        ? Math.round(order.remainingAmount * 100)
+        : (order.paidAmount ? Math.round((order.totalAmount - order.paidAmount) * 100) : orderGrosze);
+
+    const isMatchTotal = payuTotalAmount === orderGrosze;
+    const isMatchRemaining = payuTotalAmount === remainingGrosze && remainingGrosze > 0;
+
+    if (!isMatchTotal && !isMatchRemaining) {
       console.warn(
-        `[PayU Webhook] Rozbieżność kwoty! Zamówienie: ${orderGrosze} gr, Powiadomienie PayU: ${payuTotalAmount} gr`
+        `[PayU Webhook] Rozbieżność kwoty! Zamówienie: ${orderGrosze} gr (pozostało: ${remainingGrosze} gr), Powiadomienie PayU: ${payuTotalAmount} gr`
       );
       return NextResponse.json(
         {
-          error: `Rozbieżność kwoty: zamówienie opiewa na ${orderGrosze} gr, a wpłynęło ${payuTotalAmount} gr.`,
+          error: `Rozbieżność kwoty: zamówienie opiewa na ${orderGrosze} gr (pozostało do zapłaty: ${remainingGrosze} gr), a wpłynęło ${payuTotalAmount} gr.`,
         },
         { status: 400 }
       );
     }
 
     // 4. Idempotentność (ochrona przed opóźnionymi i wielokrotnymi powiadomieniami od operatora)
-    if (order.paymentStatus === "PAID") {
-      // Zamówienie zostało już opłacone — nie wysyłamy drugiego maila, nie zmieniamy magazynu, nie naliczamy wpłaty powtórnie
+    if (order.paymentStatus === "PAID" && (!order.remainingAmount || order.remainingAmount <= 0)) {
+      // Zamówienie zostało już w pełni opłacone — nie wysyłamy drugiego maila, nie zmieniamy magazynu, nie naliczamy wpłaty powtórnie
       return NextResponse.json({
         status: "OK",
         message: "Zamówienie zostało już wcześniej pomyślnie opłacone i zaksięgowane.",
@@ -97,29 +106,30 @@ export async function POST(req: NextRequest) {
     // 5. Obsługa statusu COMPLETED (sukces płatności)
     if (payuStatus === "COMPLETED") {
       const now = new Date().toISOString();
+      const transactionAmountPln = payuTotalAmount / 100;
+      const prevPaidAmount = order.paidAmount || 0;
+      const newPaidAmount = prevPaidAmount + transactionAmountPln;
+      const newRemaining = Math.max(0, order.totalAmount - newPaidAmount);
+      const isFullyPaid = newRemaining <= 0.009;
 
-      await updateOrderAdmin(order.id, {
-        paymentStatus: "PAID",
-        adminNotes: `${order.adminNotes ? order.adminNotes + " | " : ""}Opłacono przez PayU (${order.isTest ? "SANDBOX TEST" : "PRODUKCJA"}, ID transakcji: ${payuOrderId})`,
-      });
-
-      // Zapisujemy dodatkowe metadane transakcji w pamięci
-      const updatedStore = loadLocalStore();
-      const ordIdx = updatedStore.orders.findIndex(
-        (o) => o.id === order.id || o.orderNumber === order.orderNumber
-      );
-      if (ordIdx !== -1) {
-        updatedStore.orders[ordIdx].paidAt = now;
-        (updatedStore.orders[ordIdx] as any).payuOrderId = payuOrderId;
-        (updatedStore.orders[ordIdx] as any).paymentOperator = "PAYU";
-        (updatedStore.orders[ordIdx] as any).paymentMethodDetails =
-          payuOrder.payMethod?.type || "PayU";
-        saveLocalStore(updatedStore);
+      let noteText = `Opłacono przez PayU (${order.isTest ? "SANDBOX TEST" : "PRODUKCJA"}, ID transakcji: ${payuOrderId}, kwota: ${transactionAmountPln.toFixed(2)} PLN)`;
+      if (order.fulfillmentStatus === "CANCELLED") {
+        noteText += ` | [UWAGA: Płatność wpłynęła po anulowaniu/wygaszeniu rezerwacji!]`;
       }
+
+      const updated = await updateOrderAdmin(order.id, {
+        paymentStatus: isFullyPaid ? "PAID" : "PARTIALLY_PAID",
+        paidAt: order.paidAt || now, // Nie nadpisuje pierwotnej daty pierwszej wpłaty
+        paidAmount: newPaidAmount,
+        remainingAmount: newRemaining,
+        payuOrderId,
+        paymentOperator: "PAYU",
+        adminNotes: order.adminNotes ? `${order.adminNotes} | ${noteText}` : noteText,
+      });
 
       // Wysłanie e-maila z potwierdzeniem wpłaty klientce (tylko raz, przy pierwszym zaksięgowaniu)
       try {
-        await sendOrderPaymentConfirmedCustomerEmail(order, settings);
+        await sendOrderPaymentConfirmedCustomerEmail(updated, settings);
       } catch (mailErr) {
         console.error("[PayU Webhook] Błąd wysyłki e-mail potwierdzenia zapłaty PayU:", mailErr);
       }
