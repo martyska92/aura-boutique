@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const { orderId, fulfillmentStatus, paymentStatus, trackingNumber, adminNotes } = await req.json();
+    const { orderId, fulfillmentStatus, paymentStatus, trackingNumber, adminNotes, customOrderCosts } = await req.json();
 
     if (!orderId) {
       return NextResponse.json({ error: "Wymagane ID zamówienia (orderId)." }, { status: 400 });
@@ -56,6 +56,7 @@ export async function PATCH(req: NextRequest) {
       paymentStatus,
       trackingNumber,
       adminNotes,
+      customOrderCosts,
     });
 
     // 1. Jeśli zamówienie zostało oznaczone jako DELIVERED (zrealizowane) -> przyznaj nagrodę 15% polecającej

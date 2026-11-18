@@ -38,6 +38,9 @@ export type ProductVariant = {
   price?: number; // Indywidualna cena wariantu (jeśli różna od bazowej)
   promotionalPrice?: number;
   lowestPrice30Days?: number;
+  purchasePrice?: number; // Prywatny koszt zakupu wariantu
+  extraUnitCost?: number; // Dodatkowy koszt jednostkowy wariantu (transport)
+  costEffectiveDate?: string; // Data obowiązywania kosztu
 };
 
 export type Product = {
@@ -58,6 +61,9 @@ export type Product = {
   isPublished: boolean;
   isArchived: boolean;
   isDemo?: boolean;
+  purchasePrice?: number; // Prywatny koszt zakupu za sztukę
+  extraUnitCost?: number; // Dodatkowy koszt przypadający na sztukę (np. transport z hurtowni)
+  costEffectiveDate?: string; // Data obowiązywania kosztu
   categoryId: string;
   category?: Category;
   images: ProductImage[];
@@ -123,6 +129,8 @@ export type OrderItem = {
   discountAmount?: number; // wartość rabatu na tej pozycji
   appliedPromoName?: string; // nazwa zastosowanej promocji lub kodu
   productImageUrl?: string;
+  unitPurchasePriceSnapshot?: number; // snapshot kosztu zakupu z chwili zamówienia
+  unitExtraCostSnapshot?: number; // snapshot kosztu transportu/dodatkowego z chwili zamówienia
 };
 
 export type AppliedPromotionSummary = {
@@ -199,6 +207,7 @@ export type Order = {
   invoicePdfUrl?: string;
   invoiceNumber?: string;
   invoiceIssuedAt?: string;
+  customOrderCosts?: CustomOrderCosts;
   createdAt: string;
   updatedAt: string;
 };
@@ -285,6 +294,8 @@ export type StoreSettings = {
   bankAccountRecipient?: string;
   traditionalTransferEnabled?: boolean;
   codEnabled?: boolean;
+  // Moduł Koszty i kalkulator marży
+  costCalculatorSettings?: CostCalculatorSettings;
 };
 
 export type HeroSlide = {
@@ -773,6 +784,95 @@ export interface RestoreTestResult {
   details: string;
   warnings: string[];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODUŁ: KOSZTY I KALKULATOR MARŻY DLA WŁAŚCICIELKI
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CustomOrderCosts {
+  actualShippingCost?: number; // Rzeczywisty koszt wysyłki ponoszony przez butik
+  packagingCost?: number; // Koszt opakowania (karton/foliopak, taśma, wypełnienie, etykieta)
+  packagingPresetId?: string;
+  paymentFeeEstimated?: number; // Szacowana prowizja operatora płatności
+  paymentFeeSettled?: number; // Faktycznie pobrana/rozliczona prowizja
+  isPaymentFeeSettled?: boolean; // Czy prowizja została ostatecznie potwierdzona
+  freebiesCost?: number; // Koszt gratisów według ceny ich zakupu (np. skarpetki)
+  handlingLaborCost?: number; // Opcjonalny koszt kompletowania / pakowania
+  extraCosts?: { name: string; amount: number }[]; // Inne własne koszty zamówienia
+  notes?: string;
+}
+
+export type FixedCostCategory =
+  | "HOSTING"
+  | "DATABASE_BACKUPS"
+  | "DOMAIN_EMAIL"
+  | "SOFTWARE"
+  | "ACCOUNTING"
+  | "MARKETING"
+  | "RENT_UTILITIES"
+  | "OTHER";
+
+export type CostFrequency = "MONTHLY" | "ANNUAL" | "ONE_OFF";
+
+export interface FixedCostItem {
+  id: string;
+  name: string;
+  category: FixedCostCategory;
+  amount: number; // Kwota nominalna (np. roczna lub miesięczna)
+  vatRate: number; // Stawka VAT (np. 23, 8, 5, 0)
+  isVatDeductible: boolean; // Czy VAT podlega odliczeniu
+  frequency: CostFrequency; // Miesięczny, Roczny, Jednorazowy
+  onlineSharePercentage: number; // Udział kosztu dotyczący sklepu online (0-100%)
+  applicableMonth?: string; // Format RRRR-MM dla kosztów jednorazowych
+  isActive: boolean;
+  notes?: string;
+}
+
+export interface PaymentGatewayFeeRule {
+  id: string;
+  method: PaymentMethod | string;
+  operator: string; // "PAYU" | "PRZELEWY24" | "TRADITIONAL_TRANSFER" | "COD"
+  percentageFee: number; // Prowizja procentowa np. 1.2
+  fixedFee: number; // Prowizja stała w zł np. 0.30
+  notes?: string;
+}
+
+export interface PackagingPreset {
+  id: string;
+  name: string;
+  boxCost: number; // Karton / foliopak
+  tapeCost: number; // Taśma firmowa
+  fillerCost: number; // Wypełnienie / bibuła ozdobna
+  labelCost: number; // Etykieta termiczna
+  isDefault: boolean;
+}
+
+export interface InventoryPurchaseItem {
+  id: string;
+  date: string;
+  title: string;
+  amount: number;
+  vatRate: number;
+  unitsCount?: number;
+  notes?: string;
+}
+
+export interface CostCalculatorSettings {
+  vatMode: "VAT_ACTIVE" | "VAT_EXEMPT"; // Podatniczka VAT czynna vs zwolniona z VAT
+  defaultVatRate: number; // Domyślna stawka VAT dla produktów (np. 23%)
+  allocationMethod: "EQUAL" | "SALES_PROPORTION"; // Metoda podziału kosztów stałych
+  simulatedMonthlyOrdersCount: number; // Przewidywana liczba zamówień dla symulacji
+  simulatedMonthlySalesTotal: number; // Przewidywana wartość sprzedaży dla symulacji
+  defaultActualShippingCostInpost: number; // Domyślny koszt InPost dla butiku (np. 11.99 zł)
+  defaultActualShippingCostCourier: number; // Domyślny koszt kuriera dla butiku (np. 15.00 zł)
+  defaultHandlingLaborCost: number; // Domyślny koszt pakowania (np. 0.00 zł)
+  defaultFreebieCost: number; // Domyślny koszt gratisu (np. 0.00 zł)
+  fixedCosts: FixedCostItem[];
+  paymentFees: PaymentGatewayFeeRule[];
+  packagingPresets: PackagingPreset[];
+  inventoryPurchases: InventoryPurchaseItem[];
+}
+
 
 
 

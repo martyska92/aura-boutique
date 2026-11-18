@@ -25,6 +25,8 @@ import {
   ContactMessage,
   AdminAccount,
   CustomerAccount,
+  CustomOrderCosts,
+  CostCalculatorSettings,
 } from "./types";
 import {
   initialCategories,
@@ -37,6 +39,7 @@ import {
   initialReferralRewardCodes,
   initialProductReviews,
   initialPromotionAuditLogs,
+  initialCostCalculatorSettings,
 } from "./demo-data";
 import { prisma } from "./prisma";
 import { addDaysWarsaw } from "./date-utils";
@@ -441,11 +444,29 @@ export function calculateLowestPrice30Days(
 // ==========================================
 // PRODUKTY
 // ==========================================
+// Pomocnicza funkcja czyszcząca prywatne pola kosztów z obiektów produktów dla klientek
+export function stripProductCostFields(product: Product): Product {
+  const { purchasePrice, extraUnitCost, costEffectiveDate, ...cleanProduct } = product;
+  return {
+    ...cleanProduct,
+    variants: (cleanProduct.variants || []).map((v) => {
+      const { purchasePrice, extraUnitCost, costEffectiveDate, ...cleanVariant } = v;
+      return cleanVariant as ProductVariant;
+    }),
+  } as Product;
+}
+
 function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
   const promoStarted = dbProd.promotionStartedAt
     ? dbProd.promotionStartedAt instanceof Date
       ? dbProd.promotionStartedAt.toISOString()
       : String(dbProd.promotionStartedAt)
+    : undefined;
+
+  const costEffDate = dbProd.costEffectiveDate
+    ? dbProd.costEffectiveDate instanceof Date
+      ? dbProd.costEffectiveDate.toISOString()
+      : String(dbProd.costEffectiveDate)
     : undefined;
 
   const priceHistory: PriceHistoryRecord[] =
@@ -472,6 +493,9 @@ function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
     promotionalPrice: dbProd.promotionalPrice ? Number(dbProd.promotionalPrice) : undefined,
     promotionStartedAt: promoStarted,
     lowestPrice30Days: dbProd.lowestPrice30Days ? Number(dbProd.lowestPrice30Days) : undefined,
+    purchasePrice: dbProd.purchasePrice !== null && dbProd.purchasePrice !== undefined ? Number(dbProd.purchasePrice) : undefined,
+    extraUnitCost: dbProd.extraUnitCost !== null && dbProd.extraUnitCost !== undefined ? Number(dbProd.extraUnitCost) : undefined,
+    costEffectiveDate: costEffDate,
     isPromoted: Boolean(dbProd.isPromoted),
     isNew: Boolean(dbProd.isNew),
     isBestseller: Boolean(dbProd.isBestseller),
@@ -515,6 +539,9 @@ function mapPrismaProduct(dbProd: any, store: StoreFileState): Product {
           price: v.price ? Number(v.price) : undefined,
           promotionalPrice: v.promotionalPrice ? Number(v.promotionalPrice) : undefined,
           lowestPrice30Days: v.lowestPrice30Days ? Number(v.lowestPrice30Days) : undefined,
+          purchasePrice: v.purchasePrice !== null && v.purchasePrice !== undefined ? Number(v.purchasePrice) : undefined,
+          extraUnitCost: v.extraUnitCost !== null && v.extraUnitCost !== undefined ? Number(v.extraUnitCost) : undefined,
+          costEffectiveDate: v.costEffectiveDate instanceof Date ? v.costEffectiveDate.toISOString() : v.costEffectiveDate ? String(v.costEffectiveDate) : undefined,
         }))
         : [],
     priceHistory,
@@ -536,6 +563,7 @@ export async function getProducts(options?: {
   color?: string;
   inStockOnly?: boolean;
   sortBy?: "price_asc" | "price_desc" | "newest";
+  forAdmin?: boolean; // Tylko zalogowany administrator widzi koszty zakupu
 }): Promise<Product[]> {
   const store = loadLocalStore();
 
@@ -608,7 +636,7 @@ export async function getProducts(options?: {
           );
         }
 
-        return mapped;
+        return options?.forAdmin ? mapped : mapped.map(stripProductCostFields);
       }
     } catch (err) {
       console.warn("Ostrzeżenie: Błąd pobierania produktów z bazy Prisma:", err);
@@ -701,10 +729,10 @@ export async function getProducts(options?: {
     );
   }
 
-  return list;
+  return options?.forAdmin ? list : list.map(stripProductCostFields);
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | null> {
+export async function getProductBySlug(slug: string, options?: { forAdmin?: boolean }): Promise<Product | null> {
   const store = loadLocalStore();
 
   if (await isDatabaseConnected()) {
@@ -719,7 +747,8 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
         },
       });
       if (dbProd) {
-        return mapPrismaProduct(dbProd, store);
+        const prod = mapPrismaProduct(dbProd, store);
+        return options?.forAdmin ? prod : stripProductCostFields(prod);
       }
     } catch (e) {
       console.warn("Błąd wyszukiwania produktu po slug w bazie Prisma:", e);
@@ -728,13 +757,14 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 
   const product = store.products.find((p) => p.slug === slug);
   if (!product) return null;
-  return {
+  const fullProd = {
     ...product,
     category: store.categories.find((c) => c.id === product.categoryId),
   };
+  return options?.forAdmin ? fullProd : stripProductCostFields(fullProd);
 }
 
-export async function getProductById(id: string): Promise<Product | null> {
+export async function getProductById(id: string, options?: { forAdmin?: boolean }): Promise<Product | null> {
   const store = loadLocalStore();
 
   if (await isDatabaseConnected()) {
@@ -749,19 +779,21 @@ export async function getProductById(id: string): Promise<Product | null> {
         },
       });
       if (dbProd) {
-        return mapPrismaProduct(dbProd, store);
+        const prod = mapPrismaProduct(dbProd, store);
+        return options?.forAdmin ? prod : stripProductCostFields(prod);
       }
     } catch (e) {
-      console.warn("Błąd wyszukiwania produktu w bazie Prisma:", e);
+      console.warn("Błąd wyszukiwania produktu po ID w bazie Prisma:", e);
     }
   }
 
   const product = store.products.find((p) => p.id === id || p.slug === id);
   if (!product) return null;
-  return {
+  const fullProd = {
     ...product,
     category: store.categories.find((c) => c.id === product.categoryId),
   };
+  return options?.forAdmin ? fullProd : stripProductCostFields(fullProd);
 }
 
 async function syncProductToPrisma(prod: Product): Promise<void> {
@@ -816,6 +848,9 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
         isPublished: Boolean(prod.isPublished),
         isArchived: Boolean(prod.isArchived),
         isDemo: Boolean(prod.isDemo),
+        purchasePrice: prod.purchasePrice !== undefined && prod.purchasePrice !== null ? prod.purchasePrice : null,
+        extraUnitCost: prod.extraUnitCost !== undefined && prod.extraUnitCost !== null ? prod.extraUnitCost : null,
+        costEffectiveDate: prod.costEffectiveDate ? new Date(prod.costEffectiveDate) : null,
         categoryId: prod.categoryId,
       },
       create: {
@@ -833,6 +868,9 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
           prod.lowestPrice30Days !== undefined && prod.lowestPrice30Days !== null
             ? prod.lowestPrice30Days
             : null,
+        purchasePrice: prod.purchasePrice !== undefined && prod.purchasePrice !== null ? prod.purchasePrice : null,
+        extraUnitCost: prod.extraUnitCost !== undefined && prod.extraUnitCost !== null ? prod.extraUnitCost : null,
+        costEffectiveDate: prod.costEffectiveDate ? new Date(prod.costEffectiveDate) : null,
         isPromoted: Boolean(prod.isPromoted),
         isNew: Boolean(prod.isNew),
         isBestseller: Boolean(prod.isBestseller),
@@ -862,6 +900,11 @@ async function syncProductToPrisma(prod: Product): Promise<void> {
             v.promotionalPrice !== undefined && v.promotionalPrice !== null ? v.promotionalPrice : null,
           lowestPrice30Days:
             v.lowestPrice30Days !== undefined && v.lowestPrice30Days !== null ? v.lowestPrice30Days : null,
+          purchasePrice:
+            v.purchasePrice !== undefined && v.purchasePrice !== null ? v.purchasePrice : null,
+          extraUnitCost:
+            v.extraUnitCost !== undefined && v.extraUnitCost !== null ? v.extraUnitCost : null,
+          costEffectiveDate: v.costEffectiveDate ? new Date(v.costEffectiveDate) : null,
         };
 
         try {
@@ -1228,6 +1271,27 @@ export async function resetDemoData(): Promise<void> {
 // ZAMÓWIENIA (PRISMA + LOCAL FALLBACK)
 // ==========================================
 function mapPrismaOrder(dbOrder: any): Order {
+  let customOrderCosts: any = undefined;
+  if (dbOrder.customOrderCosts) {
+    try {
+      customOrderCosts = typeof dbOrder.customOrderCosts === "string"
+        ? JSON.parse(dbOrder.customOrderCosts)
+        : dbOrder.customOrderCosts;
+    } catch (_) {}
+  }
+
+  const store = loadLocalStore();
+  const localMatch = store.orders.find((o) => o.id === dbOrder.id || o.orderNumber === dbOrder.orderNumber);
+  const resolvedAccessKey = dbOrder.accessKey || localMatch?.accessKey || undefined;
+  const resolvedCouponCode = dbOrder.couponCode || localMatch?.couponCode || undefined;
+
+  let resolvedPaidAt: string | undefined = undefined;
+  if (dbOrder.paidAt) {
+    resolvedPaidAt = dbOrder.paidAt instanceof Date ? dbOrder.paidAt.toISOString() : String(dbOrder.paidAt);
+  } else if (dbOrder.paymentStatus === "PAID") {
+    resolvedPaidAt = localMatch?.paidAt || (dbOrder.updatedAt instanceof Date ? dbOrder.updatedAt.toISOString() : new Date().toISOString());
+  }
+
   return {
     id: dbOrder.id,
     orderNumber: dbOrder.orderNumber,
@@ -1244,10 +1308,13 @@ function mapPrismaOrder(dbOrder: any): Order {
     shippingPostalCode: dbOrder.shippingPostalCode || undefined,
     paymentMethod: dbOrder.paymentMethod as PaymentMethod,
     paymentStatus: dbOrder.paymentStatus as PaymentStatus,
+    paidAt: resolvedPaidAt,
     paidAmount: dbOrder.paidAmount !== undefined && dbOrder.paidAmount !== null ? Number(dbOrder.paidAmount) : undefined,
     remainingAmount: dbOrder.remainingAmount !== undefined && dbOrder.remainingAmount !== null ? Number(dbOrder.remainingAmount) : undefined,
     payuOrderId: dbOrder.payuOrderId || undefined,
-    accessKey: dbOrder.accessKey || undefined,
+    accessKey: resolvedAccessKey,
+    couponCode: resolvedCouponCode,
+    customOrderCosts,
     fulfillmentStatus: dbOrder.fulfillmentStatus as FulfillmentStatus,
     trackingNumber: dbOrder.trackingNumber || undefined,
     subtotalAmount: Number(dbOrder.subtotalAmount),
@@ -1267,6 +1334,8 @@ function mapPrismaOrder(dbOrder: any): Order {
       productNameSnapshot: it.productNameSnapshot,
       variantSnapshot: it.variantSnapshot,
       unitPriceSnapshot: Number(it.unitPriceSnapshot),
+      unitPurchasePriceSnapshot: it.unitPurchasePriceSnapshot !== null && it.unitPurchasePriceSnapshot !== undefined ? Number(it.unitPurchasePriceSnapshot) : undefined,
+      unitExtraCostSnapshot: it.unitExtraCostSnapshot !== null && it.unitExtraCostSnapshot !== undefined ? Number(it.unitExtraCostSnapshot) : undefined,
       quantity: it.quantity,
       totalSnapshot: Number(it.totalSnapshot),
       productImageUrl: it.productImageUrl || undefined,
@@ -1291,7 +1360,7 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
     const safePaymentMethod = ["PRZELEWY24", "BLIK", "TRADITIONAL_TRANSFER"].includes(order.paymentMethod)
       ? (order.paymentMethod as any)
       : "BLIK";
-    const safePaymentStatus = ["PENDING", "PAID", "FAILED", "REFUNDED"].includes(order.paymentStatus)
+    const safePaymentStatus = ["PENDING", "PARTIALLY_PAID", "PAID", "FAILED", "REFUNDED"].includes(order.paymentStatus)
       ? (order.paymentStatus as any)
       : "PENDING";
     const safeFulfillmentStatus = ["NEW", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"].includes(
@@ -1320,6 +1389,8 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
         productNameSnapshot: it.productNameSnapshot || "Produkt",
         variantSnapshot: it.variantSnapshot || "Standard",
         unitPriceSnapshot: Number(it.unitPriceSnapshot || 0),
+        unitPurchasePriceSnapshot: it.unitPurchasePriceSnapshot !== undefined && it.unitPurchasePriceSnapshot !== null ? Number(it.unitPurchasePriceSnapshot) : null,
+        unitExtraCostSnapshot: it.unitExtraCostSnapshot !== undefined && it.unitExtraCostSnapshot !== null ? Number(it.unitExtraCostSnapshot) : null,
         quantity: Number(it.quantity || 1),
         totalSnapshot: Number(it.totalSnapshot || 0),
         productImageUrl: it.productImageUrl || null,
@@ -1347,6 +1418,8 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
       } catch (_) {}
     }
 
+    const customCostsJson = order.customOrderCosts ? JSON.stringify(order.customOrderCosts) : null;
+
     // 3. Upsert zamówienia
     await prisma.order.upsert({
       where: { id: order.id },
@@ -1365,6 +1438,12 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
         shippingPostalCode: order.shippingPostalCode || null,
         paymentMethod: safePaymentMethod,
         paymentStatus: safePaymentStatus,
+        paidAt: order.paidAt ? new Date(order.paidAt) : (order.paymentStatus === "PAID" ? new Date(order.updatedAt || Date.now()) : null),
+        paidAmount: order.paidAmount !== undefined && order.paidAmount !== null ? Number(order.paidAmount) : null,
+        remainingAmount: order.remainingAmount !== undefined && order.remainingAmount !== null ? Number(order.remainingAmount) : null,
+        accessKey: order.accessKey || null,
+        couponCode: order.couponCode || null,
+        customOrderCosts: customCostsJson,
         fulfillmentStatus: safeFulfillmentStatus,
         trackingNumber: order.trackingNumber || null,
         subtotalAmount: Number(order.subtotalAmount || 0),
@@ -1391,6 +1470,12 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
         shippingPostalCode: order.shippingPostalCode || null,
         paymentMethod: safePaymentMethod,
         paymentStatus: safePaymentStatus,
+        paidAt: order.paidAt ? new Date(order.paidAt) : (order.paymentStatus === "PAID" ? new Date(order.updatedAt || Date.now()) : null),
+        paidAmount: order.paidAmount !== undefined && order.paidAmount !== null ? Number(order.paidAmount) : null,
+        remainingAmount: order.remainingAmount !== undefined && order.remainingAmount !== null ? Number(order.remainingAmount) : null,
+        accessKey: order.accessKey || null,
+        couponCode: order.couponCode || null,
+        customOrderCosts: customCostsJson,
         fulfillmentStatus: safeFulfillmentStatus,
         trackingNumber: order.trackingNumber || null,
         subtotalAmount: Number(order.subtotalAmount || 0),
@@ -1408,6 +1493,8 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
             productNameSnapshot: si.productNameSnapshot,
             variantSnapshot: si.variantSnapshot,
             unitPriceSnapshot: si.unitPriceSnapshot,
+            unitPurchasePriceSnapshot: si.unitPurchasePriceSnapshot,
+            unitExtraCostSnapshot: si.unitExtraCostSnapshot,
             quantity: si.quantity,
             totalSnapshot: si.totalSnapshot,
             productImageUrl: si.productImageUrl,
@@ -1424,6 +1511,8 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
           productNameSnapshot: si.productNameSnapshot,
           variantSnapshot: si.variantSnapshot,
           unitPriceSnapshot: si.unitPriceSnapshot,
+          unitPurchasePriceSnapshot: si.unitPurchasePriceSnapshot,
+          unitExtraCostSnapshot: si.unitExtraCostSnapshot,
           quantity: si.quantity,
           totalSnapshot: si.totalSnapshot,
           productImageUrl: si.productImageUrl,
@@ -1435,6 +1524,8 @@ export async function syncOrderToPrisma(order: Order): Promise<void> {
           productNameSnapshot: si.productNameSnapshot,
           variantSnapshot: si.variantSnapshot,
           unitPriceSnapshot: si.unitPriceSnapshot,
+          unitPurchasePriceSnapshot: si.unitPurchasePriceSnapshot,
+          unitExtraCostSnapshot: si.unitExtraCostSnapshot,
           quantity: si.quantity,
           totalSnapshot: si.totalSnapshot,
           productImageUrl: si.productImageUrl,
@@ -1546,8 +1637,41 @@ export async function createOrder(
     }
   }
 
+  // Snapshoty kosztów zakupu i transportu dla każdej pozycji zamówienia z chwili sprzedaży
+  const enrichedItems = (orderInput.items || []).map((item) => {
+    let unitPurchase = item.unitPurchasePriceSnapshot;
+    let unitExtra = item.unitExtraCostSnapshot;
+    if (unitPurchase === undefined) {
+      const prod = store.products.find((p) => p.variants?.some((v) => v.id === item.variantId) || p.name === item.productNameSnapshot);
+      const variant = prod?.variants?.find((v) => v.id === item.variantId);
+      unitPurchase = variant?.purchasePrice ?? prod?.purchasePrice ?? 0;
+      unitExtra = variant?.extraUnitCost ?? prod?.extraUnitCost ?? 0;
+    }
+    return {
+      ...item,
+      unitPurchasePriceSnapshot: Number(unitPurchase || 0),
+      unitExtraCostSnapshot: Number(unitExtra || 0),
+    };
+  });
+
+  let defaultActualShipping = 11.99;
+  if (orderInput.shippingMethod === "COURIER") defaultActualShipping = 15.00;
+  if (orderInput.shippingMethod === "LOCAL_PICKUP") defaultActualShipping = 0;
+
+  const initialCustomCosts: CustomOrderCosts = {
+    actualShippingCost: defaultActualShipping,
+    packagingCost: 4.50,
+    paymentFeeEstimated: Number((((orderInput.totalAmount * 1.2) / 100) + 0.30).toFixed(2)),
+    isPaymentFeeSettled: false,
+    freebiesCost: 0,
+    handlingLaborCost: 0,
+    ...orderInput.customOrderCosts,
+  };
+
   const newOrder: Order = {
     ...orderInput,
+    items: enrichedItems,
+    customOrderCosts: initialCustomCosts,
     id: newId,
     orderNumber,
     accessKey: orderInput.accessKey || crypto.randomBytes(16).toString("hex"),
@@ -1625,6 +1749,9 @@ export async function updateOrderAdmin(
     totalAmount?: number;
     subtotalAmount?: number;
     shippingCost?: number;
+    customOrderCosts?: CustomOrderCosts;
+    couponCode?: string;
+    accessKey?: string;
   }
 ): Promise<Order> {
   const store = loadLocalStore();
@@ -1688,51 +1815,76 @@ export async function updateOrderAdmin(
 
     // Zwolnienie kodu rabatowego, by klientka nie utraciła zniżki po anulowanym/nieopłaconym zamówieniu
     // Wykonywane dla danego zamówienia (zarówno testowego jak i produkcyjnego)
-    const cancelledCode = existingOrder.couponCode?.trim().toUpperCase();
+    const cancelledCode = (
+      existingOrder.couponCode ||
+      updates.couponCode ||
+      store.orders.find((o) => o.id === existingOrder!.id || o.orderNumber === existingOrder!.orderNumber)?.couponCode
+    )?.trim().toUpperCase();
+
     if (cancelledCode) {
       for (const cust of store.customers || []) {
         if (
           cust.welcomeDiscountCode?.trim().toUpperCase() === cancelledCode &&
           (cust.welcomeDiscountUsedInOrderId === existingOrder.id ||
-            cust.welcomeDiscountUsedInOrderId === existingOrder.orderNumber)
+            cust.welcomeDiscountUsedInOrderId === existingOrder.orderNumber ||
+            !cust.welcomeDiscountUsedInOrderId)
         ) {
-          cust.welcomeDiscountUsed = false;
-          cust.welcomeDiscountUsedAt = undefined;
-          cust.welcomeDiscountUsedInOrderId = undefined;
-          if (await isDatabaseConnected()) {
-            try {
-              await prisma.customerAccount.update({
-                where: { id: cust.id },
-                data: {
-                  welcomeDiscountUsed: false,
-                  welcomeDiscountUsedAt: null,
-                  welcomeDiscountUsedInOrderId: null,
-                },
-              });
-            } catch (_) {}
+          // Sprawdzamy czy klientka nie ma INNEGO opłaconego zamówienia z tym kodem
+          const hasOtherPaidOrderWithCode = store.orders.some(
+            (o) =>
+              (o.id !== existingOrder!.id && o.orderNumber !== existingOrder!.orderNumber) &&
+              o.paymentStatus === "PAID" &&
+              o.couponCode?.trim().toUpperCase() === cancelledCode
+          );
+
+          if (!hasOtherPaidOrderWithCode) {
+            cust.welcomeDiscountUsed = false;
+            cust.welcomeDiscountUsedAt = undefined;
+            cust.welcomeDiscountUsedInOrderId = undefined;
+            if (await isDatabaseConnected()) {
+              try {
+                await prisma.customerAccount.update({
+                  where: { id: cust.id },
+                  data: {
+                    welcomeDiscountUsed: false,
+                    welcomeDiscountUsedAt: null,
+                    welcomeDiscountUsedInOrderId: null,
+                  },
+                });
+              } catch (_) {}
+            }
           }
         }
       }
       for (const d of (store as any).individualDiscountsList || []) {
         if (
           d.code?.trim().toUpperCase() === cancelledCode &&
-          (d.usedInOrderId === existingOrder.id || d.usedInOrderId === existingOrder.orderNumber) &&
+          (d.usedInOrderId === existingOrder.id || d.usedInOrderId === existingOrder.orderNumber || !d.usedInOrderId) &&
           !d.isPermanent
         ) {
-          d.isUsed = false;
-          d.usedAt = undefined;
-          d.usedInOrderId = undefined;
-          if (await isDatabaseConnected()) {
-            try {
-              await prisma.individualDiscount.update({
-                where: { id: d.id },
-                data: {
-                  isUsed: false,
-                  usedAt: null,
-                  usedInOrderId: null,
-                },
-              });
-            } catch (_) {}
+          const hasOtherPaidOrderWithCode = store.orders.some(
+            (o) =>
+              (o.id !== existingOrder!.id && o.orderNumber !== existingOrder!.orderNumber) &&
+              o.paymentStatus === "PAID" &&
+              o.couponCode?.trim().toUpperCase() === cancelledCode
+          );
+
+          if (!hasOtherPaidOrderWithCode) {
+            d.isUsed = false;
+            d.usedAt = undefined;
+            d.usedInOrderId = undefined;
+            if (await isDatabaseConnected()) {
+              try {
+                await prisma.individualDiscount.update({
+                  where: { id: d.id },
+                  data: {
+                    isUsed: false,
+                    usedAt: null,
+                    usedInOrderId: null,
+                  },
+                });
+              } catch (_) {}
+            }
           }
         }
       }
@@ -1763,8 +1915,12 @@ export async function updateOrderAdmin(
 
   // 3. Spójne i atomowe ustalenie paidAt (nigdy nie nadpisuje pierwotnej daty wpłaty)
   let finalPaidAt = existingOrder.paidAt;
-  if (newPaymentStatus === "PAID" && !finalPaidAt) {
-    finalPaidAt = updates.paidAt || now;
+  if (newPaymentStatus === "PAID") {
+    if (!finalPaidAt) {
+      finalPaidAt = updates.paidAt || now;
+    }
+  } else if (updates.paidAt !== undefined) {
+    finalPaidAt = updates.paidAt;
   }
 
   // 4. Utwórz zaktualizowany obiekt zamówienia
@@ -1785,13 +1941,19 @@ export async function updateOrderAdmin(
         : existingOrder.trackingNumber,
     adminNotes:
       updates.adminNotes !== undefined ? updates.adminNotes : existingOrder.adminNotes,
+    customOrderCosts:
+      updates.customOrderCosts !== undefined
+        ? updates.customOrderCosts
+        : existingOrder.customOrderCosts,
+    couponCode:
+      updates.couponCode !== undefined ? updates.couponCode : existingOrder.couponCode,
     updatedAt: now,
   };
 
   // 4. Trwały zapis w bazie PostgreSQL / Neon
   if (await isDatabaseConnected()) {
     try {
-      const safePaymentStatus = ["PENDING", "PAID", "FAILED", "REFUNDED"].includes(newPaymentStatus)
+      const safePaymentStatus = ["PENDING", "PARTIALLY_PAID", "PAID", "FAILED", "REFUNDED"].includes(newPaymentStatus)
         ? (newPaymentStatus as any)
         : undefined;
       const safeFulfillmentStatus = ["NEW", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"].includes(
@@ -1805,8 +1967,24 @@ export async function updateOrderAdmin(
       };
       if (safeFulfillmentStatus) updateData.fulfillmentStatus = safeFulfillmentStatus;
       if (safePaymentStatus) updateData.paymentStatus = safePaymentStatus;
+      if (newPaymentStatus === "PAID") {
+        updateData.paidAt = finalPaidAt ? new Date(finalPaidAt) : new Date(now);
+      } else if (updates.paidAt !== undefined) {
+        updateData.paidAt = updates.paidAt ? new Date(updates.paidAt) : null;
+      }
+      if (updates.paidAmount !== undefined) updateData.paidAmount = updates.paidAmount;
+      if (updates.remainingAmount !== undefined) updateData.remainingAmount = updates.remainingAmount;
       if (updates.trackingNumber !== undefined) updateData.trackingNumber = updates.trackingNumber || null;
       if (updates.adminNotes !== undefined) updateData.adminNotes = updates.adminNotes || null;
+      if (updates.customOrderCosts !== undefined) {
+        updateData.customOrderCosts = updates.customOrderCosts ? JSON.stringify(updates.customOrderCosts) : null;
+      }
+      if (updates.accessKey !== undefined || existingOrder.accessKey) {
+        updateData.accessKey = updates.accessKey || existingOrder.accessKey || null;
+      }
+      if (updates.couponCode !== undefined || existingOrder.couponCode) {
+        updateData.couponCode = updates.couponCode || existingOrder.couponCode || null;
+      }
 
       const existsInDb = await prisma.order.findUnique({
         where: { id: existingOrder.id },
@@ -1910,23 +2088,52 @@ export async function releaseExpiredOrderReservations(targetOrderId?: string): P
   const store = loadLocalStore();
   const now = new Date();
   const releasedOrders: string[] = [];
+  const candidateIds = new Set<string>();
 
-  const candidates = store.orders.filter((o) => {
-    if (o.fulfillmentStatus === "CANCELLED" || o.paymentStatus === "PAID") return false;
-    if (targetOrderId) return o.id === targetOrderId || o.orderNumber === targetOrderId;
-    if (o.reservedUntil) {
+  for (const o of store.orders) {
+    if (o.fulfillmentStatus === "CANCELLED" || o.paymentStatus === "PAID") continue;
+    if (targetOrderId && (o.id === targetOrderId || o.orderNumber === targetOrderId)) {
+      candidateIds.add(o.id);
+    } else if (o.reservedUntil) {
       const exp = new Date(o.reservedUntil);
-      return !isNaN(exp.getTime()) && exp < now;
+      if (!isNaN(exp.getTime()) && exp < now) {
+        candidateIds.add(o.id);
+      }
     }
-    return false;
-  });
+  }
 
-  for (const order of candidates) {
-    await updateOrderAdmin(order.id, {
-      fulfillmentStatus: "CANCELLED",
-      adminNotes: `${order.adminNotes ? order.adminNotes + " | " : ""}Rezerwacja wygasła — automatycznie przywrócono stany magazynowe i zwolniono kod rabatowy.`,
-    });
-    releasedOrders.push(order.orderNumber);
+  if (await isDatabaseConnected()) {
+    try {
+      const dbExpired = await prisma.order.findMany({
+        where: {
+          fulfillmentStatus: { not: "CANCELLED" },
+          paymentStatus: { not: "PAID" },
+          OR: targetOrderId
+            ? [{ id: targetOrderId }, { orderNumber: targetOrderId }]
+            : [{ reservedUntil: { lte: now } }],
+        },
+        select: { id: true, orderNumber: true },
+      });
+      for (const d of dbExpired) {
+        candidateIds.add(d.id);
+      }
+    } catch (e) {
+      console.warn("Błąd wyszukiwania przeterminowanych rezerwacji w bazie:", e);
+    }
+  }
+
+  for (const id of candidateIds) {
+    try {
+      const updated = await updateOrderAdmin(id, {
+        fulfillmentStatus: "CANCELLED",
+        adminNotes: `Rezerwacja wygasła — automatycznie przywrócono stany magazynowe i zwolniono kod rabatowy.`,
+      });
+      if (!releasedOrders.includes(updated.orderNumber)) {
+        releasedOrders.push(updated.orderNumber);
+      }
+    } catch (err) {
+      console.warn(`Błąd zwalniania rezerwacji zamówienia ${id}:`, err);
+    }
   }
 
   return {
@@ -2195,8 +2402,20 @@ export async function getStoreSettings(options?: { forAdminClient?: boolean }): 
           }
         }
 
+        let costCalculatorSettings = settings.costCalculatorSettings;
+        if (dbSettings.costCalculatorSettings) {
+          try {
+            costCalculatorSettings = typeof dbSettings.costCalculatorSettings === "string"
+              ? JSON.parse(dbSettings.costCalculatorSettings)
+              : dbSettings.costCalculatorSettings;
+          } catch (e) {
+            console.warn("Błąd parsowania costCalculatorSettings z bazy:", e);
+          }
+        }
+
         settings = {
           ...settings,
+          costCalculatorSettings: costCalculatorSettings || settings.costCalculatorSettings || initialCostCalculatorSettings,
           boutiqueName: dbSettings.boutiqueName || settings.boutiqueName,
           companyName: dbSettings.companyName || settings.companyName,
           nip: dbSettings.nip || settings.nip,
@@ -2414,6 +2633,9 @@ export async function updateStoreSettings(
       if (cleanSettings.payuClientId !== undefined) dataToSave.payuClientId = cleanSettings.payuClientId;
       if (cleanSettings.payuClientSecret !== undefined) dataToSave.payuClientSecret = cleanSettings.payuClientSecret;
       if (cleanSettings.payuSandbox !== undefined) dataToSave.payuSandbox = cleanSettings.payuSandbox;
+      if (cleanSettings.costCalculatorSettings !== undefined) {
+        dataToSave.costCalculatorSettings = JSON.stringify(cleanSettings.costCalculatorSettings);
+      }
 
       // Usuwamy klucze z wartościami undefined
       Object.keys(dataToSave).forEach((k) => {

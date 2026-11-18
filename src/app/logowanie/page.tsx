@@ -59,7 +59,7 @@ function AuthForms() {
           setCurrentSessionEmail(null);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Przypomnienie / Reset hasła (dla klientek i właścicielki)
@@ -144,7 +144,7 @@ function AuthForms() {
       .then((d) => {
         if (d.enabled) setIsGoogleEnabled(true);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -452,15 +452,15 @@ function AuthForms() {
           {activeTab === "login"
             ? "Zaloguj się do Butiku"
             : activeTab === "register"
-            ? "Dołącz do AURA Boutique"
-            : "Przypomnij lub Zresetuj Hasło"}
+              ? "Dołącz do AURA Boutique"
+              : "Przypomnij lub Zresetuj Hasło"}
         </h1>
         <p className="text-xs text-[#857670] mt-1 font-light">
           {activeTab === "login"
             ? "Konto klientki oraz panel zarządzania butikiem AURA"
             : activeTab === "register"
-            ? "Zarejestruj się i odbierz rabat –15% na pierwsze zamówienie"
-            : "Wpisz adres e-mail przypisany do Twojego konta, aby zresetować hasło."}
+              ? "Zarejestruj się i odbierz rabat –15% na pierwsze zamówienie"
+              : "Wpisz adres e-mail przypisany do Twojego konta, aby zresetować hasło."}
         </p>
       </div>
 
@@ -487,11 +487,10 @@ function AuthForms() {
         <button
           type="button"
           onClick={() => setActiveTab("login")}
-          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider rounded transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === "login"
+          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider rounded transition-all flex items-center justify-center gap-1.5 ${activeTab === "login"
               ? "bg-white text-[#241D1B] shadow-xs border border-[#D1BEB0]"
               : "text-[#75655E] hover:text-[#241D1B]"
-          }`}
+            }`}
         >
           <User className="w-3.5 h-3.5 text-[#C5A069]" />
           <span>Logowanie</span>
@@ -500,11 +499,10 @@ function AuthForms() {
         <button
           type="button"
           onClick={() => setActiveTab("register")}
-          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider rounded transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === "register"
+          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider rounded transition-all flex items-center justify-center gap-1.5 ${activeTab === "register"
               ? "bg-white text-[#241D1B] shadow-xs border border-[#D1BEB0]"
               : "text-[#75655E] hover:text-[#241D1B]"
-          }`}
+            }`}
         >
           <UserPlus className="w-3.5 h-3.5 text-[#C5A069]" />
           <span>Nowe Konto</span>
@@ -582,9 +580,8 @@ function AuthForms() {
                       if (loginError) setLoginError(null);
                     }}
                     aria-invalid={Boolean(emailFieldError)}
-                    className={`w-full bg-[#FAF6F1] border ${
-                      emailFieldError ? "border-red-400 focus:border-red-500" : "border-[#EADFD5] focus:border-[#C5A069]"
-                    } p-3 text-xs text-[#241D1B] pl-9 focus:outline-none rounded-xs font-medium transition-colors`}
+                    className={`w-full bg-[#FAF6F1] border ${emailFieldError ? "border-red-400 focus:border-red-500" : "border-[#EADFD5] focus:border-[#C5A069]"
+                      } p-3 text-xs text-[#241D1B] pl-9 focus:outline-none rounded-xs font-medium transition-colors`}
                   />
                   <Mail className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
@@ -613,9 +610,8 @@ function AuthForms() {
                       if (loginError) setLoginError(null);
                     }}
                     aria-invalid={Boolean(passwordFieldError)}
-                    className={`w-full bg-[#FAF6F1] border ${
-                      passwordFieldError ? "border-red-400 focus:border-red-500" : "border-[#EADFD5] focus:border-[#C5A069]"
-                    } p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none rounded-xs font-medium transition-colors`}
+                    className={`w-full bg-[#FAF6F1] border ${passwordFieldError ? "border-red-400 focus:border-red-500" : "border-[#EADFD5] focus:border-[#C5A069]"
+                      } p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none rounded-xs font-medium transition-colors`}
                   />
                   <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <button
@@ -1134,185 +1130,185 @@ function AuthForms() {
               <>
                 {forgotStep === 1 && (
                   <form onSubmit={handleRequestResetCode} className="space-y-4">
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                    Adres e-mail przypisany do konta *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      required
-                      placeholder="twoj-email@domena.pl"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
-                    />
-                    <Mail className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={isForgotLoading}
-                    className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded-xs shadow-md"
-                  >
-                    {isForgotLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <ShieldCheck className="w-4 h-4" />
-                    )}
-                    <span>{isForgotLoading ? "Generowanie..." : "Pobierz Kod Resetu"}</span>
-                    {!isForgotLoading && <ArrowRight className="w-4 h-4 ml-1" />}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {forgotStep === 2 && (
-              <form onSubmit={handleConfirmReset} className="space-y-4">
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
-                    Konto e-mail:
-                  </label>
-                  <div className="p-2.5 bg-[#FAF6F1] border border-[#EADFD5] text-xs font-semibold text-[#241D1B] rounded-xs">
-                    {forgotEmail || "Konto właścicielki / klientki"}
-                  </div>
-                </div>
-
-                {forgotCode && forgotCode.length > 6 ? (
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
-                      Jednorazowy token autoryzacyjny:
-                    </label>
-                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-xs font-mono text-emerald-900 rounded-xs flex items-center justify-between">
-                      <span className="truncate max-w-[260px]">{forgotCode}</span>
-                      <span className="text-[10px] font-sans font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded shrink-0">
-                        Zweryfikowany
-                      </span>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                        Adres e-mail przypisany do konta *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="email"
+                          required
+                          placeholder="twoj-email@domena.pl"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                        />
+                        <Mail className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                      6-cyfrowy kod weryfikacyjny *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={64}
-                      placeholder="Wpisz 6-cyfrowy kod..."
-                      value={forgotCode}
-                      onChange={(e) => setForgotCode(e.target.value)}
-                      className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-sm font-mono tracking-widest text-[#241D1B] text-center focus:outline-none focus:border-[#C5A069] rounded-xs font-bold"
-                    />
-                  </div>
-                )}
 
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                    Nowe hasło dostępowe *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showForgotNewPassword ? "text" : "password"}
-                      required
-                      placeholder="Wpisz nowe bezpieczne hasło..."
-                      value={forgotNewPassword}
-                      onChange={(e) => setForgotNewPassword(e.target.value)}
-                      className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
-                    />
-                    <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
-                    <button
-                      type="button"
-                      onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
-                      title={showForgotNewPassword ? "Ukryj hasło" : "Pokaż hasło"}
-                    >
-                      {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <PasswordLengthIndicator value={forgotNewPassword} minLength={8} />
-                </div>
-
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
-                    Powtórz nowe hasło *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showForgotConfirmPassword ? "text" : "password"}
-                      required
-                      placeholder="Powtórz nowe hasło..."
-                      value={forgotConfirmPassword}
-                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                      className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
-                    />
-                    <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
-                    <button
-                      type="button"
-                      onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
-                      title={showForgotConfirmPassword ? "Ukryj hasło" : "Pokaż hasło"}
-                    >
-                      {showForgotConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <PasswordMatchIndicator password={forgotNewPassword} confirmPassword={forgotConfirmPassword} />
-                </div>
-
-                {(() => {
-                  const forgotVal = getPasswordValidationState(forgotNewPassword, forgotConfirmPassword, 8);
-                  const isSubmitDisabled = isForgotLoading || !forgotVal.isValid || !forgotCode.trim();
-
-                  return (
-                    <div className="pt-2 space-y-2">
+                    <div className="pt-2">
                       <button
                         type="submit"
-                        disabled={isSubmitDisabled}
-                        className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-xs shadow-md cursor-pointer"
+                        disabled={isForgotLoading}
+                        className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 rounded-xs shadow-md"
                       >
                         {isForgotLoading ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                          <CheckCircle2 className="w-4 h-4" />
+                          <ShieldCheck className="w-4 h-4" />
                         )}
-                        <span>{isForgotLoading ? "Zapisywanie..." : "Zapisz Nowe Hasło"}</span>
+                        <span>{isForgotLoading ? "Generowanie..." : "Pobierz Kod Resetu"}</span>
+                        {!isForgotLoading && <ArrowRight className="w-4 h-4 ml-1" />}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {forgotStep === 2 && (
+                  <form onSubmit={handleConfirmReset} className="space-y-4">
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
+                        Konto e-mail:
+                      </label>
+                      <div className="p-2.5 bg-[#FAF6F1] border border-[#EADFD5] text-xs font-semibold text-[#241D1B] rounded-xs">
+                        {forgotEmail || "Konto właścicielki / klientki"}
+                      </div>
+                    </div>
+
+                    {forgotCode && forgotCode.length > 6 ? (
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1 font-semibold">
+                          Jednorazowy token autoryzacyjny:
+                        </label>
+                        <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-xs font-mono text-emerald-900 rounded-xs flex items-center justify-between">
+                          <span className="truncate max-w-[260px]">{forgotCode}</span>
+                          <span className="text-[10px] font-sans font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded shrink-0">
+                            Zweryfikowany
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                          6-cyfrowy kod weryfikacyjny *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={64}
+                          placeholder="Wpisz 6-cyfrowy kod..."
+                          value={forgotCode}
+                          onChange={(e) => setForgotCode(e.target.value)}
+                          className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-sm font-mono tracking-widest text-[#241D1B] text-center focus:outline-none focus:border-[#C5A069] rounded-xs font-bold"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                        Nowe hasło dostępowe *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showForgotNewPassword ? "text" : "password"}
+                          required
+                          placeholder="Wpisz nowe bezpieczne hasło..."
+                          value={forgotNewPassword}
+                          onChange={(e) => setForgotNewPassword(e.target.value)}
+                          className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                        />
+                        <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                        <button
+                          type="button"
+                          onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                          title={showForgotNewPassword ? "Ukryj hasło" : "Pokaż hasło"}
+                        >
+                          {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <PasswordLengthIndicator value={forgotNewPassword} minLength={8} />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider text-[#63534B] mb-1.5 font-semibold">
+                        Powtórz nowe hasło *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showForgotConfirmPassword ? "text" : "password"}
+                          required
+                          placeholder="Powtórz nowe hasło..."
+                          value={forgotConfirmPassword}
+                          onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                          className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-3 text-xs text-[#241D1B] pl-9 pr-10 focus:outline-none focus:border-[#C5A069] rounded-xs font-medium"
+                        />
+                        <Lock className="w-4 h-4 text-[#8C7248] absolute left-3 top-1/2 -translate-y-1/2" />
+                        <button
+                          type="button"
+                          onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7A6458] hover:text-[#241D1B]"
+                          title={showForgotConfirmPassword ? "Ukryj hasło" : "Pokaż hasło"}
+                        >
+                          {showForgotConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <PasswordMatchIndicator password={forgotNewPassword} confirmPassword={forgotConfirmPassword} />
+                    </div>
+
+                    {(() => {
+                      const forgotVal = getPasswordValidationState(forgotNewPassword, forgotConfirmPassword, 8);
+                      const isSubmitDisabled = isForgotLoading || !forgotVal.isValid || !forgotCode.trim();
+
+                      return (
+                        <div className="pt-2 space-y-2">
+                          <button
+                            type="submit"
+                            disabled={isSubmitDisabled}
+                            className="w-full py-3.5 bg-[#C5A069] hover:bg-[#AF884F] text-white text-xs uppercase tracking-[0.2em] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-xs shadow-md cursor-pointer"
+                          >
+                            {isForgotLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4" />
+                            )}
+                            <span>{isForgotLoading ? "Zapisywanie..." : "Zapisz Nowe Hasło"}</span>
+                          </button>
+
+                          {!forgotVal.isValid && (
+                            <p className="text-[11px] text-amber-800 text-center">
+                              {forgotVal.reason}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        disabled={resendCooldown > 0 || isForgotLoading}
+                        onClick={handleRequestResetCode}
+                        className="text-xs text-[#8C7248] hover:text-[#241D1B] font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:underline"
+                      >
+                        {resendCooldown > 0
+                          ? `Wyślij kod ponownie (${resendCooldown}s)`
+                          : "Wyślij kod ponownie"}
                       </button>
 
-                      {!forgotVal.isValid && (
-                        <p className="text-[11px] text-amber-800 text-center">
-                          {forgotVal.reason}
-                        </p>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setForgotStep(1)}
+                        className="text-xs text-[#7A6458] hover:text-[#241D1B] hover:underline"
+                      >
+                        Zmień adres e-mail
+                      </button>
                     </div>
-                  );
-                })()}
-
-                  <div className="flex items-center justify-between pt-1">
-                    <button
-                      type="button"
-                      disabled={resendCooldown > 0 || isForgotLoading}
-                      onClick={handleRequestResetCode}
-                      className="text-xs text-[#8C7248] hover:text-[#241D1B] font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:underline"
-                    >
-                      {resendCooldown > 0
-                        ? `Wyślij kod ponownie (${resendCooldown}s)`
-                        : "Wyślij kod ponownie"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setForgotStep(1)}
-                      className="text-xs text-[#7A6458] hover:text-[#241D1B] hover:underline"
-                    >
-                      Zmień adres e-mail
-                    </button>
-                  </div>
-              </form>
+                  </form>
+                )}
+              </>
             )}
-            </>
-          )}
 
             <div className="pt-2 text-center border-t border-[#EADFD5]">
               <button

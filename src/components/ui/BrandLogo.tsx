@@ -18,9 +18,9 @@ export function BrandLogo({
   // Rozmiary logo:
   // Na komputerze około 220px szerokości, na telefonie około 150px szerokości przy zachowaniu proporcji (493/177)
   const sizeClasses = {
-    sm: "w-[120px] sm:w-[140px]",
-    header: "w-[150px] lg:w-[220px]",
-    md: "w-[150px] lg:w-[220px]",
+    sm: "w-[115px] sm:w-[135px]",
+    header: "w-[115px] sm:w-[140px] lg:w-[220px]",
+    md: "w-[140px] lg:w-[220px]",
     lg: "w-[180px] sm:w-[240px]",
     xl: "w-[220px] sm:w-[300px]",
   };

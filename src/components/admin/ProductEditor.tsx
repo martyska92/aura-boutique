@@ -516,6 +516,23 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
     initialProduct?.promotionStartedAt || null
   );
 
+  // Prywatne koszty zakupu produktu (widoczne wyłącznie dla właścicielki)
+  const [purchasePrice, setPurchasePrice] = useState(
+    initialProduct?.purchasePrice !== undefined && initialProduct?.purchasePrice !== null
+      ? initialProduct.purchasePrice.toString()
+      : ""
+  );
+  const [extraUnitCost, setExtraUnitCost] = useState(
+    initialProduct?.extraUnitCost !== undefined && initialProduct?.extraUnitCost !== null
+      ? initialProduct.extraUnitCost.toString()
+      : ""
+  );
+  const [costEffectiveDate, setCostEffectiveDate] = useState(
+    initialProduct?.costEffectiveDate
+      ? initialProduct.costEffectiveDate.slice(0, 10)
+      : new Date().toISOString().slice(0, 10)
+  );
+
   // Wyróżnienia
   const [isNew, setIsNew] = useState(initialProduct?.isNew || false);
   const [isBestseller, setIsBestseller] = useState(initialProduct?.isBestseller || false);
@@ -804,6 +821,9 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
           isPromoted && lowestPrice30Days && !isNaN(Number(lowestPrice30Days))
             ? Number(lowestPrice30Days)
             : undefined,
+        purchasePrice: purchasePrice && !isNaN(Number(purchasePrice)) ? Number(purchasePrice) : undefined,
+        extraUnitCost: extraUnitCost && !isNaN(Number(extraUnitCost)) ? Number(extraUnitCost) : undefined,
+        costEffectiveDate: costEffectiveDate || undefined,
         isNew,
         isBestseller,
         isPublished,
@@ -1184,6 +1204,20 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
                     />
                   </div>
 
+                  <div className="w-full sm:w-28">
+                    <label className="text-[10px] uppercase text-[#6E6259] block truncate" title="Indywidualny koszt zakupu wariantu (opcjonalny)">
+                      Koszt zakupu
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={v.purchasePrice !== undefined && v.purchasePrice !== null ? v.purchasePrice : ""}
+                      onChange={(e) => handleUpdateVariant(v.id, "purchasePrice", e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder={purchasePrice ? `${Number(purchasePrice).toFixed(2)} zł` : "domyślny"}
+                      className="w-full bg-white border border-[#EADFD5] p-1.5 text-xs text-[#241D1B]"
+                    />
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => handleRemoveVariant(v.id)}
@@ -1498,6 +1532,100 @@ export function ProductEditor({ initialProduct, categories }: ProductEditorProps
                   )}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* KARTA KOSZTÓW ZAKUPU & MARŻY (POUFNE DLA WŁAŚCICIELKI) */}
+          <div className="bg-white p-4 sm:p-6 border border-[#EADFD5] rounded shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#EADFD5]">
+              <h2 className="font-serif text-base uppercase tracking-wider text-[#241D1B] flex items-center gap-1.5">
+                <span>Koszty Zakupu & Marża</span>
+              </h2>
+              <span className="text-[10px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold tracking-wide">
+                Poufne (tylko panel)
+              </span>
+            </div>
+
+            <p className="text-[11px] text-[#6E6259] leading-relaxed">
+              Pola widoczne wyłącznie dla Ciebie. Nigdy nie są zwracane w publicznym API ani pokazywane klientkom.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Cena zakupu za sztukę (PLN)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="np. 80.00"
+                  value={purchasePrice}
+                  onChange={(e) => setPurchasePrice(e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2 text-xs font-semibold text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Dodatkowy koszt na sztukę (np. transport z hurtowni, PLN)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="np. 5.00"
+                  value={extraUnitCost}
+                  onChange={(e) => setExtraUnitCost(e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#241D1B] block mb-1">
+                  Data obowiązywania kosztu
+                </label>
+                <input
+                  type="date"
+                  value={costEffectiveDate}
+                  onChange={(e) => setCostEffectiveDate(e.target.value)}
+                  className="w-full bg-[#FAF6F1] border border-[#EADFD5] p-2 text-xs text-[#241D1B] focus:outline-none focus:border-[#C5A069] rounded"
+                />
+              </div>
+
+              {/* Szybki podgląd marży na żywo */}
+              {(() => {
+                const liveP = Number(purchasePrice) || 0;
+                const liveE = Number(extraUnitCost) || 0;
+                const liveCost = liveP + liveE;
+                const liveSell = isPromoted && promotionalPrice ? Number(promotionalPrice) : (Number(basePrice) || 0);
+                if (liveCost <= 0 || liveSell <= 0) return null;
+                const liveProfit = liveSell - liveCost;
+                const liveMargin = ((liveProfit / liveSell) * 100).toFixed(1);
+                const liveMarkup = ((liveProfit / liveCost) * 100).toFixed(1);
+                const isNeg = liveProfit < 0;
+
+                return (
+                  <div className={`p-3 rounded border text-xs space-y-1.5 ${isNeg ? "bg-red-50 border-red-200 text-red-900" : "bg-[#FAF6F1] border-[#C5A069]/40 text-[#241D1B]"}`}>
+                    <div className="flex items-center justify-between font-bold">
+                      <span>Marża towarowa:</span>
+                      <span className={isNeg ? "text-red-700 font-extrabold" : "text-[#7A5B20] font-extrabold"}>
+                        {liveMargin}% ({liveProfit.toFixed(2)} zł)
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-[#6E6259]">
+                      <span>Narzut na koszt zakupu:</span>
+                      <span className="font-semibold text-[#241D1B]">{liveMarkup}%</span>
+                    </div>
+                    <div className="pt-1 border-t border-[#EADFD5] flex justify-end">
+                      <a
+                        href="/admin/koszty-i-marze"
+                        className="text-[11px] text-[#C5A069] hover:underline font-semibold flex items-center gap-1"
+                      >
+                        Otwórz pełny kalkulator marży →
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

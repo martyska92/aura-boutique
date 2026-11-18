@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Tag,
   ShieldCheck,
+  Coins,
 } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getAllOrders, getProducts, isNeonConfigured } from "@/lib/store-data";
@@ -98,8 +99,8 @@ export default async function AdminDashboardPage() {
         </Link>
       </div>
 
-      {/* 5 Klikalnych Kart KPI */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* 6 Klikalnych Kart KPI */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {/* 1. Do Realizacji */}
         <Link
           href="/admin/zamowienia?status=do-realizacji"
@@ -121,7 +122,28 @@ export default async function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* 2. Łączny Przychód */}
+        {/* 2. Koszty i Zysk */}
+        <Link
+          href="/admin/koszty-i-marze"
+          className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-[#C5A069] hover:shadow-md transition-all flex flex-col justify-between group"
+        >
+          <div className="flex items-center justify-between text-[#6E6259]">
+            <span className="text-[11px] uppercase tracking-wider font-semibold group-hover:text-[#C5A069] transition-colors">
+              Koszty i Zysk
+            </span>
+            <span className="p-2 bg-[#FAF6F1] text-[#C5A069] rounded-full group-hover:bg-[#EADFD5] transition-colors">
+              <Coins className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-3">
+            <span className="text-xl sm:text-2xl font-serif text-[#241D1B] font-semibold">
+              Marże & Zysk
+            </span>
+            <p className="text-[11px] text-[#6E6259] mt-0.5">Kalkulator rentowności →</p>
+          </div>
+        </Link>
+
+        {/* 3. Łączny Przychód */}
         <Link
           href="/admin/rozliczenia"
           className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between group"
@@ -142,7 +164,7 @@ export default async function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* 3. Asortyment */}
+        {/* 4. Asortyment */}
         <Link
           href="/admin/produkty?filter=active"
           className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-[#C5A069] hover:shadow-md transition-all flex flex-col justify-between group"
@@ -163,7 +185,7 @@ export default async function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* 4. W Promocji */}
+        {/* 5. W Promocji */}
         <Link
           href="/admin/produkty?filter=promoted"
           className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-rose-400 hover:shadow-md transition-all flex flex-col justify-between group"
@@ -184,7 +206,7 @@ export default async function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* 5. Notatki i Kalendarz */}
+        {/* 6. Notatki i Kalendarz */}
         <Link
           href="/admin/kalendarz"
           className="bg-white p-5 border border-[#EADFD5] rounded-xl shadow-xs hover:border-[#C5A069] hover:shadow-md transition-all flex flex-col justify-between group"
@@ -203,6 +225,33 @@ export default async function AdminDashboardPage() {
             </span>
             <p className="text-[11px] text-[#6E6259] mt-0.5">Dostawy, notatki, plan →</p>
           </div>
+        </Link>
+      </div>
+
+      {/* Skrót do Modułu Kosztów i Kalkulatora Marży */}
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-[#241D1B] via-[#332A26] to-[#241D1B] text-[#FAF6F1] rounded-xl border border-[#C5A069]/40 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-full bg-[#C5A069]/20 border border-[#C5A069]/40 flex items-center justify-center text-[#C5A069] shrink-0">
+            <Coins className="w-5 h-5 text-[#C5A069]" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <span>Koszty i Zysk (Kalkulator Marży)</span>
+              <span className="text-[10px] bg-[#C5A069] text-[#141414] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                Nowość
+              </span>
+            </h3>
+            <p className="text-xs text-[#EADFD5] mt-0.5">
+              Obliczaj opłacalność produktów, marże i narzuty, koszty pojedynczych zamówień oraz rzeczywisty zysk butiku na czysto.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/admin/koszty-i-marze"
+          className="px-4 py-2.5 bg-[#C5A069] hover:bg-[#B38F58] text-[#141414] text-xs font-semibold rounded-lg transition-all shadow-md inline-flex items-center justify-center gap-2 shrink-0 self-start sm:self-auto"
+        >
+          <span>Otwórz kalkulator zysku</span>
+          <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
 
@@ -228,6 +277,7 @@ export default async function AdminDashboardPage() {
           <span>Centrum Sandbox (8 Testów)</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
+      </div>
       </div>
 
       {/* Sekcja: Ostatnie Zamówienia & Alerty Magazynowe */}

@@ -27,7 +27,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Order, OrderItem, Product, StoreSettings, ReturnRequest, PaymentStatus } from "@/lib/types";
-import { BrandLogo } from "@/components/ui/BrandLogo";
 
 interface CustomerOrderClientProps {
   initialOrder: Order;
@@ -421,18 +420,6 @@ export function CustomerOrderClient({
       <div className="bg-white border border-[#EADFD5] rounded p-6 sm:p-10 space-y-8 shadow-sm">
         {/* Nagłówek statusu */}
         <div className="text-center space-y-3 pb-6 border-b border-[#EADFD5]">
-          <div className="flex justify-center pb-2">
-            <div
-              className="px-6 py-2.5 rounded-lg shadow-inner flex items-center justify-center border border-[#968372]/40"
-              style={{
-                backgroundColor: "#BCAB9B",
-                backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
-                backgroundRepeat: "repeat",
-              }}
-            >
-              <BrandLogo size="md" />
-            </div>
-          </div>
           <div className="w-16 h-16 rounded-full bg-[#FAF6F1] text-[#C5A069] flex items-center justify-center mx-auto border-2 border-[#D8BE8E]">
             <CheckCircle2 className="w-8 h-8" />
           </div>

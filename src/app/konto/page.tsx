@@ -557,7 +557,7 @@ export default function AccountPage() {
     return (
       <>
         <Header />
-        <main className="min-h-[70vh] flex items-center justify-center bg-[#FAF6F1] pt-36">
+        <main className="min-h-[70vh] flex items-center justify-center bg-[#FAF6F1] py-12">
           <div className="text-center space-y-3">
             <div className="w-9 h-9 border-2 border-[#C5A069] border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-xs uppercase tracking-widest text-[#7A6458] font-medium">Ładowanie Twojego konta...</p>
@@ -574,7 +574,7 @@ export default function AccountPage() {
       <>
         <Header />
         <main
-          className="flex-1 min-h-[80vh] pt-36 sm:pt-44 pb-16 px-4 sm:px-6 lg:px-8 flex flex-col justify-center"
+          className="flex-1 min-h-[80vh] py-10 sm:py-16 px-4 sm:px-6 lg:px-8 flex flex-col justify-center"
           style={{
             backgroundColor: "#FAF6F1",
             backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
@@ -618,9 +618,8 @@ export default function AccountPage() {
   return (
     <>
       <Header />
-      {/* 🌟 PADDING TOP pt-36 sm:pt-44 lg:pt-48 ZAPOBIEGA ZASŁANIANIU PRZEZ FIXED HEADER 🌟 */}
       <main
-        className="flex-1 pt-36 sm:pt-44 lg:pt-48 pb-20 min-h-screen"
+        className="flex-1 py-6 sm:py-10 pb-20 min-h-screen"
         style={{
           backgroundColor: "#FAF6F1",
           backgroundImage: "url('/images/brand/cashmere-texture.jpg')",

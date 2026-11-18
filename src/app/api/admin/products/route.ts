@@ -15,9 +15,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (id) {
-      let product = await getProductById(id);
+      let product = await getProductById(id, { forAdmin: true });
       if (!product) {
-        product = await getProductBySlug(id);
+        product = await getProductBySlug(id, { forAdmin: true });
       }
       if (!product) {
         return NextResponse.json(
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, product });
     }
 
-    const products = await getProducts({ includeArchived: true });
+    const products = await getProducts({ includeArchived: true, forAdmin: true });
     return NextResponse.json({ success: true, products });
   } catch (err: any) {
     console.error("Błąd pobierania produktów:", err);

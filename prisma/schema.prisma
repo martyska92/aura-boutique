@@ -39,6 +39,9 @@ model Product {
   isPublished        Boolean          @default(true)  // Widoczny w sklepie
   isArchived         Boolean          @default(false) // Zarchiwizowany
   isDemo             Boolean          @default(false) // Oznaczenie danych demonstracyjnych
+  purchasePrice      Decimal?         @db.Decimal(10, 2) // Prywatny koszt zakupu za sztukę
+  extraUnitCost      Decimal?         @db.Decimal(10, 2) // Dodatkowy koszt jednostkowy (np. transport z hurtowni)
+  costEffectiveDate  DateTime?        // Data obowiązywania kosztu zakupu
   categoryId         String
   category           Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images             ProductImage[]
@@ -80,6 +83,9 @@ model ProductVariant {
   price             Decimal?       @db.Decimal(10, 2) // Opcjonalna indywidualna cena wariantu
   promotionalPrice  Decimal?       @db.Decimal(10, 2)
   lowestPrice30Days Decimal?       @db.Decimal(10, 2)
+  purchasePrice     Decimal?       @db.Decimal(10, 2) // Indywidualna cena zakupu wariantu
+  extraUnitCost     Decimal?       @db.Decimal(10, 2) // Dodatkowy koszt jednostkowy wariantu
+  costEffectiveDate DateTime?      // Data obowiązywania kosztu wariantu
   priceHistory      PriceHistory[]
   orderItems        OrderItem[]
   createdAt         DateTime       @default(now())
@@ -118,6 +124,7 @@ enum PaymentMethod {
 enum PaymentStatus {
   PENDING
   PAID
+  PARTIALLY_PAID
   FAILED
   REFUNDED
 }
@@ -145,11 +152,16 @@ model Order {
   shippingPostalCode String?
   paymentMethod      PaymentMethod     @default(BLIK)
   paymentStatus      PaymentStatus     @default(PENDING)
+  paidAt             DateTime?         // Data ostatecznego potwierdzenia płatności
+  paidAmount         Decimal?          @db.Decimal(10, 2) // Łączna potwierdzona kwota wpłat
+  remainingAmount    Decimal?          @db.Decimal(10, 2) // Pozostała kwota do dopłaty
+  accessKey          String?           // Klucz dostępu dla gościa (autoryzacja podglądu zamówienia)
   fulfillmentStatus  FulfillmentStatus @default(NEW)
   trackingNumber     String?           // Numer listu przewozowego
   subtotalAmount     Decimal           @db.Decimal(10, 2)
   shippingCost       Decimal           @db.Decimal(10, 2)
   totalAmount        Decimal           @db.Decimal(10, 2)
+  couponCode         String?           // Kod rabatowy użyty w zamówieniu
   customerNotes      String?
   adminNotes         String?
   reservedUntil      DateTime?         // Czas wygaśnięcia rezerwacji towaru
@@ -165,6 +177,7 @@ model Order {
   invoicePdfUrl      String?
   invoiceNumber      String?
   invoiceIssuedAt    DateTime?
+  customOrderCosts   String?           @db.Text // Pozycje kosztowe zamówienia (opakowanie, prowizje, gratisy, itp.) w JSON
   items              OrderItem[]
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
@@ -184,6 +197,8 @@ model OrderItem {
   productNameSnapshot String          // Nazwa produktu z chwili zakupu
   variantSnapshot     String          // Rozmiar, Kolor, SKU z chwili zakupu
   unitPriceSnapshot   Decimal         @db.Decimal(10, 2)
+  unitPurchasePriceSnapshot Decimal?  @db.Decimal(10, 2) // Koszt zakupu jednostkowy z chwili sprzedaży
+  unitExtraCostSnapshot     Decimal?  @db.Decimal(10, 2) // Koszt dodatkowy jednostkowy z chwili sprzedaży
   quantity            Int             @default(1)
   totalSnapshot       Decimal         @db.Decimal(10, 2)
   productImageUrl     String?
@@ -239,6 +254,7 @@ model StoreSettings {
   payuClientId          String?
   payuClientSecret      String?
   payuSandbox           Boolean   @default(true)
+  costCalculatorSettings String?  @db.Text // JSON z konfiguracją modułu Koszty i kalkulator marży
   updatedAt             DateTime  @updatedAt
 }
 

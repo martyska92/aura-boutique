@@ -45,15 +45,21 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 104px;
+}
+@media (min-width: 1024px) {
+  html {
+    scroll-padding-top: 128px;
+  }
 }
 
-/* Zapobieganie zasłanianiu nagłówków przez sticky header */
-h1, h2, h3, section[id], div[id], [id] {
-  scroll-margin-top: 84px;
+/* Zapobieganie zasłanianiu nagłówków, sekcji i pól formularzy przez sticky header */
+h1, h2, h3, section[id], div[id], [id], input, select, textarea, form, [data-error] {
+  scroll-margin-top: 104px;
 }
-@media (min-width: 640px) {
-  h1, h2, h3, section[id], div[id], [id] {
-    scroll-margin-top: 112px;
+@media (min-width: 1024px) {
+  h1, h2, h3, section[id], div[id], [id], input, select, textarea, form, [data-error] {
+    scroll-margin-top: 128px;
   }
 }
 

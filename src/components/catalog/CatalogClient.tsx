@@ -325,7 +325,7 @@ export function CatalogClient({
           1. KOMPAKTOWY PASEK MOBILNY POD NAGŁÓWKIEM (lg:hidden)
           Przyklejony, z przyciskiem "Kategorie" i "Filtry"
          ======================================================== */}
-      <div className="lg:hidden sticky top-[116px] sm:top-[128px] z-30 bg-[#FAF6F1]/95 backdrop-blur-md border-b border-[#EADFD5] py-2.5 px-3 sm:px-4 shadow-xs">
+      <div className="lg:hidden sticky top-[104px] sm:top-[112px] z-30 bg-[#FAF6F1]/95 backdrop-blur-md border-b border-[#EADFD5] py-2.5 px-3 sm:px-4 shadow-xs">
         <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
           {/* Przycisk Kategorie z etykietą wybranej */}
           <button
@@ -362,7 +362,7 @@ export function CatalogClient({
         {/* ─── JEDEN LEWY PANEL NA KOMPUTERZE (220 px) ─── */}
         <aside
           aria-label="Kategorie i filtry"
-          className="hidden lg:block w-full sticky top-[148px] self-start z-30"
+          className="hidden lg:block w-full sticky top-[128px] self-start z-30"
         >
           <div className="bg-white border border-[#EADFD5] rounded-xl shadow-xs overflow-hidden flex flex-col max-h-[calc(100dvh-158px)]">
             <div className="overflow-y-auto overscroll-contain p-4 space-y-5 pb-8 custom-scrollbar">

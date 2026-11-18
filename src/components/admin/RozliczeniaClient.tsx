@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
+  Calculator,
 } from "lucide-react";
 import { Order } from "@/lib/types";
 
@@ -158,13 +159,22 @@ export function RozliczeniaClient({ initialOrders }: RozliczeniaClientProps) {
           </p>
         </div>
 
-        <button
-          onClick={handleExportCSV}
-          className="px-4 py-2 bg-white border border-[#C5A069] text-[#7A5B20] hover:bg-[#FAF6F1] rounded text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-2xs self-start sm:self-auto shrink-0"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>Eksportuj do CSV (Excel)</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+          <Link
+            href="/admin/koszty-i-marze"
+            className="px-4 py-2 bg-[#241D1B] hover:bg-[#3D322C] text-[#FAF6F1] rounded text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-2xs"
+          >
+            <Calculator className="w-3.5 h-3.5 text-[#E6CA92]" />
+            <span>Koszty i kalkulator marży</span>
+          </Link>
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-white border border-[#C5A069] text-[#7A5B20] hover:bg-[#FAF6F1] rounded text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-2xs"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Eksportuj do CSV (Excel)</span>
+          </button>
+        </div>
       </div>
 
       {/* Pasek wyboru okresu */}

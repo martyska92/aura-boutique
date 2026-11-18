@@ -514,7 +514,65 @@
     "p24Sandbox": true,
     "registeredAddress": "[do uzupełnienia]",
     "returnAddress": "AURA Boutique K.B. - ZWROTY, ul. Poprzeczna 3/1A, 55-140 Żmigród",
-    "smtpPassword": "TajemneHasloWP_2026!#"
+    "smtpPassword": "TajemneHasloWP_2026!#",
+    "costCalculatorSettings": {
+      "isVatPayer": false,
+      "vatRate": 23,
+      "fixedCosts": [
+        {
+          "id": "test-hosting",
+          "name": "Hosting Vercel & Neon",
+          "amount": 120,
+          "frequency": "MONTHLY",
+          "active": true
+        },
+        {
+          "id": "test-ksiegowosc",
+          "name": "Księgowość",
+          "amount": 300,
+          "frequency": "MONTHLY",
+          "active": true
+        }
+      ],
+      "paymentFees": {
+        "blik": {
+          "percentage": 1.15,
+          "fixedAmount": 0.3,
+          "label": "BLIK (PayU)"
+        },
+        "payu": {
+          "percentage": 1.4,
+          "fixedAmount": 0.3,
+          "label": "Szybki przelew PayU"
+        },
+        "card": {
+          "percentage": 1.5,
+          "fixedAmount": 0.3,
+          "label": "Karta płatnicza"
+        },
+        "cod": {
+          "percentage": 0,
+          "fixedAmount": 4,
+          "label": "Pobranie kurierskie"
+        }
+      },
+      "packagingCosts": {
+        "box": 3.2,
+        "tape": 0.8,
+        "fill": 1,
+        "label": 0.4,
+        "other": 0.5
+      },
+      "freebies": [
+        {
+          "id": "freebie-socks",
+          "name": "Skarpetki AURA",
+          "purchasePrice": 4.5,
+          "active": true
+        }
+      ],
+      "defaultHandlingCost": 0
+    }
   },
   "promotions": [
     {

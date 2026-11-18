@@ -83,12 +83,13 @@ export function AdminNav() {
     }
   };
 
-  // Dokładnie 8 pozycji menu panelu (zgodnie z wymaganiami bez "Dodaj produkt", który jest przyciskiem na pulpicie i liście produktów)
+  // Pozycje menu panelu z widoczną zakładką "Koszty i zysk"
   const navItems = [
     { label: "Pulpit", href: "/admin", exact: true },
     { label: "Produkty", href: "/admin/produkty", exact: false },
     { label: "Kategorie", href: "/admin/kategorie", exact: false },
     { label: "Zamówienia", href: "/admin/zamowienia", exact: false },
+    { label: "Koszty i zysk", href: "/admin/koszty-i-marze", exact: false },
     { label: "Klientki", href: "/admin/klientki", exact: false },
     { label: "Promocje i rabaty", href: "/admin/promocje", exact: false },
     { label: "Notatki i kalendarz", href: "/admin/kalendarz", exact: false },
@@ -191,7 +192,7 @@ export function AdminNav() {
         aria-label="Menu nawigacyjne panelu"
         className="w-full bg-[#B29F8E]/95 backdrop-blur-xs border-b border-[#968372] overflow-x-auto no-scrollbar shadow-inner hidden lg:flex justify-center"
       >
-        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 h-9 sm:h-10 flex items-center justify-center gap-1 sm:gap-2 whitespace-nowrap min-w-max text-xs">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-9 sm:h-10 flex items-center justify-center gap-1 xl:gap-2 whitespace-nowrap text-xs">
           {navItems.map((item) => {
             const active = isItemActive(item);
 
@@ -199,7 +200,7 @@ export function AdminNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`px-3 py-1 rounded text-xs transition-colors flex items-center gap-1.5 ${
+                className={`px-2.5 xl:px-3 py-1 rounded text-[11px] xl:text-xs transition-colors flex items-center gap-1.5 shrink-0 ${
                   active
                     ? "bg-[#241D1B] text-[#F3E7D3] font-semibold shadow-xs"
                     : "text-[#241D1B] hover:text-[#542823] hover:bg-[#A89686]/40 font-medium"
@@ -212,23 +213,28 @@ export function AdminNav() {
         </div>
       </nav>
 
-      {/* 4. Menu rozwijane na mniejszych ekranach (telefon / tablet) */}
+      {/* 4. Menu rozwijane na mniejszych ekranach (telefon / tablet) z dużymi obszarami dotykowymi */}
       {mobileMenuOpen && (
         <div
-          className="lg:hidden border-t border-[#968372] p-4 space-y-1.5 shadow-inner animate-in slide-in-from-top-2 duration-150"
+          className="lg:hidden border-t border-[#968372] p-4 space-y-2.5 shadow-inner animate-in slide-in-from-top-2 duration-150 max-h-[calc(100dvh-80px)] overflow-y-auto"
           style={{
-            backgroundColor: "#B4A393",
-            backgroundImage: "url('/images/brand/cashmere-texture.jpg')",
-            backgroundRepeat: "repeat",
+            backgroundColor: "#FAF6F1",
           }}
         >
-          <div className="pb-2 border-b border-[#968372]/50 mb-2">
-            <span className="text-[11px] font-semibold text-[#3D2B23] uppercase tracking-wider">
+          <div className="pb-2 border-b border-[#968372]/30 mb-1 flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-[#8C7248] uppercase tracking-wider">
               Nawigacja Panelu Właścicielki
             </span>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="p-1 text-[#6E6259] hover:text-[#241D1B]"
+              aria-label="Zamknij menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {navItems.map((item) => {
               const active = isItemActive(item);
 
@@ -237,24 +243,28 @@ export function AdminNav() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center justify-between p-2.5 rounded-md text-xs transition-colors ${
+                  className={`flex items-center justify-between px-3.5 py-2.5 min-h-[44px] rounded-md text-xs transition-colors ${
                     active
-                      ? "bg-[#241D1B] text-[#F3E7D3] font-semibold shadow-xs"
-                      : "text-[#241D1B] bg-white/40 hover:bg-white/70 font-medium"
+                      ? "bg-[#241D1B] text-[#F3E7D3] font-bold border-l-4 border-[#C5A069] shadow-xs"
+                      : "text-[#241D1B] bg-white border border-[#DFCA9B] hover:bg-white/90 font-medium shadow-2xs"
                   }`}
                 >
-                  <span>{item.label}</span>
-                  {active && <span className="w-1.5 h-1.5 rounded-full bg-[#FFE5B4]" />}
+                  <span className="break-words font-medium">{item.label}</span>
+                  {active && (
+                    <span className="text-[10px] text-[#C5A069] font-bold uppercase tracking-wider shrink-0 ml-2">
+                      Aktywna
+                    </span>
+                  )}
                 </Link>
               );
             })}
           </div>
 
-          <div className="pt-3 border-t border-[#968372]/50 flex gap-2">
+          <div className="pt-3 border-t border-[#968372]/30 flex gap-2">
             <Link
               href="/"
               target="_blank"
-              className="flex-1 py-2 text-center border border-[#968372] bg-white/70 hover:bg-white text-xs font-semibold text-[#241D1B] rounded-md inline-flex items-center justify-center gap-1.5 shadow-2xs"
+              className="flex-1 min-h-[44px] py-2 text-center border border-[#968372] bg-white hover:bg-[#FAF6F1] text-xs font-semibold text-[#241D1B] rounded-md inline-flex items-center justify-center gap-1.5 shadow-2xs"
             >
               <span>Zobacz sklep</span>
               <ExternalLink className="w-3.5 h-3.5 text-[#8C7248]" />
@@ -262,7 +272,7 @@ export function AdminNav() {
 
             <button
               onClick={handleLogout}
-              className="px-4 py-2 border border-[#D5B5AF] bg-[#F2DDD9] hover:bg-[#F2DDD9]/80 text-xs font-semibold text-[#6E2222] rounded-md inline-flex items-center justify-center gap-1.5 shadow-2xs"
+              className="px-4 min-h-[44px] py-2 border border-[#D5B5AF] bg-[#F2DDD9] hover:bg-[#F2DDD9]/80 text-xs font-semibold text-[#6E2222] rounded-md inline-flex items-center justify-center gap-1.5 shadow-2xs"
             >
               <LogOut className="w-3.5 h-3.5 text-[#6E2222]" />
               <span>Wyloguj</span>
