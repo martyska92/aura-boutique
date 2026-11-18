@@ -2090,35 +2090,55 @@ export async function releaseExpiredOrderReservations(targetOrderId?: string): P
   const releasedOrders: string[] = [];
   const candidateIds = new Set<string>();
 
-  for (const o of store.orders) {
-    if (o.fulfillmentStatus === "CANCELLED" || o.paymentStatus === "PAID") continue;
-    if (targetOrderId && (o.id === targetOrderId || o.orderNumber === targetOrderId)) {
-      candidateIds.add(o.id);
-    } else if (o.reservedUntil) {
-      const exp = new Date(o.reservedUntil);
-      if (!isNaN(exp.getTime()) && exp < now) {
+  if (targetOrderId) {
+    for (const o of store.orders) {
+      if (o.fulfillmentStatus === "CANCELLED" || o.paymentStatus === "PAID") continue;
+      if (o.id === targetOrderId || o.orderNumber === targetOrderId) {
         candidateIds.add(o.id);
       }
     }
-  }
-
-  if (await isDatabaseConnected()) {
-    try {
-      const dbExpired = await prisma.order.findMany({
-        where: {
-          fulfillmentStatus: { not: "CANCELLED" },
-          paymentStatus: { not: "PAID" },
-          OR: targetOrderId
-            ? [{ id: targetOrderId }, { orderNumber: targetOrderId }]
-            : [{ reservedUntil: { lte: now } }],
-        },
-        select: { id: true, orderNumber: true },
-      });
-      for (const d of dbExpired) {
-        candidateIds.add(d.id);
+    if (await isDatabaseConnected()) {
+      try {
+        const dbTarget = await prisma.order.findFirst({
+          where: {
+            OR: [{ id: targetOrderId }, { orderNumber: targetOrderId }],
+            fulfillmentStatus: { not: "CANCELLED" },
+            paymentStatus: { not: "PAID" },
+          },
+          select: { id: true },
+        });
+        if (dbTarget) candidateIds.add(dbTarget.id);
+      } catch (e) {
+        console.warn("Błąd wyszukiwania zamówienia docelowego w bazie:", e);
       }
-    } catch (e) {
-      console.warn("Błąd wyszukiwania przeterminowanych rezerwacji w bazie:", e);
+    }
+  } else {
+    for (const o of store.orders) {
+      if (o.fulfillmentStatus === "CANCELLED" || o.paymentStatus === "PAID") continue;
+      if (o.reservedUntil) {
+        const exp = new Date(o.reservedUntil);
+        if (!isNaN(exp.getTime()) && exp < now) {
+          candidateIds.add(o.id);
+        }
+      }
+    }
+
+    if (await isDatabaseConnected()) {
+      try {
+        const dbExpired = await prisma.order.findMany({
+          where: {
+            fulfillmentStatus: { not: "CANCELLED" },
+            paymentStatus: { not: "PAID" },
+            reservedUntil: { lte: now },
+          },
+          select: { id: true, orderNumber: true },
+        });
+        for (const d of dbExpired) {
+          candidateIds.add(d.id);
+        }
+      } catch (e) {
+        console.warn("Błąd wyszukiwania przeterminowanych rezerwacji w bazie:", e);
+      }
     }
   }
 
