@@ -41,6 +41,7 @@ import {
   calculateOrderMargin,
   calculateMonthlySummary,
   simulateRequiredSellingPrice,
+  normalizeCostCalculatorSettings,
 } from "@/lib/cost-calculator-service";
 
 interface CostCalculatorClientProps {
@@ -55,7 +56,9 @@ export function CostCalculatorClient({
   initialProducts,
 }: CostCalculatorClientProps) {
   const [activeTab, setActiveTab] = useState<"PRODUCT" | "ORDER" | "MONTH" | "CONFIG">("PRODUCT");
-  const [settings, setSettings] = useState<CostCalculatorSettings>(initialSettings);
+  const [settings, setSettings] = useState<CostCalculatorSettings>(() =>
+    normalizeCostCalculatorSettings(initialSettings)
+  );
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);

@@ -8,6 +8,26 @@ import {
   Product,
   ProductVariant,
 } from "./types";
+import { initialCostCalculatorSettings } from "./demo-data";
+
+export function normalizeCostCalculatorSettings(input?: Partial<CostCalculatorSettings> | null): CostCalculatorSettings {
+  const base = initialCostCalculatorSettings;
+  const merged: CostCalculatorSettings = {
+    ...base,
+    ...(input || {}),
+  };
+
+  merged.fixedCosts = Array.isArray(input?.fixedCosts) ? input!.fixedCosts : base.fixedCosts;
+  merged.packagingPresets = Array.isArray(input?.packagingPresets) && input!.packagingPresets.length > 0
+    ? input!.packagingPresets
+    : base.packagingPresets;
+  merged.paymentFees = Array.isArray(input?.paymentFees) && input!.paymentFees.length > 0
+    ? input!.paymentFees
+    : base.paymentFees;
+  merged.inventoryPurchases = Array.isArray(input?.inventoryPurchases) ? input!.inventoryPurchases : [];
+
+  return merged;
+}
 
 export interface ProductMarginCalculation {
   purchasePriceNet: number;
@@ -233,7 +253,7 @@ export function calculateProductMargin(params: {
   laborCost?: number; // koszt obsługi
   allocatedOverhead?: number; // przypisany koszt stały
 }): ProductMarginCalculation {
-  const { settings } = params;
+  const settings = normalizeCostCalculatorSettings(params.settings);
   const isVatActive = settings.vatMode === "VAT_ACTIVE";
   const vatRate = params.vatRate !== undefined ? params.vatRate : settings.defaultVatRate || 23;
 
@@ -273,16 +293,16 @@ export function calculateProductMargin(params: {
   const actualShippingCost = params.actualShippingCost !== undefined ? params.actualShippingCost : settings.defaultActualShippingCostInpost || 11.99;
   const estimatedShippingSubsidy = assumeFreeShipping ? actualShippingCost : 0;
 
-  const estimatedPackagingCost = params.packagingCost !== undefined ? params.packagingCost : (settings.packagingPresets.find((p) => p.isDefault)?.boxCost || 3.00) + 1.50;
+  const estimatedPackagingCost = params.packagingCost !== undefined ? params.packagingCost : ((settings.packagingPresets || []).find((p) => p.isDefault)?.boxCost || 3.00) + 1.50;
   const estimatedLaborCost = params.laborCost !== undefined ? params.laborCost : settings.defaultHandlingLaborCost || 0;
   const estimatedFreebieCost = params.freebieCost !== undefined ? params.freebieCost : settings.defaultFreebieCost || 0;
 
   // Prowizja płatnicza
-  const feeRule = settings.paymentFees.find(
+  const feeRule = (settings.paymentFees || []).find(
     (f) =>
       (f.method === params.paymentMethod || f.operator === params.paymentOperator) ||
       (f.method === "BLIK" && f.operator === "PAYU")
-  ) || settings.paymentFees[0] || { percentageFee: 1.2, fixedFee: 0.30 };
+  ) || (settings.paymentFees || [])[0] || { percentageFee: 1.2, fixedFee: 0.30 };
 
   const estimatedPaymentFeePercent = feeRule.percentageFee || 0;
   const estimatedPaymentFeeFixed = feeRule.fixedFee || 0;
@@ -457,7 +477,7 @@ export function simulateRequiredSellingPrice(params: {
   paymentFeePercent?: number;
   paymentFeeFixed?: number;
 }): ReversePriceSimulationResult {
-  const { settings } = params;
+  const settings = normalizeCostCalculatorSettings(params.settings);
   const isVatActive = settings.vatMode === "VAT_ACTIVE";
   const vatRate = params.vatRate !== undefined ? params.vatRate : settings.defaultVatRate || 23;
   const vatMultiplier = isVatActive ? (1 + vatRate / 100) : 1;
@@ -537,9 +557,10 @@ export function simulateRequiredSellingPrice(params: {
  */
 export function calculateOrderMargin(
   order: Order,
-  settings: CostCalculatorSettings,
+  rawSettings: CostCalculatorSettings,
   productsMap: Map<string, Product>
 ): OrderMarginCalculation {
+  const settings = normalizeCostCalculatorSettings(rawSettings);
   const isVatActive = settings.vatMode === "VAT_ACTIVE";
   const defaultVatRate = settings.defaultVatRate || 23;
 
@@ -792,7 +813,8 @@ export function calculateMonthlySummary(params: {
   settings: CostCalculatorSettings;
   productsMap: Map<string, Product>;
 }): MonthlyFinancialSummary {
-  const { year, month, orders, settings, productsMap } = params;
+  const { year, month, orders, productsMap } = params;
+  const settings = normalizeCostCalculatorSettings(params.settings);
   const isVatActive = settings.vatMode === "VAT_ACTIVE";
   const defaultVatRate = settings.defaultVatRate || 23;
 
