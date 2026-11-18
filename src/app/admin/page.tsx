@@ -278,7 +278,6 @@ export default async function AdminDashboardPage() {
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
-      </div>
 
       {/* Sekcja: Ostatnie Zamówienia & Alerty Magazynowe */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
