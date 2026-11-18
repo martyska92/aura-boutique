@@ -1,8 +1,11 @@
+const fs = require("fs");
+const path = require("path");
 const { execSync } = require("child_process");
 
 function getCleanUrl() {
   const raw =
     process.env.DATABASE_URL_UNPOOLED ||
+    process.env.POSTGRES_URL_NON_POOLING ||
     process.env.POSTGRES_PRISMA_URL ||
     process.env.DATABASE_URL ||
     process.env.POSTGRES_URL;
@@ -25,6 +28,50 @@ function getCleanUrl() {
 
 async function run() {
   const dbUrl = getCleanUrl();
+
+  // Zapewnienie, że zmienne środowiskowe wymagane przez Prisma są zawsze obecne i spójne
+  const pooledUrl =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL ||
+    dbUrl ||
+    "postgresql://dummy:dummy@localhost:5432/dummy";
+
+  const unpooledUrl =
+    process.env.DATABASE_URL_UNPOOLED ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    dbUrl ||
+    pooledUrl;
+
+  process.env.DATABASE_URL = pooledUrl;
+  process.env.DATABASE_URL_UNPOOLED = unpooledUrl;
+
+  // Zapis do .env, aby kolejne polecenia (prisma generate && next build) miały pewny dostęp do obu zmiennych
+  try {
+    const envFile = path.join(process.cwd(), ".env");
+    let envContent = fs.existsSync(envFile) ? fs.readFileSync(envFile, "utf-8") : "";
+    let updated = false;
+
+    if (!envContent.includes("DATABASE_URL_UNPOOLED=")) {
+      envContent += `\nDATABASE_URL_UNPOOLED="${unpooledUrl}"`;
+      updated = true;
+    }
+    if (!envContent.includes("DATABASE_URL=")) {
+      envContent += `\nDATABASE_URL="${pooledUrl}"`;
+      updated = true;
+    }
+
+    if (updated) {
+      fs.writeFileSync(envFile, envContent, "utf-8");
+      console.log("[db-migrate] Zsynchronizowano zmienne środowiskowe DATABASE_URL i DATABASE_URL_UNPOOLED w .env.");
+    }
+  } catch (envErr) {
+    console.warn("[db-migrate] Ostrzeżenie przy zapisie .env:", envErr.message);
+  }
+
   if (!dbUrl) {
     console.log(
       "[db-migrate] Brak skonfigurowanej zdalnej bazy PostgreSQL (lokalne srodowisko lub brak zmiennych). Pomijanie migracji w chmurze."
@@ -35,25 +82,34 @@ async function run() {
   console.log(
     "[db-migrate] Wykryto polaczenie z PostgreSQL / Neon. Rozpoczynanie synchronizacji schematu bez kasowania danych..."
   );
+
+  // 1. Bezpieczna synchronizacja schematu przez Prisma db push
+  // Domyślnie brak flagi --accept-data-loss gwarantuje, że Prisma NIE skasuje żadnych danych
+  // i odrzuci operację, jeśli wykryje jakiekolwiek ryzyko utraty danych.
+  // Usunięto nieprawidłowy argument --accept-data-loss=false, który powodował błąd parsera CLI Prisma.
   try {
-    execSync("npx prisma db push --skip-generate --accept-data-loss=false", {
+    execSync("npx prisma db push --skip-generate", {
       stdio: "inherit",
       env: {
         ...process.env,
-        DATABASE_URL: process.env.DATABASE_URL || dbUrl,
-        DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED || dbUrl,
+        DATABASE_URL: pooledUrl,
+        DATABASE_URL_UNPOOLED: unpooledUrl,
       },
     });
     console.log("[db-migrate] Schemat bazy danych zostal pomyslnie zaktualizowany!");
+  } catch (err) {
+    console.warn("[db-migrate] Ostrzezenie podczas synchronizacji schematu:", err.message);
+  }
 
-    // Bezpieczna archiwizacja produktów testowych i uzupełnienie kategorii
+  // 2. Bezpieczna archiwizacja produktów testowych i uzupełnienie kategorii
+  try {
+    const { PrismaClient } = require("@prisma/client");
+    const prisma = new PrismaClient({
+      datasources: { db: { url: pooledUrl } },
+    });
+
+    // 1. Archiwizacja produktów testowych (ads, vfggh, test, niespodzianka)
     try {
-      const { PrismaClient } = require("@prisma/client");
-      const prisma = new PrismaClient({
-        datasources: { db: { url: process.env.DATABASE_URL || dbUrl } },
-      });
-
-      // 1. Archiwizacja produktów testowych (ads, vfggh, test, niespodzianka)
       const archiveResult = await prisma.product.updateMany({
         where: {
           OR: [
@@ -72,8 +128,12 @@ async function run() {
       if (archiveResult.count > 0) {
         console.log(`[db-migrate] Zarchiwizowano ${archiveResult.count} produktow testowych bez usuwania danych.`);
       }
+    } catch (archErr) {
+      console.warn("[db-migrate] Ostrzezenie podczas archiwizacji produktow testowych:", archErr.message);
+    }
 
-      // 2. Kategoria Legginsy
+    // 2. Kategoria Legginsy
+    try {
       const existingLegginsy = await prisma.category.findUnique({
         where: { id: "cat-legginsy" },
       });
@@ -90,175 +150,170 @@ async function run() {
         });
         console.log("[db-migrate] Dodano kategorie 'Legginsy' do bazy danych.");
       }
+    } catch (legErr) {
+      console.warn("[db-migrate] Ostrzezenie sprawdzania kategorii Legginsy:", legErr.message);
+    }
 
-      // 3. Inicjalizacja konta właścicielki i synchronizacja tokenów odzyskiwania dostępu
-      try {
-        const fs = require("fs");
-        const path = require("path");
-        const storeFile = path.join(__dirname, "..", "data", "store-storage.json");
-        let localStore = null;
-        if (fs.existsSync(storeFile)) {
-          try {
-            localStore = JSON.parse(fs.readFileSync(storeFile, "utf8"));
-          } catch (_) {}
-        }
-
-        const existingAdmin = await prisma.adminAccount.findUnique({
-          where: { id: "default" },
-        });
-
-        const initialHash = localStore?.adminAccount?.passwordHash || null;
-        const initialMustChange = localStore?.adminAccount?.mustChangePassword ?? true;
-
-        if (!existingAdmin) {
-          await prisma.adminAccount.create({
-            data: {
-              id: "default",
-              email: "aurazmigrod@wp.pl",
-              passwordHash: initialHash,
-              mustChangePassword: initialMustChange,
-            },
-          });
-          console.log("[db-migrate] Zainicjalizowano konto wlascicielki w PostgreSQL.");
-        } else if (!existingAdmin.passwordHash && initialHash) {
-          // Uzupełniamy TYLKO wtedy, gdy konto w bazie nie ma jeszcze ustawionego hasła.
-          // Jeśli właścicielka zmieniła hasło, NIGDY go nie nadpisujemy przy kolejnych wdrożeniach!
-          await prisma.adminAccount.update({
-            where: { id: "default" },
-            data: {
-              passwordHash: initialHash,
-              mustChangePassword: initialMustChange,
-            },
-          });
-          console.log("[db-migrate] Uzupełniono początkowy hash konta właścicielki.");
-        }
-
-        // Migracja starszych haseł klientek do solonego formatu PBKDF2 oraz uzupełnienie profili
+    // 3. Inicjalizacja konta właścicielki i synchronizacja tokenów odzyskiwania dostępu
+    try {
+      const storeFile = path.join(__dirname, "..", "data", "store-storage.json");
+      let localStore = null;
+      if (fs.existsSync(storeFile)) {
         try {
-          const crypto = require("crypto");
-          
-          // 1. Synchronizacja klientek z magazynu lokalnego do Neon (jeśli jakiejś brakuje w Neon)
-          if (localStore?.customers && Array.isArray(localStore.customers)) {
-            for (const lc of localStore.customers) {
-              if (lc.email) {
-                const normEmail = lc.email.trim().toLowerCase();
-                const exists = await prisma.customerAccount.findUnique({
-                  where: { email: normEmail },
-                });
-                if (!exists) {
-                  const refCode = lc.referralCode || `AURA-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-                  await prisma.customerAccount.create({
-                    data: {
-                      id: lc.id || undefined,
-                      email: normEmail,
-                      firstName: lc.firstName || "Klientka",
-                      lastName: lc.lastName || "AURA",
-                      phone: lc.phone || null,
-                      passwordHash: lc.passwordHash || null,
-                      referralCode: refCode,
-                      defaultStreet: lc.defaultStreet || null,
-                      defaultCity: lc.defaultCity || null,
-                      defaultPostalCode: lc.defaultPostalCode || null,
-                    },
-                  });
-                  console.log(`[db-migrate] Bezpiecznie zsynchronizowano konto klientki ${normEmail} do Neon.`);
-                }
-              }
-            }
-          }
-
-          // 2. Walidacja i uzupełnienie profili klientek w Neon
-          const customers = await prisma.customerAccount.findMany();
-          for (const c of customers) {
-            let needsUpdate = false;
-            let newHash = c.passwordHash;
-            let newRefCode = c.referralCode;
-
-            if (c.passwordHash && !c.passwordHash.includes(":")) {
-              const salt = crypto.randomBytes(16).toString("hex");
-              newHash = `${salt}:${crypto.pbkdf2Sync(c.passwordHash.trim(), salt, 100000, 64, "sha512").toString("hex")}`;
-              needsUpdate = true;
-            }
-
-            if (!c.referralCode) {
-              newRefCode = `AURA-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-              needsUpdate = true;
-            }
-
-            if (needsUpdate) {
-              await prisma.customerAccount.update({
-                where: { id: c.id },
-                data: {
-                  passwordHash: newHash,
-                  referralCode: newRefCode,
-                },
-              });
-              console.log(`[db-migrate] Uzupełniono profil/hasło klientki ${c.email}.`);
-            }
-
-            // Upewnienie się, że klientka ma rekord uczestnika programu poleceń
-            if (newRefCode) {
-              const part = await prisma.referralParticipant.findUnique({
-                where: { email: c.email.toLowerCase() },
-              });
-              if (!part) {
-                try {
-                  await prisma.referralParticipant.create({
-                    data: {
-                      customerId: c.id,
-                      email: c.email.toLowerCase(),
-                      customerName: `${c.firstName} ${c.lastName}`.trim(),
-                      referralCode: newRefCode,
-                    },
-                  });
-                } catch (_) {}
-              }
-            }
-          }
-        } catch (custErr) {
-          console.warn("[db-migrate] Ostrzezenie migracji/synchronizacji klientek:", custErr.message);
-        }
-
-        // Unieważnienie starych sesji administratora
-        try {
-          await prisma.adminSession.deleteMany({});
+          localStore = JSON.parse(fs.readFileSync(storeFile, "utf-8"));
         } catch (_) {}
-
-        // Synchronizacja aktywnych tokenów odzyskiwania dostępu z magazynu lokalnego
-        if (localStore?.passwordResetTokens && Array.isArray(localStore.passwordResetTokens)) {
-          const now = new Date();
-          for (const tok of localStore.passwordResetTokens) {
-            const exp = new Date(tok.expiresAt);
-            if (exp > now && tok.codeHash) {
-              const existingTok = await prisma.passwordResetToken.findFirst({
-                where: { codeHash: tok.codeHash },
-              });
-              if (!existingTok) {
-                await prisma.passwordResetToken.create({
-                  data: {
-                    email: tok.email.toLowerCase(),
-                    codeHash: tok.codeHash,
-                    expiresAt: exp,
-                    attempts: tok.attempts || 0,
-                  },
-                });
-                console.log(`[db-migrate] Zsynchronizowano bezpieczny token odzyskiwania dla: ${tok.email}`);
-              }
-            }
-          }
-        }
-      } catch (adminErr) {
-        console.warn("[db-migrate] Ostrzezenie inicjalizacji adminAccount / tokenow:", adminErr.message);
       }
 
-      await prisma.$disconnect();
-    } catch (dataErr) {
-      console.warn("[db-migrate] Ostrzezenie podczas aktualizacji danych pomocniczych:", dataErr.message);
+      const existingAdmin = await prisma.adminAccount.findUnique({
+        where: { id: "default" },
+      });
+
+      const initialHash = localStore?.adminAccount?.passwordHash;
+      const initialMustChange = localStore?.adminAccount?.mustChangePassword ?? false;
+
+      if (!existingAdmin) {
+        await prisma.adminAccount.create({
+          data: {
+            id: "default",
+            email: "aurazmigrod@wp.pl",
+            passwordHash: initialHash || null,
+            mustChangePassword: initialMustChange,
+          },
+        });
+        console.log("[db-migrate] Zainicjalizowano konto wlascicielki w PostgreSQL.");
+      } else if (!existingAdmin.passwordHash && initialHash) {
+        await prisma.adminAccount.update({
+          where: { id: "default" },
+          data: {
+            passwordHash: initialHash,
+            mustChangePassword: initialMustChange,
+          },
+        });
+        console.log("[db-migrate] Uzupełniono początkowy hash konta właścicielki.");
+      }
+
+      // Migracja starszych haseł klientek do solonego formatu PBKDF2 oraz uzupełnienie profili
+      try {
+        const crypto = require("crypto");
+        
+        // Synchronizacja klientek z magazynu lokalnego do Neon (jeśli jakiejś brakuje w Neon)
+        if (localStore?.customers && Array.isArray(localStore.customers)) {
+          for (const lc of localStore.customers) {
+            if (lc.email) {
+              const normEmail = lc.email.trim().toLowerCase();
+              const exists = await prisma.customerAccount.findUnique({
+                where: { email: normEmail },
+              });
+              if (!exists) {
+                const refCode = lc.referralCode || `AURA-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+                await prisma.customerAccount.create({
+                  data: {
+                    id: lc.id || undefined,
+                    email: normEmail,
+                    firstName: lc.firstName || "Klientka",
+                    lastName: lc.lastName || "AURA",
+                    phone: lc.phone || null,
+                    passwordHash: lc.passwordHash || null,
+                    referralCode: refCode,
+                    defaultStreet: lc.defaultStreet || null,
+                    defaultCity: lc.defaultCity || null,
+                    defaultPostalCode: lc.defaultPostalCode || null,
+                  },
+                });
+                console.log(`[db-migrate] Bezpiecznie zsynchronizowano konto klientki ${normEmail} do Neon.`);
+              }
+            }
+          }
+        }
+
+        // Walidacja i uzupełnienie profili klientek w Neon
+        const customers = await prisma.customerAccount.findMany();
+        for (const c of customers) {
+          let needsUpdate = false;
+          let newHash = c.passwordHash;
+          let newRefCode = c.referralCode;
+
+          if (c.passwordHash && !c.passwordHash.includes(":")) {
+            const salt = crypto.randomBytes(16).toString("hex");
+            newHash = `${salt}:${crypto.pbkdf2Sync(c.passwordHash.trim(), salt, 100000, 64, "sha512").toString("hex")}`;
+            needsUpdate = true;
+          }
+
+          if (!c.referralCode) {
+            newRefCode = `AURA-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+            needsUpdate = true;
+          }
+
+          if (needsUpdate) {
+            await prisma.customerAccount.update({
+              where: { id: c.id },
+              data: {
+                passwordHash: newHash,
+                referralCode: newRefCode,
+              },
+            });
+            console.log(`[db-migrate] Uzupełniono profil/hasło klientki ${c.email}.`);
+          }
+
+          // Upewnienie się, że klientka ma rekord uczestnika programu poleceń
+          if (newRefCode) {
+            const part = await prisma.referralParticipant.findUnique({
+              where: { email: c.email.toLowerCase() },
+            });
+            if (!part) {
+              try {
+                await prisma.referralParticipant.create({
+                  data: {
+                    customerId: c.id,
+                    email: c.email.toLowerCase(),
+                    customerName: `${c.firstName} ${c.lastName}`.trim(),
+                    referralCode: newRefCode,
+                  },
+                });
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (custErr) {
+        console.warn("[db-migrate] Ostrzezenie migracji/synchronizacji klientek:", custErr.message);
+      }
+
+      // Unieważnienie starych sesji administratora
+      try {
+        await prisma.adminSession.deleteMany({});
+      } catch (_) {}
+
+      // Synchronizacja aktywnych tokenów odzyskiwania dostępu z magazynu lokalnego
+      if (localStore?.passwordResetTokens && Array.isArray(localStore.passwordResetTokens)) {
+        const now = new Date();
+        for (const tok of localStore.passwordResetTokens) {
+          const exp = new Date(tok.expiresAt);
+          if (exp > now && tok.codeHash) {
+            const existingTok = await prisma.passwordResetToken.findFirst({
+              where: { codeHash: tok.codeHash },
+            });
+            if (!existingTok) {
+              await prisma.passwordResetToken.create({
+                data: {
+                  email: tok.email.toLowerCase(),
+                  codeHash: tok.codeHash,
+                  expiresAt: exp,
+                  attempts: tok.attempts || 0,
+                },
+              });
+              console.log(`[db-migrate] Zsynchronizowano bezpieczny token odzyskiwania dla: ${tok.email}`);
+            }
+          }
+        }
+      }
+    } catch (adminErr) {
+      console.warn("[db-migrate] Ostrzezenie inicjalizacji adminAccount / tokenow:", adminErr.message);
     }
-  } catch (err) {
-    console.warn("[db-migrate] Ostrzezenie podczas synchronizacji schematu:", err.message);
+
+    await prisma.$disconnect();
+  } catch (dataErr) {
+    console.warn("[db-migrate] Ostrzezenie podczas aktualizacji danych pomocniczych:", dataErr.message);
   }
 }
 
 run();
-
